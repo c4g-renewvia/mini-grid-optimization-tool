@@ -8,7 +8,7 @@ from mini_grid_solver.src.utils.models import SolverRequest, Solver
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Renewvia MST Solver")
+app = FastAPI(title="Mini Grid Optimization Tool")
 
 # Allow frontend to call this (update for production domain)
 app.add_middleware(
@@ -27,6 +27,25 @@ app.add_middleware(
 
 @app.post("/solve")
 async def solve(request: SolverRequest):
+    """
+    Handles the POST request to solve a problem using a specified solver and data input.
+
+    This endpoint receives a request payload containing the solver to be
+    used and the required data points. It checks the validity of the
+    input and computes the solution using the selected solver.
+
+    Raises:
+        HTTPException: If the number of provided points is less than 2,
+        a 400 error is raised. If any exception occurs during processing,
+        a 500 error is raised with the exception details.
+
+    Arguments:
+        request (SolverRequest): The request data containing solver information
+        and input points.
+
+    Returns:
+        dict: The result of the computation from the selected solver.
+    """
     if len(request.points) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 points")
 
@@ -45,7 +64,21 @@ async def solve(request: SolverRequest):
 
 @app.get("/solvers")
 async def get_solvers() -> dict:
-    # get solvers programatically from import
+    """
+    Handles the retrieval of available solvers and their input parameters.
+
+    The endpoint fetches solvers programmatically from the SOLVER_REGISTRY
+    and returns a dictionary containing the list of solvers and their respective
+    input parameters. If no solvers are available, an HTTPException is raised
+    indicating an internal server error.
+
+    Raises:
+        HTTPException: If there are no registered solvers in the SOLVER_REGISTRY.
+
+    Returns:
+        dict: A dictionary containing a list of solvers with their input parameters.
+    """
+    # get solvers programmatically from import
 
     if len(SOLVER_REGISTRY) == 0 or SOLVER_REGISTRY is None:
         raise HTTPException(status_code=500, detail="No solvers available")
