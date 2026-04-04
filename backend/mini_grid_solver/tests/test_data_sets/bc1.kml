@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Minigrid Test Coordinates 1</name>
+    <Style id="source">
+      <IconStyle><color>ff00cc00</color><scale>1.5</scale></IconStyle>
+      <LabelStyle><color>ff00ff00</color><scale>1.1</scale></LabelStyle>
+    </Style>
+    <Style id="terminal">
+      <IconStyle><color>ff3366ff</color><scale>1.3</scale></IconStyle>
+      <LabelStyle><scale>1.0</scale></LabelStyle>
+    </Style>
+    <Style id="pole">
+      <IconStyle><color>ffffff66</color><scale>1.1</scale></IconStyle>
+      <LabelStyle><color>ffffffff</color><scale>0.85</scale></LabelStyle>
+    </Style>
+    <Style id="lowVoltage">
+      <LineStyle><color>aa3b82f6</color><width>5</width></LineStyle>
+    </Style>
+    <Style id="highVoltage">
+      <LineStyle><color>aa8b5cf6</color><width>7</width></LineStyle>
+    </Style>
+    <Style id="summary">
+      <BalloonStyle>
+        <text><![CDATA[<h3>$[name]</h3><p>$[description]</p>]]></text>
+      </BalloonStyle>
+    </Style>
+
+    <!-- Power Source -->
+    <Placemark>
+      <name>Power Source</name>
+      <description>Type: source</description>
+      <styleUrl>#sourceStyle</styleUrl>
+      <Point>
+        <coordinates>34.721477,3.75689,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <!-- Terminal buildings -->
+    <Placemark>
+      <name>Terminal 1</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.720849,3.757086,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <Placemark>
+      <name>Terminal 2</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.720935,3.756774,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <Placemark>
+      <name>Terminal 3</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.721001,3.757295,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <Placemark>
+      <name>Terminal 4</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.720844,3.757632,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <Placemark>
+      <name>Terminal 5</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.721527,3.757501,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <Placemark>
+      <name>Terminal 6</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.721818,3.757336,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <Placemark>
+      <name>Terminal 7</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.721864,3.757683,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <Placemark>
+      <name>Terminal 8</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.722007,3.757585,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <Placemark>
+      <name>Terminal 9</name>
+      <description>Type: terminal</description>
+      <styleUrl>#terminalStyle</styleUrl>
+      <Point>
+        <coordinates>34.722045,3.75772,0</coordinates>
+      </Point>
+    </Placemark>
+
+  </Document>
+</kml>

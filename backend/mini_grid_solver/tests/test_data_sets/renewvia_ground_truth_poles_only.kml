@@ -1,0 +1,657 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Copy of RenewVia Building Locations</name>
+    <description/>
+    <Style id="icon-1899-0288D1-nodesc-normal">
+      <IconStyle>
+        <color>ffd18802</color>
+        <scale>1</scale>
+        <Icon>
+          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>
+        </Icon>
+        <hotSpot x="32" xunits="pixels" y="64" yunits="insetPixels"/>
+      </IconStyle>
+      <LabelStyle>
+        <scale>0</scale>
+      </LabelStyle>
+      <BalloonStyle>
+        <text><![CDATA[<h3>$[name]</h3>]]></text>
+      </BalloonStyle>
+    </Style>
+    <Style id="icon-1899-0288D1-nodesc-highlight">
+      <IconStyle>
+        <color>ffd18802</color>
+        <scale>1</scale>
+        <Icon>
+          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>
+        </Icon>
+        <hotSpot x="32" xunits="pixels" y="64" yunits="insetPixels"/>
+      </IconStyle>
+      <LabelStyle>
+        <scale>1</scale>
+      </LabelStyle>
+      <BalloonStyle>
+        <text><![CDATA[<h3>$[name]</h3>]]></text>
+      </BalloonStyle>
+    </Style>
+    <StyleMap id="icon-1899-0288D1-nodesc">
+      <Pair>
+        <key>normal</key>
+        <styleUrl>#icon-1899-0288D1-nodesc-normal</styleUrl>
+      </Pair>
+      <Pair>
+        <key>highlight</key>
+        <styleUrl>#icon-1899-0288D1-nodesc-highlight</styleUrl>
+      </Pair>
+    </StyleMap>
+    <Style id="icon-1899-E65100-nodesc-normal">
+      <IconStyle>
+        <color>ff0051e6</color>
+        <scale>1</scale>
+        <Icon>
+          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>
+        </Icon>
+        <hotSpot x="32" xunits="pixels" y="64" yunits="insetPixels"/>
+      </IconStyle>
+      <LabelStyle>
+        <scale>0</scale>
+      </LabelStyle>
+      <BalloonStyle>
+        <text><![CDATA[<h3>$[name]</h3>]]></text>
+      </BalloonStyle>
+    </Style>
+    <Style id="icon-1899-E65100-nodesc-highlight">
+      <IconStyle>
+        <color>ff0051e6</color>
+        <scale>1</scale>
+        <Icon>
+          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>
+        </Icon>
+        <hotSpot x="32" xunits="pixels" y="64" yunits="insetPixels"/>
+      </IconStyle>
+      <LabelStyle>
+        <scale>1</scale>
+      </LabelStyle>
+      <BalloonStyle>
+        <text><![CDATA[<h3>$[name]</h3>]]></text>
+      </BalloonStyle>
+    </Style>
+    <StyleMap id="icon-1899-E65100-nodesc">
+      <Pair>
+        <key>normal</key>
+        <styleUrl>#icon-1899-E65100-nodesc-normal</styleUrl>
+      </Pair>
+      <Pair>
+        <key>highlight</key>
+        <styleUrl>#icon-1899-E65100-nodesc-highlight</styleUrl>
+      </Pair>
+    </StyleMap>
+    <Folder>
+      <name>Power Sources</name>
+      <Placemark>
+        <name>Power Source</name>
+        <description>Type: source</description>
+        <styleUrl>#icon-1899-0F9D58</styleUrl>
+        <Point>
+          <coordinates>
+            34.1171724,-0.2216199,0
+          </coordinates>
+        </Point>
+      </Placemark>
+    </Folder>
+    <Folder>
+      <name>Poles</name>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 1</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1171277,-0.221536,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 2</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1170249,-0.2212013,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 4</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1165367,-0.2219068,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 5</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1169029,-0.2207936,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 6</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1166766,-0.2204771,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 7</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.116075,-0.2203352,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 8</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1155412,-0.2199785,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 9</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1167894,-0.2198316,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 10</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1164514,-0.2198826,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 11</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1163227,-0.2193784,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 12</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1161423,-0.2187749,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 13</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1156644,-0.2185548,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 14</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1164266,-0.2186596,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 15</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1160889,-0.2183796,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 16</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1155732,-0.2180657,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 17</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1160439,-0.2180599,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 18</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1165006,-0.2180437,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 19</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1160082,-0.2177621,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 20</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1153432,-0.2176906,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 21</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1160846,-0.2173293,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 22</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1164608,-0.2173523,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 23</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1161169,-0.2167852,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 24</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1165487,-0.216973,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 25</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1161482,-0.2159243,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 26</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1168187,-0.21542,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 27</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1162229,-0.2150449,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 28</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1157083,-0.2148997,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 29</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1168938,-0.2224872,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 30</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1174625,-0.2226803,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 31</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1174326,-0.2210189,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 32</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1170942,-0.220413,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 33</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1166579,-0.2193864,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 34</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1159342,-0.2193278,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 36</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1148438,-0.2196807,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 35</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1164429,-0.217746,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 37</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1140424,-0.2195979,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 38</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1148812,-0.2200304,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 39</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.114951,-0.2203469,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 40</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1150127,-0.2206285,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 41</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1145547,-0.2206443,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 42</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1140746,-0.2206684,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 43</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.115077,-0.2208994,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 44</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1148784,-0.217658,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 45</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1145432,-0.217591,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 46</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1141891,-0.2175132,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 47</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1141381,-0.2180013,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 48</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1141003,-0.2183785,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 49</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1140359,-0.2189085,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 50</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1151557,-0.2147548,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 51</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1144862,-0.2146465,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 53</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.115607,-0.217182,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 54</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1151671,-0.2168225,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 55</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.118184,-0.2228573,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 56</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1182591,-0.2224174,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <description>Type: pole</description>
+        <name>Pole 3</name>
+        <styleUrl>#icon-1899-E65100-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            34.1165311,-0.2215302,0
+          </coordinates>
+        </Point>
+      </Placemark>
+    </Folder>
+  </Document>
+</kml>

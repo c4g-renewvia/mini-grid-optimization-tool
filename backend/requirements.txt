@@ -1,0 +1,9 @@
+fastapi
+networkx
+numpy
+scikit-learn
+matplotlib
+pydantic
+pandas
+scipy
+shapely

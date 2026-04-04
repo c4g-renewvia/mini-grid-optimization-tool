@@ -1,0 +1,26 @@
+name: Deploy Backend to Vercel
+
+on:
+  push:
+    branches: [master]
+    paths: ['backend/**']
+  pull_request:
+    paths: ['backend/**']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy FastAPI backend to Vercel
+        uses: amondnet/vercel-action@v25   # check for latest version
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./backend
+          vercel-args: '--prod'   # only applied on main branch (see scope)
+          scope: ${{ secrets.VERCEL_ORG_ID }}

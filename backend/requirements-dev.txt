@@ -1,0 +1,11 @@
+fastapi
+networkx
+matplotlib
+numpy
+pykml
+pydantic
+pandas
+pytest
+scikit-learn
+scipy
+shapely
