@@ -42,7 +42,7 @@ next-env.d.ts
 # prisma generated client
 /prisma/generated/
 package-lock.json
-.env*.local
+.env
 
 # Python
 __pycache__/
