@@ -2,7 +2,7 @@ name: Deploy Backend to Vercel
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths: ['backend/**']
   pull_request:
     paths: ['backend/**']
