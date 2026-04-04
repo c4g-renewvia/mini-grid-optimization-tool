@@ -35,8 +35,6 @@ import type {
 const GOOGLE_MAPS_API_KEY =
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY';
 
-console.log('GOOGLE_MAPS_API_KEY', GOOGLE_MAPS_API_KEY);
-
 function toLiteral(
   pos: google.maps.marker.AdvancedMarkerElement['position']
 ): google.maps.LatLngLiteral | null {
@@ -2670,6 +2668,7 @@ export default function MiniGridToolPage() {
         <Script
           src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=marker`}
           strategy='afterInteractive'
+          async={true}
           onLoad={initMap}
         />
       </div>
