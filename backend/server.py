@@ -26,6 +26,17 @@ app.add_middleware(
 
 @app.post("/solve")
 async def solve(request: SolverRequest):
+    if request.method == "OPTIONS":
+        return JSONResponse(
+            content={},
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin") or "*",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, ...",
+            }
+        )
     if len(request.points) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 points")
 
