@@ -70,7 +70,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body: notificationData.body,
     icon: '/android-chrome-192x192.png',
-    badge: '/favicon-32x32.png',
+    badge: '/lightning.png',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),

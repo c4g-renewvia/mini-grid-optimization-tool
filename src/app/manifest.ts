@@ -39,13 +39,13 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: 'maskable',
       },
       {
-        src: '/favicon-32x32.png',
+        src: '/lightning.png',
         sizes: '32x32',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/favicon-16x16.png',
+        src: '/lightning.png',
         sizes: '16x16',
         type: 'image/png',
         purpose: 'any',

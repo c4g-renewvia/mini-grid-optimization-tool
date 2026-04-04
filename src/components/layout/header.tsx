@@ -20,7 +20,7 @@ export function Header() {
         <div className='flex items-center gap-3'>
           <Link href='/' className='flex items-center gap-2'>
             <Image
-              src='/c4g-logo.png'
+              src='/lightning.png'
               alt='Computing for Good'
               width={32}
               height={32}
