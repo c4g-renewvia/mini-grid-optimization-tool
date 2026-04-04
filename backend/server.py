@@ -17,7 +17,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:8000",
         "https://c4g-renewvia.vercel.app",
-        "https://mini-grid-optimization-tool.vercel.app/",
+        "https://mini-grid-optimization-tool.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
