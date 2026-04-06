@@ -912,7 +912,6 @@ export default function MiniGridToolPage() {
 
         const data = await res.json();
         setSolvers(data.solvers || []);
-        console.log('Solvers loaded from backend');
       } catch (err) {
         console.warn('⚠️ Could not fetch solvers from backend (using fallback):', err);
 
