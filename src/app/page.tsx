@@ -2291,32 +2291,36 @@ export default function MiniGridToolPage() {
       {/* 1. Sidebar Toggle Button (Hamburger) */}
       {/* Sidebar Toggle Button - Moved Up */}
       <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className='fixed top-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xl transition-all hover:scale-110 hover:bg-emerald-500 active:scale-95'
-          aria-label='Toggle Sidebar'
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className='fixed top-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xl transition-all hover:scale-110 hover:bg-emerald-500 active:scale-95'
+        aria-label='Toggle Sidebar'
       >
         {sidebarOpen ? (
-            // Close (X) icon
-            <svg
-                className='h-6 w-6'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-                strokeWidth={2.5}
-            >
-              <path strokeLinecap='round' strokeLinejoin='round' d='M6 18L18 6' />
-            </svg>
+          // Close (X) icon
+          <svg
+            className='h-6 w-6'
+            fill='none'
+            stroke='currentColor'
+            viewBox='0 0 24 24'
+            strokeWidth={2.5}
+          >
+            <path strokeLinecap='round' strokeLinejoin='round' d='M6 18L18 6' />
+          </svg>
         ) : (
-            // Hamburger icon
-            <svg
-                className='h-6 w-6'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-                strokeWidth={2.5}
-            >
-              <path strokeLinecap='round' strokeLinejoin='round' d='M4 6h16M4 12h16M4 18h16' />
-            </svg>
+          // Hamburger icon
+          <svg
+            className='h-6 w-6'
+            fill='none'
+            stroke='currentColor'
+            viewBox='0 0 24 24'
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              d='M4 6h16M4 12h16M4 18h16'
+            />
+          </svg>
         )}
       </button>
 
@@ -2330,30 +2334,29 @@ export default function MiniGridToolPage() {
 
         {/* Sidebar Drawer - Extended to Top with Sign In Button */}
         <div
-            className={`fixed top-0 left-0 z-40 h-full border-r border-zinc-200 bg-white text-zinc-900 shadow-2xl transition-transform duration-300 ease-in-out dark:border-zinc-700 dark:bg-zinc-950 dark:text-white ${
-                sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-            }`}
-            style={{ width: `${sidebarWidth}px` }}
+          className={`fixed top-0 left-0 z-40 h-full border-r border-zinc-200 bg-white text-zinc-900 shadow-2xl transition-transform duration-300 ease-in-out dark:border-zinc-700 dark:bg-zinc-950 dark:text-white ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+          style={{ width: `${sidebarWidth}px` }}
         >
           {/* Resize Handle */}
           <div
-              className='absolute top-0 right-0 bottom-0 z-50 w-1.5 cursor-col-resize bg-zinc-300 transition-colors hover:bg-purple-500 active:bg-purple-600 dark:bg-zinc-700'
-              onMouseDown={handleMouseDown}
+            className='absolute top-0 right-0 bottom-0 z-50 w-1.5 cursor-col-resize bg-zinc-300 transition-colors hover:bg-purple-500 active:bg-purple-600 dark:bg-zinc-700'
+            onMouseDown={handleMouseDown}
           />
 
           {/* Header Bar - Contains Hamburger (outside) + Sign In Button */}
-          <div className="flex h-20 items-center justify-between border-b border-zinc-200 bg-white px-6 dark:border-zinc-700 dark:bg-zinc-950">
-            <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
-            </div>
+          <div className='flex h-20 items-center justify-between border-b border-zinc-200 bg-white px-6 dark:border-zinc-700 dark:bg-zinc-950'>
+            <div className='text-lg font-semibold text-emerald-700 dark:text-emerald-300'></div>
 
             {/* User Menu */}
-            <div className="flex-shrink-0">
+            <div className='flex-shrink-0'>
               <SidebarUserMenu />
             </div>
           </div>
 
           {/* Scrollable Content */}
-          <div className="h-[calc(100%-4rem)] overflow-y-auto p-6">
+          <div className='h-[calc(100%-4rem)] overflow-y-auto p-6'>
             <div className='space-y-12'>
               {/* 1. Define Marker Section */}
               <section>
@@ -2613,7 +2616,12 @@ export default function MiniGridToolPage() {
             <hr className='border-zinc-200 dark:border-zinc-700' />
             <br />
             <p className='text-center text-xs text-zinc-500 dark:text-zinc-400'>
-              <a href={'https://forms.gle/Az6j5cjtzJJDEQAEA'} target='_blank'>
+              <a
+                href={
+                  'https://drive.google.com/file/d/1m5vtUijPxrbMqG0B-hNIa4mG5RXADIH5/view?usp=drive_link'
+                }
+                target='_blank'
+              >
                 User Manual |
               </a>
               <a href={'https://forms.gle/Az6j5cjtzJJDEQAEA'} target='_blank'>
