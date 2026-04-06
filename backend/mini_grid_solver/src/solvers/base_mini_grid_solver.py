@@ -45,7 +45,7 @@ class BaseMiniGridSolver(ABC):
         self._source_idx: Optional[int] = None
         self._terminal_indices: Optional[List[int]] = None
         self._names: Optional[List[str]] = None
-        self._costs: Optional[Dict[str, float]] = None
+        self._costs: Optional[Costs] = None
 
     # ─── Static Helper methods ───────────────────────────────────────────────
     @staticmethod
@@ -397,7 +397,7 @@ class BaseMiniGridSolver(ABC):
         return nodes
 
     def parse_and_validate_input(self, poles: bool = True) -> Tuple[
-        list[Node], np.ndarray, int, List[int], List[str], Dict[str, float]]:
+        List[Node], np.ndarray, int, List[int], List[str], Dict[str, float]]:
         """
         Parses and validates the input data for constructing nodes. This includes parsing input data
         such as coordinates, source index, terminal indices, names, and solver, as well as ensuring

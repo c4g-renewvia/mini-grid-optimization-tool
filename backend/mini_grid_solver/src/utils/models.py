@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Dict, Any, Optional, Literal, Tuple
 from typing import Union
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -40,7 +40,7 @@ class SolverRequest(BaseModel):
 
 class Solver(BaseModel):
     name: str
-    params: list[dict[str, Any]] = []
+    params: List[Dict[str, Any]] = []
 
 
 class Node(BaseModel):
@@ -62,7 +62,7 @@ class Node(BaseModel):
     )
 
     @property
-    def coord_tuple(self) -> tuple[float, float]:
+    def coord_tuple(self) -> Tuple[float, float]:
         return self.lat, self.lng
 
 
