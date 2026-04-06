@@ -9,6 +9,7 @@ interface MapControlsProps {
   onRedo: () => void;
   onReset: () => void;
   hasData: boolean;
+  sidebarOpen: boolean;
 }
 
 export default function MapControls({
@@ -18,14 +19,17 @@ export default function MapControls({
   onRedo,
   onReset,
   hasData,
+  sidebarOpen,
 }: MapControlsProps) {
   return (
-    <div className='fixed right-40 bottom-5 z-50 flex items-center gap-3'>
+    <div
+      className={`fixed bottom-5 left-4 z-50 flex flex-col gap-3 transition-all duration-300 md:right-40 md:bottom-5 md:left-auto md:flex-row md:items-center ${sidebarOpen ? 'hidden md:flex' : 'flex'} `}
+    >
       {/* Undo Button */}
       <button
         onClick={onUndo}
         disabled={!canUndo}
-        className='flex items-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50'
+        className='flex w-full items-center justify-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto'
         title='Undo (Ctrl/Cmd + Z)'
       >
         <svg
@@ -42,14 +46,14 @@ export default function MapControls({
             d='M3 10h10a8 8 0 018 8v2M3 10l6 6 6-6'
           />
         </svg>
-        Undo
+        <span>Undo</span>
       </button>
 
       {/* Redo Button */}
       <button
         onClick={onRedo}
         disabled={!canRedo}
-        className='flex items-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50'
+        className='flex w-full items-center justify-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto'
         title='Redo (Ctrl/Cmd + Shift + Z)'
       >
         <svg
@@ -66,14 +70,14 @@ export default function MapControls({
             d='M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6-6-6'
           />
         </svg>
-        Redo
+        <span>Redo</span>
       </button>
 
       {/* Reset Button */}
       <button
         onClick={onReset}
         disabled={!hasData}
-        className='flex items-center gap-2 rounded-full bg-red-600 px-6 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-red-500 active:scale-95 disabled:opacity-50 dark:text-white'
+        className='flex w-full items-center justify-center gap-2 rounded-full bg-red-600 px-6 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-red-500 active:scale-95 disabled:opacity-50 md:w-auto dark:text-white'
         title='Reset everything'
       >
         <svg
@@ -90,7 +94,7 @@ export default function MapControls({
             d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
           />
         </svg>
-        Reset
+        <span>Reset</span>
       </button>
     </div>
   );

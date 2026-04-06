@@ -2334,7 +2334,7 @@ export default function MiniGridToolPage() {
 
         {/* Sidebar Drawer - Extended to Top with Sign In Button */}
         <div
-          className={`fixed top-0 left-0 z-40 h-full border-r border-zinc-200 bg-white text-zinc-900 shadow-2xl transition-transform duration-300 ease-in-out dark:border-zinc-700 dark:bg-zinc-950 dark:text-white ${
+          className={`md:w-autoborder-r fixed top-0 left-0 z-40 h-full w-full max-w-[100vw] border-zinc-200 bg-white text-zinc-900 shadow-2xl transition-transform duration-300 ease-in-out md:max-w-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-white ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
           style={{ width: `${sidebarWidth}px` }}
@@ -2656,6 +2656,7 @@ export default function MiniGridToolPage() {
           }}
           onReset={handleResetMap}
           hasData={dataPoints.length > 0 || miniGridNodes.length > 0}
+          sidebarOpen={sidebarOpen}
         />
 
         {/* FOOTER - Minimal */}
