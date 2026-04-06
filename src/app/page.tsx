@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import Script from 'next/script';
 import Papa from 'papaparse';
-import {useSession} from 'next-auth/react';
+import {signIn, useSession} from 'next-auth/react';
 
 import { useMiniGridHistory } from '@/hooks/useMiniGridHistory';
 
