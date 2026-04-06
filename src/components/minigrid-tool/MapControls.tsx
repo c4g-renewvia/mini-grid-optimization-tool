@@ -1,3 +1,5 @@
+// components/minigrid-tool/MapControls.tsx
+
 'use client';
 
 import React from 'react';
@@ -9,7 +11,7 @@ interface MapControlsProps {
   onRedo: () => void;
   onReset: () => void;
   hasData: boolean;
-  sidebarOpen: boolean;
+  sidebarOpen: boolean; // ← This is required
 }
 
 export default function MapControls({

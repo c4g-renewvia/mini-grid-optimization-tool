@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import Script from 'next/script';
 import Papa from 'papaparse';
-import {signIn, useSession} from 'next-auth/react';
+import {useSession} from 'next-auth/react';
 
 import { useMiniGridHistory } from '@/hooks/useMiniGridHistory';
 
@@ -895,13 +895,38 @@ export default function MiniGridToolPage() {
       window.removeEventListener('mouseup', handleMouseUp);
     };
   });
+
   // ==================== SOLVERS & PARAMETERS ====================
   useEffect(() => {
-    fetch(
-      process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers'
-    )
-      .then((res) => res.json())
-      .then((data) => setSolvers(data.solvers || []));
+    const fetchSolvers = async () => {
+      const url =
+        process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers';
+
+      try {
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        setSolvers(data.solvers || []);
+        console.log('Solvers loaded from backend');
+      } catch (err) {
+        console.warn('⚠️ Could not fetch solvers from backend (using fallback):', err);
+
+        // Safe fallback so build never fails
+        const fallbackSolvers: Solvers[] = [
+          { name: 'SimpleMSTSolver', params: [] },
+          { name: 'SteinerizedMSTSolver', params: [] },
+          { name: 'GreedyIterSteinerSolver', params: [] },
+        ];
+        setSolvers(fallbackSolvers);
+      }
+    };
+
+    fetchSolvers();
   }, []);
 
   useEffect(() => {
