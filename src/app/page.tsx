@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import Script from 'next/script';
 import Papa from 'papaparse';
-import {signIn, useSession} from 'next-auth/react';
+import {useSession} from 'next-auth/react';
 
 import { useMiniGridHistory } from '@/hooks/useMiniGridHistory';
 
@@ -22,6 +22,7 @@ import ManualPointInput from '@/components/minigrid-tool/ManualPointInput';
 import ExportSummary from '@/components/minigrid-tool/ExportSummary';
 import SavedGridsSection from '@/components/minigrid-tool/SavedGridsSection';
 import MapControls from '@/components/minigrid-tool/MapControls';
+import { SidebarUserMenu } from '@/components/minigrid-tool/SidebarUserMenu';
 
 import type {
   MarkerPoint,
@@ -2345,21 +2346,10 @@ export default function MiniGridToolPage() {
             <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
             </div>
 
-            {/* Sign In Button - Top Right of Sidebar */}
-            {!session?.user ? (
-                <button
-                    onClick={() => signIn()}
-                    className="rounded-full px-5 py-1.5 font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-[0.97]"
-                >
-                  Sign In
-                </button>
-            ) : (
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="text-emerald-600 dark:text-emerald-400 font-medium">
-                    {session.user.name || session.user.email?.split('@')[0]}
-                  </div>
-                </div>
-            )}
+            {/* User Menu */}
+            <div className="flex-shrink-0">
+              <SidebarUserMenu />
+            </div>
           </div>
 
           {/* Scrollable Content */}
