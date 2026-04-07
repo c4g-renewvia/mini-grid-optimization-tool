@@ -2524,6 +2524,18 @@ export default function MiniGridToolPage() {
                       onHighVoltagePoleToHouseChange={
                         setHighVoltagePoleToTerminalLengthConstraint
                       }
+                      lowVoltagePoleToTerminalMinimumLength={0}
+                      highVoltagePoleToTerminalMinimumLength={0}
+                      onLowVoltagePoleToTerminalMinimumChange={function (
+                        _value: number
+                      ): void {
+                        throw new Error('Function not implemented.');
+                      }}
+                      onHighVoltagePoleToTerminalMinimumChange={function (
+                        _value: number
+                      ): void {
+                        throw new Error('Function not implemented.');
+                      }}
                     />
 
                     <SolverConfiguration

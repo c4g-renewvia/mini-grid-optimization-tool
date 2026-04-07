@@ -17,48 +17,48 @@ interface CostParametersProps {
   highVoltagePoleToPoleLengthConstraint: number;
   highVoltagePoleToTerminalLengthConstraint: number;
 
-  // Minimum Length Constraints (New)
+  // Minimum Length Constraints
   lowVoltagePoleToTerminalMinimumLength: number;
   highVoltagePoleToTerminalMinimumLength: number;
 
+  // Handlers
   onLowVoltagePoleToPoleChange: (_value: number) => void;
   onLowVoltagePoleToHouseChange: (_value: number) => void; // Pole to Terminal (LV)
   onHighVoltagePoleToPoleChange: (_value: number) => void;
   onHighVoltagePoleToHouseChange: (_value: number) => void; // Pole to Terminal (HV)
 
-  // New minimum handlers
   onLowVoltagePoleToTerminalMinimumChange: (_value: number) => void;
   onHighVoltagePoleToTerminalMinimumChange: (_value: number) => void;
 }
 
 export default function CostParameters({
-  poleCost,
-  lowVoltageCost,
-  highVoltageCost,
-  onPoleCostChange,
-  onLowVoltageCostChange,
-  onHighVoltageCostChange,
-  onRandomCosts,
+                                         poleCost,
+                                         lowVoltageCost,
+                                         highVoltageCost,
+                                         onPoleCostChange,
+                                         onLowVoltageCostChange,
+                                         onHighVoltageCostChange,
+                                         onRandomCosts,
 
-  // Max constraints
-  lowVoltagePoleToPoleLengthConstraint,
-  lowVoltagePoleToTerminalLengthConstraint,
-  highVoltagePoleToPoleLengthConstraint,
-  highVoltagePoleToTerminalLengthConstraint,
+                                         // Max constraints
+                                         lowVoltagePoleToPoleLengthConstraint,
+                                         lowVoltagePoleToTerminalLengthConstraint,
+                                         highVoltagePoleToPoleLengthConstraint,
+                                         highVoltagePoleToTerminalLengthConstraint,
 
-  // Min constraints
-  lowVoltagePoleToTerminalMinimumLength,
-  highVoltagePoleToTerminalMinimumLength,
+                                         // Min constraints
+                                         lowVoltagePoleToTerminalMinimumLength,
+                                         highVoltagePoleToTerminalMinimumLength,
 
-  onLowVoltagePoleToPoleChange,
-  onLowVoltagePoleToHouseChange,
-  onHighVoltagePoleToPoleChange,
-  onHighVoltagePoleToHouseChange,
+                                         // Handlers
+                                         onLowVoltagePoleToPoleChange,
+                                         onLowVoltagePoleToHouseChange,
+                                         onHighVoltagePoleToPoleChange,
+                                         onHighVoltagePoleToHouseChange,
 
-  // New min handlers
-  onLowVoltagePoleToTerminalMinimumChange,
-  onHighVoltagePoleToTerminalMinimumChange,
-}: CostParametersProps) {
+                                         onLowVoltagePoleToTerminalMinimumChange,
+                                         onHighVoltagePoleToTerminalMinimumChange,
+                                       }: CostParametersProps) {
   return (
     <div className='flex flex-col rounded-xl border border-zinc-200 bg-white p-7 backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/50'>
       <h3 className='mb-5 text-xl font-semibold text-zinc-900 dark:text-white'>
@@ -115,7 +115,6 @@ export default function CostParameters({
       </div>
 
       {/* ====================== LENGTH CONSTRAINTS ====================== */}
-
       <div className='mt-8 space-y-8'>
         {/* Maximum Length Constraints */}
         <div className='rounded-xl border border-amber-200 bg-amber-50 p-6 dark:border-amber-500/30 dark:bg-amber-900/20'>
@@ -142,9 +141,7 @@ export default function CostParameters({
                   min='1'
                   value={lowVoltagePoleToPoleLengthConstraint}
                   onChange={(e) =>
-                    onLowVoltagePoleToPoleChange(
-                      parseFloat(e.target.value) || 30
-                    )
+                    onLowVoltagePoleToPoleChange(parseFloat(e.target.value) || 30)
                   }
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
@@ -159,9 +156,7 @@ export default function CostParameters({
                   min='1'
                   value={lowVoltagePoleToTerminalLengthConstraint}
                   onChange={(e) =>
-                    onLowVoltagePoleToHouseChange(
-                      parseFloat(e.target.value) || 20
-                    )
+                    onLowVoltagePoleToHouseChange(parseFloat(e.target.value) || 20)
                   }
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
@@ -183,9 +178,7 @@ export default function CostParameters({
                   min='1'
                   value={highVoltagePoleToPoleLengthConstraint}
                   onChange={(e) =>
-                    onHighVoltagePoleToPoleChange(
-                      parseFloat(e.target.value) || 50
-                    )
+                    onHighVoltagePoleToPoleChange(parseFloat(e.target.value) || 50)
                   }
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
@@ -200,9 +193,7 @@ export default function CostParameters({
                   min='1'
                   value={highVoltagePoleToTerminalLengthConstraint}
                   onChange={(e) =>
-                    onHighVoltagePoleToHouseChange(
-                      parseFloat(e.target.value) || 20
-                    )
+                    onHighVoltagePoleToHouseChange(parseFloat(e.target.value) || 20)
                   }
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
@@ -211,7 +202,7 @@ export default function CostParameters({
           </div>
         </div>
 
-        {/* Minimum Length Constraints - New Section */}
+        {/* Minimum Length Constraints */}
         <div className='rounded-xl border border-blue-200 bg-blue-50 p-6 dark:border-blue-500/30 dark:bg-blue-900/20'>
           <h4 className='mb-4 text-lg font-semibold text-blue-700 dark:text-blue-300'>
             Minimum Length Constraints (meters)
@@ -236,9 +227,7 @@ export default function CostParameters({
                   min='0'
                   value={lowVoltagePoleToTerminalMinimumLength}
                   onChange={(e) =>
-                    onLowVoltagePoleToTerminalMinimumChange(
-                      parseFloat(e.target.value) || 5
-                    )
+                    onLowVoltagePoleToTerminalMinimumChange(parseFloat(e.target.value) || 5)
                   }
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
@@ -260,9 +249,7 @@ export default function CostParameters({
                   min='0'
                   value={highVoltagePoleToTerminalMinimumLength}
                   onChange={(e) =>
-                    onHighVoltagePoleToTerminalMinimumChange(
-                      parseFloat(e.target.value) || 8
-                    )
+                    onHighVoltagePoleToTerminalMinimumChange(parseFloat(e.target.value) || 8)
                   }
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
