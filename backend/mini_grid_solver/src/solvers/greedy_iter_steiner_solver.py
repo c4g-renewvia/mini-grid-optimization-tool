@@ -28,6 +28,8 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
     def __init__(self, request: SolverRequest):
         super().__init__(request)
+        self._delaunay_cache = None  # scipy.spatial.Delaunay object
+        self._cached_coords = None  # the coords used to build the cache
 
     @staticmethod
     def get_input_params():
@@ -66,6 +68,52 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         # Otherwise: simple centroid approximation (good enough for our purpose)
         # (Real 120° construction is more involved — this is fast & reasonable)
         return np.mean(pts, axis=0)
+
+    def _get_delaunay(self, coords: np.ndarray) -> Delaunay:
+        """
+        Returns a Delaunay triangulation, rebuilding only when the point set changed significantly.
+        """
+        if (self._delaunay_cache is None or
+                self._cached_coords is None or
+                len(coords) != len(self._cached_coords) or
+                np.max(np.abs(coords - self._cached_coords)) > 1e-6):  # points actually changed
+
+            if self.request.debug >= 1:
+                print(f"Rebuilding Delaunay triangulation for {len(coords)} points")
+
+            self._delaunay_cache = Delaunay(coords)
+            self._cached_coords = coords.copy()
+
+        return self._delaunay_cache
+
+    def _compute_coords_hash(self, coords: np.ndarray) -> str:
+        """Create a simple hash to detect if coordinates have changed."""
+        # Round to 6 decimals (meter-level precision) and hash
+        rounded = np.round(coords, decimals=6)
+        return str(rounded.tobytes())
+
+    def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """
+        Returns the distance matrix for current coordinates.
+        Recomputes only when points have actually changed.
+        """
+        if coords is None or len(coords) == 0:
+            return np.zeros((0, 0))
+
+        current_hash = self._compute_coords_hash(coords)
+
+        # Recompute only if cache is missing or points changed
+        if (self._dist_matrix is None or
+                self._cached_coords_hash != current_hash or
+                self._dist_matrix.shape[0] != len(coords)):
+
+            if self.request.debug >= 1:
+                print(f"Recomputing distance matrix for {len(coords)} points")
+
+            self._dist_matrix = self.haversine_vec(coords, coords)  # vectorized, fast
+            self._cached_coords_hash = current_hash
+
+        return self._dist_matrix
 
     def generate_projection_candidates(
             self,
@@ -186,7 +234,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             return np.empty((0, 2), dtype=float)
 
         # Compute Delaunay triangulation
-        tri = Delaunay(coords)
+        tri = self._get_delaunay(coords)
 
         candidates = []
 
@@ -304,8 +352,8 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
     def generate_proximity_fermat_candidates(
             self,
             coords: np.ndarray,
-            max_distance: float = 300.0,
-            max_candidates: int = 300,
+            max_distance: float = 50.0,
+            max_candidates: int = 100,
     ) -> np.ndarray:
         """
         Generate candidate pole markers using approximate Fermat-Torricelli points
@@ -316,14 +364,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             return np.empty((0, 2), dtype=float)
 
         # 1. Precompute a localized distance matrix for the coordinates
-        # We do this here because this is called before the main dist_matrix is built
-        dist_matrix = np.zeros((n, n))
-        for i in range(n):
-            for j in range(i + 1, n):
-                # Using the haversine_meters function already in your class
-                d = self.haversine_meters(coords[i, 0], coords[i, 1], coords[j, 0], coords[j, 1])
-                dist_matrix[i, j] = d
-                dist_matrix[j, i] = d
+        dist_matrix = self._get_distance_matrix(coords)
 
         candidates = []
 
@@ -506,35 +547,54 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
     def _evaluate_rollout(self, current_coords, current_names, candidate, depth=1):
         """
-        Simulates 'depth' additional greedy steps to see the long-term potential of a candidate.
+        Evaluates the improvement of a rollout operation for graph optimization tasks, calculating
+        potential future configurations and their associated costs.
+
+        This method computes the total cost of a graph after adding a candidate node to the current
+        coordinates and recursively looks ahead to test possible next steps (up to the specified depth).
+        It is primarily used for optimization tasks where graph traversal or node ordering is key.
+
+        Parameters:
+            current_coords (numpy.ndarray): A 2D array representing the coordinates of the current nodes
+                in the graph.
+            current_names (list of str): A list of names representing the current nodes in the graph.
+            candidate (numpy.ndarray): A 1D array representing the coordinate of the candidate node being
+                evaluated.
+            depth (int): An integer specifying the recursion depth for rollout or look-ahead evaluations
+                of future configurations (default is 1).
+
+        Returns:
+            float: The best total cost computed for graph configurations after evaluating the rollout
+            operation with the candidate node and potential future configurations.
         """
-        # 1. Setup temporary state with the candidate
         temp_coords = np.vstack([current_coords, candidate])
         temp_names = current_names + ['pole']
 
-        # Initialize best_future_cost with the cost of the INITIAL candidate step
-        # This ensures we always have a value to return if look-ahead fails.
-        trial_nodes = self._build_nodes(current_coords, [candidate], temp_names)
+        # Precompute base dist matrix once
+        base_dist = self._get_distance_matrix(current_coords)
+        cand_dists = self._distances_from_new_point(current_coords, candidate)
 
-        dg_init = self.build_directed_graph_for_arborescence(trial_nodes)
-        arbo_init = self._minimum_spanning_arborescence_w_attrs(dg_init)
+        # Initial cost with fast graph builder
+        trial_nodes = self._build_nodes(current_coords, [candidate], temp_names)
+        DG_init = self._build_directed_graph_with_new_point(
+            trial_nodes, base_dist, cand_dists, new_point_idx=len(current_coords)
+        )
+        arbo_init = self._minimum_spanning_arborescence_w_attrs(DG_init)
         best_future_cost = self._compute_total_cost(arbo_init)
 
-        # 2. Perform depth-limited look-ahead
+        # Look-ahead steps
         for d in range(depth):
-            # Using proximity fermat for fast look-ahead as suggested in iteration logs
             look_ahead_cands = self.generate_proximity_fermat_candidates(temp_coords, max_candidates=10)
-
             if len(look_ahead_cands) == 0:
                 break
 
             best_step_cand = None
-            # We try to improve the best_future_cost within this specific depth step
-
             for fc in look_ahead_cands:
-                # We must pass the original base coords and the full set of added poles (candidate + fc)
-                f_nodes = self._build_nodes(current_coords, np.vstack([candidate, fc]), temp_names + ['pole'])
+                # For second-level candidates, we can fall back to full method or extend the fast builder
+                f_nodes = self._build_nodes(current_coords, np.vstack([candidate, fc]),
+                                            temp_names + ['pole'])
 
+                # For simplicity in rollout, use the original method (or extend later)
                 DG = self.build_directed_graph_for_arborescence(f_nodes)
                 arbo = self._minimum_spanning_arborescence_w_attrs(DG)
                 cost = self._compute_total_cost(arbo)
@@ -547,10 +607,127 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 temp_coords = np.vstack([temp_coords, best_step_cand])
                 temp_names.append('pole')
             else:
-                # No further improvement found at this depth
                 break
 
         return best_future_cost
+
+    def _distances_from_new_point(self, current_coords: np.ndarray, new_point: np.ndarray) -> np.ndarray:
+        """
+        Calculates the distances from a new point to a series of current coordinates using the Haversine formula.
+
+        This method computes the pairwise distances between a new point and a collection of current coordinates,
+        leveraging the vectorized implementation of the Haversine formula.
+
+        Args:
+            current_coords (np.ndarray): A 2D array of shape (n, 2) where each row represents the latitude and
+                longitude of a point in radians.
+            new_point (np.ndarray): A 1D array-like object of shape (2,) representing the latitude and longitude
+                of a single point in radians.
+
+        Returns:
+            np.ndarray: A flattened 1D array of shape (n,) containing the calculated distances from the new point
+            to each point in the `current_coords` array.
+        """
+        new_point = np.array(new_point).reshape(1, 2)  # shape (1, 2)
+        return self.haversine_vec(new_point, current_coords).flatten()
+
+    def _build_directed_graph_with_new_point(
+            self,
+            nodes,
+            base_dist_matrix: np.ndarray,
+            cand_dists: np.ndarray,
+            new_point_idx: int
+    ) -> nx.DiGraph:
+        """
+        Builds a directed graph representing a network with an additional node.
+
+        This method constructs a directed graph (DiGraph) to represent connections between
+        various types of nodes such as source, pole, and terminal nodes. It incorporates both
+        existing nodes and a new node, updating edges and weights based on distances and
+        connection rules.
+
+        Parameters:
+        nodes: List
+            A list of Node objects representing the elements in the network. Each Node object
+            must have attributes like index, name, type, lat, and lng for the graph.
+        base_dist_matrix: np.ndarray
+            A 2D array representing the base distance matrix between the existing nodes.
+        cand_dists: np.ndarray
+            A 1D array representing the distances between the new candidate point and other nodes.
+        new_point_idx: int
+            The index of the new candidate point that needs to be added to the graph.
+
+        Returns:
+        nx.DiGraph
+            A directed graph with nodes and edges representing the network structure,
+            including the newly added point.
+
+        Raises:
+        N/A
+        """
+        DG = nx.DiGraph()
+
+        source_idx = nodes[self._source_idx].index
+        pole_indices = [n.index for n in nodes if n.type == "pole"]
+        terminal_indices = [n.index for n in nodes if n.type == "terminal"]
+
+        # Add all nodes
+        for node in nodes:
+            DG.add_node(node.index,
+                        name=node.name,
+                        type=node.type,
+                        lat=node.lat,
+                        lng=node.lng)
+
+        # 1. Source → existing poles + new pole
+        for p in pole_indices:
+            if p == new_point_idx:
+                d = cand_dists[source_idx]  # distance from source to new candidate
+            else:
+                d = base_dist_matrix[source_idx, p]
+
+            if 0.1 < d:
+                w = self.calc_edge_weight(d, voltage="low")
+                DG.add_edge(source_idx, p, weight=w, length=d, voltage="low")
+
+        # 2. Pole ↔ Pole (including new pole)
+        for i in range(len(pole_indices)):
+            for j in range(i + 1, len(pole_indices)):
+                p1 = pole_indices[i]
+                p2 = pole_indices[j]
+
+                if p1 == new_point_idx:
+                    d = cand_dists[p2]
+                elif p2 == new_point_idx:
+                    d = cand_dists[p1]
+                else:
+                    d = base_dist_matrix[p1, p2]
+
+                if 0.1 < d:
+                    w = self.calc_edge_weight(d, voltage="low")
+                    DG.add_edge(p1, p2, weight=w, length=d, voltage="low")
+                    DG.add_edge(p2, p1, weight=w, length=d, voltage="low")
+
+        # 3. Poles → Terminals (including new pole)
+        for p in pole_indices:
+            for h in terminal_indices:
+                if p == new_point_idx:
+                    d = cand_dists[h]
+                else:
+                    d = base_dist_matrix[p, h]
+
+                if 0.1 < d:
+                    w = self.calc_edge_weight(d, voltage="low", to_terminal=True)
+                    DG.add_edge(p, h, weight=w, length=d, voltage="low")
+
+        # 4. Source → Terminals (unchanged, can use base matrix)
+        for h in terminal_indices:
+            d = base_dist_matrix[source_idx, h]
+            if 0.1 < d:
+                w = self.calc_edge_weight(d, voltage="low", to_terminal=True)
+                DG.add_edge(source_idx, h, weight=w, length=d, voltage="low")
+
+        return DG
 
     def _solve(self, input_tuple) -> nx.DiGraph:
         """
@@ -616,14 +793,24 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
             # --- STEP 1: IMMEDIATE FILTERING (The "Beam" Selection) ---
             immediate_results = []
+
+            # Get current distance matrix once per iteration (cached)
+            dist_matrix = self._get_distance_matrix(current_coords)
+
             for cand in candidates:
+                # Compute only distances from this candidate to all existing points (O(n))
+                cand_dists = self._distances_from_new_point(current_coords, cand)
+
                 trial_names = current_names + ['pole']
 
                 # Construct temporary nodes for this specific candidate
                 trial_nodes = self._build_nodes(current_coords, [cand], trial_names)
 
                 # Build graph and solve for immediate cost
-                DG = self.build_directed_graph_for_arborescence(trial_nodes)
+                DG = self._build_directed_graph_with_new_point(
+                    trial_nodes, dist_matrix, cand_dists, new_point_idx=len(current_coords)
+                )
+
                 arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
                 pruned = self.prune_dead_end_pole_branches(arbo_graph)
 
@@ -677,6 +864,10 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             current_coords = np.vstack([current_coords, winner["cand"]])
             current_names.append('pole')
 
+            # Invalidate distance matrix cache
+            self._dist_matrix = None
+            self._cached_coords_hash = None
+
             cur_total_weight = winner["cost"]
             best_pruned_graph = winner["graph"]
             cur_edges = list(best_pruned_graph.edges())
@@ -686,6 +877,4 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 self._plot_current_tree(best_pruned_graph, added_points=[winner["cand"]],
                                         title=f"Iteration {iteration} (Δ {improvement:+.2f} m)")
 
-        final_graph = self._post_solver_local_opt(best_pruned_graph)
-
-        return final_graph
+        return best_pruned_graph

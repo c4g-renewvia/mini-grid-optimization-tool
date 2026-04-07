@@ -150,7 +150,7 @@ def test_steiner_solver_specific_logic(kml_points, default_costs, default_length
         points=kml_points,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=1,
+        debug=2,
     )
 
     result = solver_class(req).solve()

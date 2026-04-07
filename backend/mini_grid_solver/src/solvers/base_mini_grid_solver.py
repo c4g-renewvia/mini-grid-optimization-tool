@@ -47,6 +47,9 @@ class BaseMiniGridSolver(ABC):
         self._names: Optional[List[str]] = None
         self._costs: Optional[Costs] = None
 
+        self._dist_matrix = None  # Will store the current (n x n) distance matrix
+        self._cached_coords_hash = None  # Simple way to detect when points changed
+
     # ─── Static Helper methods ───────────────────────────────────────────────
     @staticmethod
     def get_input_params():
@@ -357,9 +360,9 @@ class BaseMiniGridSolver(ABC):
         graph = self._solve(self.parse_and_validate_input(poles=True))
 
         # 2. Gradient Decent each pole placement to ensure not local optimization is left on the table
-        graph = self._pole_gradient_optimizer(graph)
+        final_graph = self._post_solver_local_opt(graph)
 
-        return self.build_solver_result(graph)
+        return self.build_solver_result(final_graph)
 
     # ─── Helpful common utilities (can be used or overridden) ────────────────
     def _build_nodes(self, coords, candidates, names):
@@ -535,7 +538,11 @@ class BaseMiniGridSolver(ABC):
         source_idx = nodes[self._source_idx].index
 
         all_points = np.array([n.coord_tuple for n in nodes])
-        dist_matrix = self.compute_distance_matrix(all_points)
+
+        if hasattr(self, '_get_distance_matrix'):
+            dist_matrix = self._get_distance_matrix(all_points)
+        else:
+            dist_matrix = self.compute_distance_matrix(all_points)
 
         for n in nodes:
             DG.add_node(n.index, name=n.name, type=n.type, lat=n.lat, lng=n.lng)
@@ -733,24 +740,24 @@ class BaseMiniGridSolver(ABC):
         """
 
         # Final Node Optimization Placement
-        final_graph = self.split_long_edges_with_coords(graph=graph)
+        graph = self.split_long_edges_with_coords(graph=graph)
 
-        current_cost = self._compute_total_cost(final_graph)
+        graph = self.rename_poles(graph)
+
+        current_cost = self._compute_total_cost(graph)
 
         while True:
             previous_cost = current_cost
 
-            final_graph = self._pole_gradient_optimizer(final_graph)
-            final_graph = self._drop_redundant_poles(final_graph)
+            graph = self._pole_gradient_optimizer(graph)
+            graph = self._drop_redundant_poles(graph)
 
-            current_cost = self._compute_total_cost(final_graph)
+            current_cost = self._compute_total_cost(graph)
 
             if current_cost >= previous_cost:
                 break
 
-        final_graph = self.rename_poles(final_graph)
-
-        return final_graph
+        return graph
 
     def _drop_redundant_poles(self, pruned_graph: nx.DiGraph) -> nx.DiGraph:
         """

@@ -53,12 +53,9 @@ export default function ExportSummary({
   const costDiff = costBreakdown.grandTotal - solverOriginalCost;
   const isNegative = costDiff <= 0;
 
-  const hasResults = miniGridNodes.length > 0 && miniGridEdges.length > 0;
-
   return (
     <div className='space-y-4'>
       {/* Allow Dragging Terminals */}
-      {hasResults && (
         <div className='flex items-center gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900/50'>
           <input
             type='checkbox'
@@ -78,10 +75,8 @@ export default function ExportSummary({
             (Poles can always be dragged)
           </label>
         </div>
-      )}
 
       {/* Solver Cost Box */}
-      {solverOriginalCost > 0 && (
         <div className='rounded-2xl border border-purple-200 bg-purple-50 p-6 text-center dark:border-purple-500/30 dark:bg-purple-900/20'>
           <p className='text-xs font-bold tracking-widest text-purple-600 uppercase dark:text-purple-400'>
             Solver Cost
@@ -136,10 +131,8 @@ export default function ExportSummary({
             </div>
           </div>
         </div>
-      )}
 
       {/* Live Cost Box */}
-      {costBreakdown.grandTotal > 0 && (
         <div className='rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-500/30 dark:bg-emerald-900/20'>
           <p className='text-xs font-bold tracking-widest text-emerald-600 uppercase dark:text-emerald-400'>
             Live Cost
@@ -189,10 +182,8 @@ export default function ExportSummary({
             </div>
           </div>
         </div>
-      )}
 
       {/* Cost Difference */}
-      {costBreakdown.grandTotal !== 0 && solverOriginalCost > 0 && (
         <div
           className={`rounded-2xl border p-6 text-center ${
             isNegative
@@ -224,10 +215,8 @@ export default function ExportSummary({
               : 'Additional cost vs Solver baseline'}
           </p>
         </div>
-      )}
 
       {/* Export Options */}
-      {hasResults && (
         <div className='pt-4'>
           <h3 className='mb-4 text-xl font-semibold text-emerald-700 dark:text-emerald-300'>
             Export Options
@@ -262,7 +251,6 @@ export default function ExportSummary({
             )}
           </div>
         </div>
-      )}
     </div>
   );
 }

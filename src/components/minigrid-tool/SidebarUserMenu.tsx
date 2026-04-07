@@ -28,7 +28,7 @@ export function SidebarUserMenu() {
     return (
       <Button
         onClick={() => signIn()}
-        className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-[0.97]"
+        className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-[0.8]"
       >
         Sign In
       </Button>
@@ -49,7 +49,7 @@ export function SidebarUserMenu() {
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className="w-full justify-start gap-3 px-4 py-6 h-auto hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl"
+            className="w-full justify-start gap-3 px-4 py-4 h-auto hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl"
           >
             <Avatar className="h-9 w-9">
               <AvatarImage
