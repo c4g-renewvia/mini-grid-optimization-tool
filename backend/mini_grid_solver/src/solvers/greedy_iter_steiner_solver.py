@@ -953,7 +953,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         added_candidates = np.empty((0, 2), dtype=float)
 
         # Constants for Beam Search and Rollout
-        BEAM_WIDTH = 3  # Evaluate top 3 immediate candidates deeper
+        BEAM_WIDTH = 5  # Evaluate top 3 immediate candidates deeper
         ROLLOUT_DEPTH = 3  # Look ahead 1 step beyond the current choice
         MAX_STAGNATION = 3
         IMPROVEMENT_THRESHOLD = 0.05  # Minimum meters to keep iterating
@@ -988,11 +988,18 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             # --- STEP 1: IMMEDIATE FILTERING (The "Beam" Selection) ---
             dist_matrix = self._get_distance_matrix(current_coords)
 
+            # --- STEP 1: IMMEDIATE FILTERING (The "Beam" Selection) ---
             def eval_wrapper(cand):
-                return self._evaluate_candidate_fast(cand, current_coords, current_names, dist_matrix)
+                # Instantly evaluate the candidate purely in NumPy/SciPy
+                temp_coords = np.vstack([current_coords, cand])
+                cost = self._fast_scipy_rollout_eval(temp_coords)
+                return {"cost": cost, "cand": cand}
+
+            if self.request.debug >= 1:
+                print(f"Evaluating {len(candidates)} candidates sequentially using SciPy...")
 
             # Small problems → serial is faster
-            if len(candidates) <= 20:
+            if len(candidates) > 0:
                 if self.request.debug >= 1:
                     print(f"Evaluating {len(candidates)} candidates serially")
                 immediate_results = [eval_wrapper(c) for c in candidates]
@@ -1016,7 +1023,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             winner = None
 
             for item in beam:
-                # Look into the future for this specific candidate
+                # Look into the future for this specific candidate using SciPy
                 rollout_score = self._evaluate_rollout(
                     current_coords, item["cand"], depth=ROLLOUT_DEPTH
                 )
@@ -1045,18 +1052,29 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 print(
                     f"Winner selected via Rollout: Imm Cost: {winner['cost']:.2f} | Rollout Potential: {best_rollout_score:.2f}")
 
+            # 1. Build the formal NetworkX graph ONLY for the chosen winner
+            trial_names = current_names + ['pole']
+            trial_nodes = self._build_nodes(current_coords, [winner["cand"]], trial_names)
+
+            DG = self.build_directed_graph_for_arborescence(trial_nodes)
+            arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
+            best_pruned_graph = self.prune_dead_end_pole_branches(arbo_graph)
+
+            if iteration % 3:
+                best_pruned_graph = self._drop_redundant_poles(best_pruned_graph)
+
+            # 2. Update state tracking variables
             added_candidates = np.vstack([added_candidates, winner["cand"]])
             current_coords = np.vstack([current_coords, winner["cand"]])
-            current_names.append('pole')
+            current_names = trial_names
 
-            # Invalidate distance matrix cache
+            # 3. Invalidate caches
             self._kdtree_cache = None
             self._cached_kd_coords = None
             self._dist_matrix = None
             self._cached_coords_hash = None
 
             cur_total_weight = winner["cost"]
-            best_pruned_graph = winner["graph"]
             cur_edges = list(best_pruned_graph.edges())
 
             # Visualization for debugging

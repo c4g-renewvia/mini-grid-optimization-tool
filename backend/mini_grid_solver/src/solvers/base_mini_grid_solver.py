@@ -638,8 +638,7 @@ class BaseMiniGridSolver(ABC):
                 pole_counter += 1
         return graph
 
-    @staticmethod
-    def prune_dead_end_pole_branches(DG: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
+    def prune_dead_end_pole_branches(self, graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
         """
         Prunes dead-end pole branches in a Directed Graph (DiGraph).
 
@@ -649,29 +648,32 @@ class BaseMiniGridSolver(ABC):
         the original.
 
         Args:
-            DG: A directed graph representing the network structure.
+            graph: A directed graph representing the network structure.
 
         Returns:
             A new graph with dead-end pole branches removed.
         """
-        DG = DG.copy()
+        graph = graph.copy()
 
         removed = True
         while removed:
             removed = False
-            leaves = [n for n in DG.nodes(data=True) if DG.out_degree(n[0]) == 0]
+            leaves = [n for n in graph.nodes(data=True) if graph.out_degree(n[0]) == 0]
             for leaf in leaves:
                 if leaf[1]['type'] == "pole":
                     # Check if this leaf (or its subtree) serves any terminal
-                    descendants = nx.descendants(DG, leaf[0]) | {leaf[0]}
-                    if not any(DG.nodes(data=True)[d]['type'] == 'terminal' for d in descendants):
+                    descendants = nx.descendants(graph, leaf[0]) | {leaf[0]}
+                    if not any(graph.nodes(data=True)[d]['type'] == 'terminal' for d in descendants):
                         # No terminal served → safe to remove
-                        predecessors = list(DG.predecessors(leaf[0]))
+                        predecessors = list(graph.predecessors(leaf[0]))
                         for pred in predecessors:
-                            DG.remove_edge(pred, leaf[0])
-                        DG.remove_node(leaf[0])
+                            graph.remove_edge(pred, leaf[0])
+                        graph.remove_node(leaf[0])
                         removed = True
-        return DG
+
+        graph = self.rename_poles(graph)
+
+        return graph
 
     def _recompute_edges_for_node(self, graph, node_idx: int):
         """Recompute length and weight for ALL incident edges (in + out)
@@ -840,6 +842,8 @@ class BaseMiniGridSolver(ABC):
             print("--- Drop Phase Complete ---\n")
 
             self._plot_current_tree(current_graph, added_points=None, title="After Drop Phase")
+
+        current_graph = self.rename_poles(current_graph)
 
         return current_graph
 
