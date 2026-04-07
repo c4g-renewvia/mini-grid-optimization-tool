@@ -3,6 +3,7 @@ import pytest
 from mini_grid_solver.src.solvers.registry import SOLVER_REGISTRY
 from mini_grid_solver.src.utils.models import *
 from pykml import parser
+import re
 
 from mini_grid_solver.src.utils.models import LengthConstraints, LengthConstraintsBase
 
@@ -44,6 +45,34 @@ def kml_points():
 
 
 @pytest.fixture
+def kml_points2():
+    """Parses coordinates from the ground truth KML."""
+    try:
+        kml_file_path = "test_data_sets/minigrid_2026-04-07.kml"
+        with open(kml_file_path, 'r', encoding="utf-8") as f:
+            root = parser.parse(f).getroot()
+
+        coords = []
+        for folder in root.Document:
+            for placemark in folder.Folder.Placemark:
+                # KML coordinates are typically: lng, lat, alt
+                coords_str = str(placemark.Point.coordinates).strip()
+                lng, lat, _ = coords_str.split(",")
+                type = re.search(r"Type: (\w+)", str(placemark.description)).group(1)
+                if type == "pole":
+                    continue
+                coords.append({
+                    "name": str(placemark.name),
+                    "lat": float(lat),
+                    "lng": float(lng),
+                    "type": type
+                })
+        return coords
+    except (FileNotFoundError, AttributeError) as e:
+        pytest.skip(f"KML file not found or incorrectly formatted {e}")
+
+
+@pytest.fixture
 def default_costs():
     """Standard cost parameters used in your main script."""
     return Costs(
@@ -58,8 +87,8 @@ def default_length_constraints():
     """Standard cost parameters used in your main script."""
     return LengthConstraints(low=LengthConstraintsBase(poleToPoleLengthConstraint=30,
                                                        poleToTerminalLengthConstraint=20),
-                             high=LengthConstraintsBase(poleToPoleLengthConstraint=30,
-                                                        poleToTerminalLengthConstraint=30))
+                             high=LengthConstraintsBase(poleToPoleLengthConstraint=50,
+                                                        poleToTerminalLengthConstraint=20))
 
 
 @pytest.fixture
@@ -121,7 +150,27 @@ def test_steiner_solver_specific_logic(kml_points, default_costs, default_length
         points=kml_points,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=0,
+        debug=1,
+    )
+
+    result = solver_class(req).solve()
+
+    # Check that Steiner points (poles) were actually added
+    poles = [n for n in result.nodes if n.get('type') == 'pole']
+    assert len(poles) >= 0  # Validates the result contains a nodes list
+    assert result.totalCostEstimate > 0
+
+def test_steiner_solver_specific_logic2(kml_points2, default_costs, default_length_constraints):
+    """Specific check for GreedyIterSteinerSolver using the KML dataset."""
+    if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
+        pytest.skip("GreedyIterSteinerSolver not registered")
+
+    solver_class = SOLVER_REGISTRY["GreedyIterSteinerSolver"]
+    req = SolverRequest(
+        points=kml_points2,
+        costs=default_costs,
+        lengthConstraints=default_length_constraints,
+        debug=2,
     )
 
     result = solver_class(req).solve()

@@ -64,7 +64,8 @@ export default function SolverConfiguration({
           id='solver-select'
           value={selectedSolverName}
           onChange={(e) => onSolverChange(e.target.value)}
-          className='w-full appearance-none rounded-lg border border-zinc-200 bg-white px-4 py-3 text-base font-medium text-zinc-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+          disabled={computing}
+          className='w-full appearance-none rounded-lg border border-zinc-200 bg-white px-4 py-3 text-base font-medium text-zinc-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
         >
           <option value='' disabled>
             Choose a solver...
@@ -78,45 +79,44 @@ export default function SolverConfiguration({
       </div>
 
       {/* Dynamic Parameters */}
-      {selectedSolver &&
-        selectedSolver.params &&
-        selectedSolver.params.length > 0 && (
-          <div className='mb-6 space-y-5 rounded-lg border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-700/50 dark:bg-zinc-900/40'>
-            <h4 className='text-lg font-medium text-zinc-900 dark:text-zinc-200'>
-              {selectedSolver.name} Parameters
-            </h4>
-            <div className='grid gap-5 sm:grid-cols-2'>
-              {selectedSolver.params.map((param) => (
-                <div key={param.name} className='space-y-1.5'>
-                  <label
-                    htmlFor={`param-${param.name}`}
-                    className='block text-sm font-medium text-zinc-700 dark:text-zinc-300'
-                  >
-                    {param.name}
-                    <span className='ml-2 text-xs text-zinc-500 dark:text-zinc-400'>
-                      (default: {param.default})
-                    </span>
-                  </label>
-                  <input
-                    id={`param-${param.name}`}
-                    type='number'
-                    min={param.min}
-                    max={param.max}
-                    step={param.type === 'integer' ? 1 : 0.01}
-                    value={paramValues[param.name] ?? param.default}
-                    onChange={(e) => onParamChange(param.name, e.target.value)}
-                    className='w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
-                  />
-                  {param.description && (
-                    <p className='text-xs text-zinc-500 dark:text-zinc-400'>
-                      {param.description}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+      {selectedSolver && selectedSolver.params?.length > 0 && (
+        <div className='mb-6 space-y-5 rounded-lg border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-700/50 dark:bg-zinc-900/40'>
+          <h4 className='text-lg font-medium text-zinc-900 dark:text-zinc-200'>
+            {selectedSolver.name} Parameters
+          </h4>
+          <div className='grid gap-5 sm:grid-cols-2'>
+            {selectedSolver.params.map((param) => (
+              <div key={param.name} className='space-y-1.5'>
+                <label
+                  htmlFor={`param-${param.name}`}
+                  className='block text-sm font-medium text-zinc-700 dark:text-zinc-300'
+                >
+                  {param.name}
+                  <span className='ml-2 text-xs text-zinc-500 dark:text-zinc-400'>
+                    (default: {param.default})
+                  </span>
+                </label>
+                <input
+                  id={`param-${param.name}`}
+                  type='number'
+                  min={param.min}
+                  max={param.max}
+                  step={param.type === 'integer' ? 1 : 0.01}
+                  value={paramValues[param.name] ?? param.default}
+                  onChange={(e) => onParamChange(param.name, e.target.value)}
+                  disabled={computing}
+                  className='w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+                />
+                {param.description && (
+                  <p className='text-xs text-zinc-500 dark:text-zinc-400'>
+                    {param.description}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
       {/* Use Existing Poles Checkbox */}
       {poleCount > 0 && (
@@ -126,7 +126,8 @@ export default function SolverConfiguration({
             id='use-poles'
             checked={useExistingPoles}
             onChange={(e) => onUseExistingPolesChange(e.target.checked)}
-            className='h-5 w-5 rounded border-zinc-300 bg-white text-purple-600 focus:ring-purple-500 dark:border-zinc-600 dark:bg-zinc-800'
+            disabled={computing}
+            className='h-5 w-5 rounded border-zinc-300 bg-white text-purple-600 focus:ring-purple-500 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800'
           />
           <label
             htmlFor='use-poles'
@@ -137,16 +138,34 @@ export default function SolverConfiguration({
         </div>
       )}
 
-      {/* Run Solver Button */}
+      {/* Run Solver Button with Animation */}
       <div className='mt-auto pt-4'>
         <button
           onClick={onRunSolver}
           disabled={computing || !selectedSolverName}
-          className='w-full rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-8 py-5 text-lg font-bold text-white shadow-xl shadow-purple-900/40 transition-all hover:scale-[1.02] hover:from-purple-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-50'
+          className='group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-8 py-5 text-lg font-bold text-white shadow-xl shadow-purple-900/40 transition-all hover:scale-[1.02] hover:from-purple-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-75'
         >
-          {computing ? 'Solving...' : 'Run Solver'}
+          {/* Normal text */}
+          <span
+            className={`inline-flex items-center gap-3 transition-all duration-300 ${computing ? 'opacity-0' : 'opacity-100'}`}
+          >
+            Run Solver
+          </span>
+
+          {/* Computing state with animation */}
+          <span
+            className={`absolute inset-0 flex items-center justify-center gap-3 transition-all duration-300 ${computing ? 'opacity-100' : 'opacity-0'}`}
+          >
+            <div className='flex items-center gap-3'>
+              <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent' />
+              <span>Solving...</span>
+            </div>
+          </span>
         </button>
 
+        <p className='mt-4 text-center text-xs text-zinc-500 dark:text-zinc-400'>
+          Solving may take a few moments to a few hours
+        </p>
         <p className='mt-4 text-center text-xs text-zinc-500 dark:text-zinc-400'>
           Beta • Low Voltage Only • Limited to Single Power Source
         </p>

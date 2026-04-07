@@ -8,6 +8,7 @@ poleToTerminalLengthConstraint: float
 class LengthConstraintsBase(BaseModel):
     poleToPoleLengthConstraint: float = 30.0
     poleToTerminalLengthConstraint: float = 20.0
+    poleToTerminalMinimumLength: float = 5.0
 
 class LengthConstraints(BaseModel):
     low: LengthConstraintsBase

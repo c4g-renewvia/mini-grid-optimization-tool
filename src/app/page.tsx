@@ -107,6 +107,11 @@ export default function MiniGridToolPage() {
   ] = useState<number>(20);
 
   const [
+    lowVoltagePoleToTerminalMinimumLength,
+    setLowVoltagePoleToTerminalMinimumLength,
+  ] = useState<number>(5);
+
+  const [
     highVoltagePoleToPoleLengthConstraint,
     setHighVoltagePoleToPoleLengthConstraint,
   ] = useState<number>(50);
@@ -114,6 +119,13 @@ export default function MiniGridToolPage() {
     highVoltagePoleToTerminalLengthConstraint,
     setHighVoltagePoleToTerminalLengthConstraint,
   ] = useState<number>(20);
+
+  const [
+    highVoltagePoleToTerminalMinimumLength,
+    setHighVoltagePoleToTerminalMinimumLength,
+  ] = useState<number>(5);
+
+
 
   const [costBreakdown, setCostBreakdown] = useState<CostBreakdown>({
     lowVoltageMeters: 0,
@@ -1747,13 +1759,6 @@ export default function MiniGridToolPage() {
         ? miniGridNodes // ← includes ALL existing poles + original terminals/source
         : dataPoints; // ← only the original uploaded/added points (no solver poles)
 
-    console.log(
-      `[handleRunSolver] Sending ${pointsToSend.length} points to backend`
-    );
-    console.log(
-      `[handleRunSolver] Using existing poles? ${useExistingPoles && hasPoles ? 'YES' : 'NO'} (${pointsToSend.filter((p) => p.type === 'pole').length} poles)`
-    );
-
     if (pointsToSend.length < 2) {
       alert('Need at least 2 points to run solver.');
       return;
@@ -1795,11 +1800,15 @@ export default function MiniGridToolPage() {
               poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
               poleToHouseLengthConstraint:
                 lowVoltagePoleToTerminalLengthConstraint,
+              poleToTerminalMinimumLength:
+                lowVoltagePoleToTerminalMinimumLength,
             },
             high: {
               poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
               poleToHouseLengthConstraint:
                 highVoltagePoleToTerminalLengthConstraint,
+              poleToTerminalMinimumLength:
+                highVoltagePoleToTerminalMinimumLength,
             },
           },
           costs: {
@@ -1826,6 +1835,8 @@ export default function MiniGridToolPage() {
       );
 
       const data = await res.json();
+
+      console.log(data);
 
       if (debug) {
         console.log('Solver result:', data);
@@ -2423,8 +2434,8 @@ export default function MiniGridToolPage() {
                           <span className='mt-1 text-emerald-500'>•</span>
                           <span>
                             <strong>Drag markers</strong> to adjust their
-                            placement. Edges cannot exceed{' '}
-                            <strong>30 meters</strong>.
+                            placement. Edges cannot exceed lengths set in{' '}
+                            <strong>Costs & Solver</strong> section.
                           </span>
                         </li>
                         <li className='flex items-start gap-3'>
@@ -2541,11 +2552,17 @@ export default function MiniGridToolPage() {
                       lowVoltagePoleToTerminalLengthConstraint={
                         lowVoltagePoleToTerminalLengthConstraint
                       }
+                      lowVoltagePoleToTerminalMinimumLength={
+                        lowVoltagePoleToTerminalMinimumLength
+                      }
                       highVoltagePoleToPoleLengthConstraint={
                         highVoltagePoleToPoleLengthConstraint
                       }
                       highVoltagePoleToTerminalLengthConstraint={
                         highVoltagePoleToTerminalLengthConstraint
+                      }
+                      highVoltagePoleToTerminalMinimumLength={
+                        highVoltagePoleToTerminalMinimumLength
                       }
                       onLowVoltagePoleToPoleChange={
                         setLowVoltagePoleToPoleLengthConstraint
@@ -2553,11 +2570,17 @@ export default function MiniGridToolPage() {
                       onLowVoltagePoleToHouseChange={
                         setLowVoltagePoleToTerminalLengthConstraint
                       }
+                      onLowVoltagePoleToTerminalMinimumChange={
+                        setLowVoltagePoleToTerminalMinimumLength
+                      }
                       onHighVoltagePoleToPoleChange={
                         setHighVoltagePoleToPoleLengthConstraint
                       }
                       onHighVoltagePoleToHouseChange={
                         setHighVoltagePoleToTerminalLengthConstraint
+                      }
+                      onHighVoltagePoleToTerminalMinimumChange={
+                        setHighVoltagePoleToTerminalMinimumLength
                       }
                     />
 

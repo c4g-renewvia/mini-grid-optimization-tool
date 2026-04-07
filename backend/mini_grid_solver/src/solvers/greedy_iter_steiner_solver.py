@@ -1,19 +1,19 @@
-# src/solvers/simple_mst_solver.py
 import itertools
 from typing import Tuple, List
 
 import networkx as nx
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy.spatial import Delaunay
 from sklearn.cluster import KMeans
 
-from .candidate_mst_solver import CandidateMSTSolver
+from .base_mini_grid_solver import BaseMiniGridSolver
 from .registry import register_solver
 from ..utils.models import SolverRequest, Node
 
 
 @register_solver
-class GreedyIterSteinerSolver(CandidateMSTSolver):
+class GreedyIterSteinerSolver(BaseMiniGridSolver):
     """
     Solver implementation using a greedy approach for refining the Minimum Spanning Tree (MST)
     based on Steiner points.
@@ -23,7 +23,7 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
     candidates.
 
     Attributes:
-        None
+         None
     """
 
     def __init__(self, request: SolverRequest):
@@ -32,6 +32,40 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
     @staticmethod
     def get_input_params():
         return []
+
+    @staticmethod
+    def fermat_torricelli_point(pts: np.ndarray) -> np.ndarray:
+        """
+        Compute approximate Fermat-Torricelli point for a triangle (3 points).
+        If any angle ≥ 120°, returns the vertex with that angle.
+        Otherwise returns a rough approximation (centroid fallback for simplicity).
+        """
+        if len(pts) != 3:
+            raise ValueError("Need exactly 3 points")
+
+        A, B, C = pts
+
+        # Compute side lengths
+        a = np.linalg.norm(B - C)
+        b = np.linalg.norm(A - C)
+        c = np.linalg.norm(A - B)
+
+        # Cosines of angles
+        cosA = (b ** 2 + c ** 2 - a ** 2) / (2 * b * c) if b * c != 0 else 1
+        cosB = (a ** 2 + c ** 2 - b ** 2) / (2 * a * c) if a * c != 0 else 1
+        cosC = (a ** 2 + b ** 2 - c ** 2) / (2 * a * b) if a * b != 0 else 1
+
+        # If any angle ≥ 120° (cos ≤ -0.5), minimum is at that vertex
+        if cosA <= -0.5:
+            return A
+        if cosB <= -0.5:
+            return B
+        if cosC <= -0.5:
+            return C
+
+        # Otherwise: simple centroid approximation (good enough for our purpose)
+        # (Real 120° construction is more involved — this is fast & reasonable)
+        return np.mean(pts, axis=0)
 
     def generate_projection_candidates(
             self,
@@ -90,6 +124,97 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
         projs = np.unique(np.round(projs, decimals=6), axis=0)  # dedup
 
         return projs
+
+    def generate_collinear_candidates(
+            self,
+            coords,  # usually np.ndarray (n, 2)
+            current_tree_edges,
+            max_length: float = 30.0,
+            num_per_edge: int = 3
+    ) -> np.ndarray:
+        """
+        Generate ~num_per_edge intermediate candidates per long edge.
+        """
+        candidates = []
+
+        for u, v in current_tree_edges:
+            p1 = coords[u]  # [lat, lon]
+            p2 = coords[v]
+            d = self.haversine_meters(p1[0], p1[1], p2[0], p2[1])
+
+            if d <= max_length:
+                continue
+
+            # We want ~ num_per_edge intermediate points
+            # → number of segments = num_per_edge + 1
+            n_segments_desired = num_per_edge + 1
+            segment_length = d / n_segments_desired
+
+            # But never make segments shorter than, say, 5–10 m
+            # segment_length = max(segment_length, 8.0)  # adjust as needed
+
+            intermediates = self._great_circle_intermediates(
+                p1[0], p1[1],
+                p2[0], p2[1],
+                max_length=segment_length
+            )
+
+            # intermediates includes start + end → take only the middle ones
+            for pt in intermediates[1:-1]:
+                candidates.append(np.array(pt))
+
+        if not candidates:
+            return np.empty((0, 2), dtype=float)
+
+        candidates_array = np.array(candidates)
+        # Remove near-duplicates (floating point)
+        return np.unique(np.round(candidates_array, decimals=6), axis=0)
+
+    def generate_fermat_candidates(self, coords: np.ndarray, max_candidates: int = 30) -> np.ndarray:
+        """
+        Generate candidate pole markers using approximate Fermat-Torricelli points
+        from Delaunay triangles.
+
+        Args:
+            coords: (n, 2) array of terminal points [lat, lon]
+            max_candidates: limit number of generated points (avoid too many)
+
+        Returns:
+            np.ndarray: candidate points (m, 2)
+        """
+        if len(coords) < 3:
+            return np.empty((0, 2), dtype=float)
+
+        # Compute Delaunay triangulation
+        tri = Delaunay(coords)
+
+        candidates = []
+
+        for simplex in tri.simplices:
+            if len(candidates) >= max_candidates:
+                break
+            pts = coords[simplex]
+            # Get approximate Steiner/Fermat point for this triangle
+            st_pt = self.fermat_torricelli_point(pts)
+            candidates.append(st_pt)
+
+        if not candidates:
+            return np.empty((0, 2), dtype=float)
+
+        candidates = np.array(candidates)
+
+        # mask candidates too close to terminals
+        mask = (self.haversine_vec(candidates,
+                                   coords) >= self.request.lengthConstraints.low.poleToTerminalMinimumLength).prod(
+            axis=1)
+
+        candidates = candidates[mask]
+
+        if self.request.debug >= 1:
+            print(f"Generated {len(candidates)} Fermat-Steiner candidate poles "
+                  f"(limited to {max_candidates}, after min separation filter)")
+
+        return candidates
 
     @staticmethod
     def generate_cluster_center_candidates(coords, n_init=10):
@@ -179,7 +304,7 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
     def generate_proximity_fermat_candidates(
             self,
             coords: np.ndarray,
-            max_distance: float = 60.0,
+            max_distance: float = 300.0,
             max_candidates: int = 300,
     ) -> np.ndarray:
         """
@@ -259,6 +384,27 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
                             terminal_cluster_centers,
                             added_candidates,
                             num_per_edge=2):
+        """
+        Generates a pool of candidate points for network optimization based on various methods.
+
+        This method synthesizes several types of candidates, including Fermat points, adaptive Fermat
+        points, collinear points, and projection candidates. The method also filters candidates based
+        on constraints such as bounding boxes of terminal nodes and removes already added candidates.
+
+        Parameters:
+            coords (list): A list of [latitude, longitude] coordinates representing existing points.
+            cur_edges (list): A list of current edges represented by indices of the coordinates.
+            terminal_cluster_centers (numpy.ndarray): Array of cluster centers derived from terminal nodes.
+            added_candidates (list): A list of candidates already added, each as a [latitude, longitude] pair.
+            num_per_edge (int, optional): Number of candidates to generate per edge. Default is 2.
+
+        Returns:
+            numpy.ndarray: A 2D array where each row represents a generated candidate point as
+                           [latitude, longitude].
+
+        Raises:
+            None
+        """
 
         # remove candidates outside of terminal bounding box
         def mask_outside_terminal_bb(_coords, _cands):
@@ -270,56 +416,65 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
                 _cands = _cands[mask]
             return _cands
 
-        # Generate candidates based on current points
+        # === 1. Generate raw candidates (exactly as before) ===
         fermat_candidates = self.generate_proximity_fermat_candidates(np.array(coords), max_candidates=100)
-        candidates = mask_outside_terminal_bb(coords, fermat_candidates)
 
         n_terminals = len(self._terminal_indices) + 1  # +1 for source
         pole_indices = list(range(n_terminals, len(coords)))
         terminal_indices = list(range(n_terminals))
+
         adaptive_fermat = self.generate_adaptive_fermat_candidates(
             np.array(coords),
             terminal_indices,
             pole_indices
         )
 
-        if len(adaptive_fermat) > 0:
-            # Filter by bounding box as you do for other candidates
-            adaptive_fermat = mask_outside_terminal_bb(coords, adaptive_fermat)
-            candidates = np.concatenate([candidates, adaptive_fermat], axis=0)
+        projection_candidates = np.empty((0, 2))
+        collinear_candidates = np.empty((0, 2))
 
         if cur_edges is not None:
-            # max_length = self.request.lengthConstraints.
             collinear_candidates = self.generate_collinear_candidates(np.array(coords),
                                                                       cur_edges,
                                                                       num_per_edge=num_per_edge)
 
-            # add terminal projections onto existing edges
             projection_candidates = self.generate_projection_candidates(
                 np.array(coords),
                 cur_edges,
-                terminal_indices=self._terminal_indices,  # pass from class or solve
+                terminal_indices=self._terminal_indices,
                 max_dist_to_line=40.0,
                 min_dist_to_existing=5.0
             )
+
+        # === 2. Store ALL candidates in a dictionary (raw, before any masking) ===
+        candidate_dict = {
+            'Fermat Candidates': fermat_candidates,
+            'Adaptive Fermat Candidates': adaptive_fermat,
+            'Collinear Candidates': collinear_candidates,
+            'Projection Candidates': projection_candidates,
+            'Cluster Candidates': terminal_cluster_centers,
+        }
+
+        # === 3. Mask each set individually (for the actual candidate pool) ===
+        masked_dict = {}
+        for label, cands in candidate_dict.items():
+            if len(cands) > 0:
+                masked_dict[label] = mask_outside_terminal_bb(coords, cands)
+            else:
+                masked_dict[label] = np.empty((0, 2), dtype=float)
+
+        # === 4. Build final candidate pool by concatenating only the sets we actually use ===
+        to_concat = [
+            masked_dict['Fermat Candidates'],
+            masked_dict['Adaptive Fermat Candidates'],
+            masked_dict['Collinear Candidates'],
+            masked_dict['Cluster Candidates'],
+            # masked_dict['Projection Candidates'],   # ← still disabled (uncomment when ready)
+        ]
+
+        if any(len(arr) > 0 for arr in to_concat):
+            candidates = np.concatenate([arr for arr in to_concat if len(arr) > 0])
         else:
-            projection_candidates = np.empty((0, 2))
-            collinear_candidates = np.empty((0, 2))
-
-        # add projection candidates
-        # if len(projection_candidates) > 0:
-        #     projection_candidates = mask_outside_terminal_bb(coords, projection_candidates)
-        #     candidates = np.concatenate([candidates, projection_candidates], axis=0)
-
-        # add collinear candidates
-        # if len(collinear_candidates) > 0:
-        #     collinear_candidates = mask_outside_terminal_bb(coords, collinear_candidates)
-        #     candidates = np.concatenate([candidates, collinear_candidates], axis=0)
-
-        # add terminal cluster centers
-        if len(terminal_cluster_centers) > 0:
-            terminal_cluster_centers = mask_outside_terminal_bb(coords, terminal_cluster_centers)
-            candidates = np.concatenate([candidates, terminal_cluster_centers], axis=0)
+            candidates = np.empty((0, 2), dtype=float)
 
         # -------------- FILTER CANDIDATES --------------
         # remove candidates already added
@@ -329,22 +484,19 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
         # dedupe
         candidates = np.unique(candidates, axis=0)
 
+        # === 5. Debug plot using the dictionary (loop instead of 5 separate scatters) ===
         if self.request.debug >= 1 and len(candidates) > 0:
-            # plots candidates
             fig, ax = plt.subplots(figsize=(10, 8))
             ax.set_title("Generated Candidates")
             ax.set_xlabel("Longitude")
             ax.set_ylabel("Latitude")
             ax.set_aspect('equal')
-            ax.scatter(fermat_candidates[:, 1], fermat_candidates[:, 0], s=100, marker='o', label='Fermat Candidates')
-            ax.scatter(collinear_candidates[:, 1], collinear_candidates[:, 0], s=100, marker='o',
-                       label='Collinear Candidates')
-            ax.scatter(projection_candidates[:, 1], projection_candidates[:, 0], s=100, marker='o',
-                       label='Projection Candidates')
-            ax.scatter(terminal_cluster_centers[:, 1], terminal_cluster_centers[:, 0], s=100, marker='o',
-                       label='Cluster Candidates')
-            ax.scatter(adaptive_fermat[:, 1], adaptive_fermat[:, 0], s=100, marker='o',
-                       label='Adaptive Fermat Candidates')
+
+            # Loop through the dictionary — one scatter per candidate type
+            for label, cands in candidate_dict.items():  # using raw (pre-mask) just like original
+                if len(cands) > 0:
+                    ax.scatter(cands[:, 1], cands[:, 0], s=100, marker='o', label=label)
+
             ax.scatter(coords[:, 1], coords[:, 0], c='black', s=100, marker='o', label='Existing Points')
             ax.legend(fontsize=9)
             ax.grid(True, alpha=0.3)
@@ -440,7 +592,7 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
         cur_total_weight = np.inf
 
         # Persist the best state found
-        best_pruned_mst = None
+        best_pruned_graph = None
         cur_edges = None
 
         # 1. Initial Cluster Center Generation
@@ -526,50 +678,14 @@ class GreedyIterSteinerSolver(CandidateMSTSolver):
             current_names.append('pole')
 
             cur_total_weight = winner["cost"]
-            best_pruned_mst = winner["graph"]
-            cur_edges = list(best_pruned_mst.edges())
+            best_pruned_graph = winner["graph"]
+            cur_edges = list(best_pruned_graph.edges())
 
             # Visualization for debugging
             if self.request.debug >= 1:
-                self._plot_current_tree(best_pruned_mst, added_points=[winner["cand"]],
+                self._plot_current_tree(best_pruned_graph, added_points=[winner["cand"]],
                                         title=f"Iteration {iteration} (Δ {improvement:+.2f} m)")
 
-        # ==========================================
-        # DROP PHASE (Reverse Deletion)
-        # ==========================================
-        if self.request.debug >= 1:
-            print("\n--- Starting Drop Phase (Reverse Deletion) ---")
+        final_graph = self._post_solver_local_opt(best_pruned_graph)
 
-        original_coords_array = np.array(coords)
-        current_added = [tuple(c) for c in added_candidates]
-
-        for candidate_to_drop_tup in list(reversed([tuple(c) for c in added_candidates])):
-            test_added = [c for c in current_added if c != candidate_to_drop_tup]
-
-            trial_nodes = self._build_nodes(original_coords_array, test_added, names)
-
-            DG = self.build_directed_graph_for_arborescence(trial_nodes)
-            arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
-            pruned = self.prune_dead_end_pole_branches(arbo_graph)
-
-            total_cost = self._compute_total_cost(pruned)
-
-            if total_cost <= cur_total_weight + 1e-3:  # small tolerance
-                if self.request.debug >= 1:
-                    print(f"Drop Phase: Removed redundant pole at {candidate_to_drop_tup}. "
-                          f"New cost: {total_cost:.2f} m")
-
-                current_added = test_added
-                cur_total_weight = total_cost
-                best_pruned_mst = pruned  # update graph
-
-        if self.request.debug >= 1:
-            print("--- Drop Phase Complete ---\n")
-
-        # Final nodes + split
-        final_mst = self.split_long_edges_with_coords(graph=best_pruned_mst)
-
-        if self.request.debug >= 1:
-            self._plot_current_tree(final_mst, added_points=None, title="Final Tree After Drop + Splitting")
-
-        return final_mst
+        return final_graph

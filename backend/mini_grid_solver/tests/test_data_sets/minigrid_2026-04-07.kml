@@ -1,0 +1,978 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Mini-Grid • Solved Network</name>
+    <open>1</open>
+
+    
+    <Style id="source">
+      <IconStyle><color>ff00cc00</color><scale>1.5</scale></IconStyle>
+      <LabelStyle><color>ff00ff00</color><scale>1.1</scale></LabelStyle>
+    </Style>
+    <Style id="terminal">
+      <IconStyle><color>ff3366ff</color><scale>1.3</scale></IconStyle>
+      <LabelStyle><scale>1.0</scale></LabelStyle>
+    </Style>
+    <Style id="pole">
+      <IconStyle><color>ffffff66</color><scale>1.1</scale></IconStyle>
+      <LabelStyle><color>ffffffff</color><scale>0.85</scale></LabelStyle>
+    </Style>
+    <Style id="lowVoltage">
+      <LineStyle><color>aa3b82f6</color><width>5</width></LineStyle>
+    </Style>
+    <Style id="highVoltage">
+      <LineStyle><color>aa8b5cf6</color><width>7</width></LineStyle>
+    </Style>
+    <Style id="summary">
+      <BalloonStyle>
+        <text><![CDATA[<h3>$[name]</h3><p>$[description]</p>]]></text>
+      </BalloonStyle>
+    </Style>
+  
+
+    <Folder>
+      <name>Nodes and Poles</name>
+      <open>1</open>
+      
+      <Placemark>
+        <name>Source 01</name>
+        <styleUrl>#source</styleUrl>
+        <description><![CDATA[
+          <b>Source 01</b><br/>
+          Type: source<br/>
+          Index: 0<br/>
+          Lat,Lng: 33.7773418, -84.3965883
+        ]]></description>
+        <Point>
+          <coordinates>-84.39658829,33.77734179,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 01</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 01</b><br/>
+          Type: terminal<br/>
+          Index: 1<br/>
+          Lat,Lng: 33.7774722, -84.3968867
+        ]]></description>
+        <Point>
+          <coordinates>-84.39688668,33.77747217,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 02</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 02</b><br/>
+          Type: terminal<br/>
+          Index: 2<br/>
+          Lat,Lng: 33.7779437, -84.3959838
+        ]]></description>
+        <Point>
+          <coordinates>-84.39598382,33.77794372,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 03</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 03</b><br/>
+          Type: terminal<br/>
+          Index: 3<br/>
+          Lat,Lng: 33.7780859, -84.3959942
+        ]]></description>
+        <Point>
+          <coordinates>-84.39599424,33.77808587,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 04</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 04</b><br/>
+          Type: terminal<br/>
+          Index: 4<br/>
+          Lat,Lng: 33.7765465, -84.3952383
+        ]]></description>
+        <Point>
+          <coordinates>-84.39523828,33.77654655,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 05</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 05</b><br/>
+          Type: terminal<br/>
+          Index: 5<br/>
+          Lat,Lng: 33.7767818, -84.3972627
+        ]]></description>
+        <Point>
+          <coordinates>-84.39726274,33.77678176,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 06</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 06</b><br/>
+          Type: terminal<br/>
+          Index: 6<br/>
+          Lat,Lng: 33.7766289, -84.3954988
+        ]]></description>
+        <Point>
+          <coordinates>-84.39549876,33.77662885,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 07</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 07</b><br/>
+          Type: terminal<br/>
+          Index: 7<br/>
+          Lat,Lng: 33.7782824, -84.3954360
+        ]]></description>
+        <Point>
+          <coordinates>-84.39543603,33.77828239,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 08</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 08</b><br/>
+          Type: terminal<br/>
+          Index: 8<br/>
+          Lat,Lng: 33.7772413, -84.3965920
+        ]]></description>
+        <Point>
+          <coordinates>-84.39659201,33.77724130,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Terminal 09</name>
+        <styleUrl>#terminal</styleUrl>
+        <description><![CDATA[
+          <b>Terminal 09</b><br/>
+          Type: terminal<br/>
+          Index: 9<br/>
+          Lat,Lng: 33.7766963, -84.3962066
+        ]]></description>
+        <Point>
+          <coordinates>-84.39620663,33.77669631,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 010</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 1</b><br/>
+          Type: pole<br/>
+          Index: 10<br/>
+          Lat,Lng: 33.7773520, -84.3966890
+        ]]></description>
+        <Point>
+          <coordinates>-84.39668900,33.77735200,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 011</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 2</b><br/>
+          Type: pole<br/>
+          Index: 11<br/>
+          Lat,Lng: 33.7780150, -84.3959890
+        ]]></description>
+        <Point>
+          <coordinates>-84.39598900,33.77801500,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 012</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 3</b><br/>
+          Type: pole<br/>
+          Index: 12<br/>
+          Lat,Lng: 33.7765880, -84.3953690
+        ]]></description>
+        <Point>
+          <coordinates>-84.39536900,33.77658800,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 013</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 4</b><br/>
+          Type: pole<br/>
+          Index: 13<br/>
+          Lat,Lng: 33.7781280, -84.3958060
+        ]]></description>
+        <Point>
+          <coordinates>-84.39580600,33.77812800,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 014</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 5</b><br/>
+          Type: pole<br/>
+          Index: 14<br/>
+          Lat,Lng: 33.7781710, -84.3956820
+        ]]></description>
+        <Point>
+          <coordinates>-84.39568200,33.77817100,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 015</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 6</b><br/>
+          Type: pole<br/>
+          Index: 15<br/>
+          Lat,Lng: 33.7775101, -84.3964385
+        ]]></description>
+        <Point>
+          <coordinates>-84.39643847,33.77751009,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 016</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 7</b><br/>
+          Type: pole<br/>
+          Index: 16<br/>
+          Lat,Lng: 33.7776784, -84.3962886
+        ]]></description>
+        <Point>
+          <coordinates>-84.39628864,33.77767840,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 017</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 8</b><br/>
+          Type: pole<br/>
+          Index: 17<br/>
+          Lat,Lng: 33.7778467, -84.3961388
+        ]]></description>
+        <Point>
+          <coordinates>-84.39613882,33.77784670,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 018</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 9</b><br/>
+          Type: pole<br/>
+          Index: 18<br/>
+          Lat,Lng: 33.7771910, -84.3963444
+        ]]></description>
+        <Point>
+          <coordinates>-84.39634443,33.77719103,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 019</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 10</b><br/>
+          Type: pole<br/>
+          Index: 19<br/>
+          Lat,Lng: 33.7770403, -84.3961006
+        ]]></description>
+        <Point>
+          <coordinates>-84.39610057,33.77704027,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 020</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 11</b><br/>
+          Type: pole<br/>
+          Index: 20<br/>
+          Lat,Lng: 33.7768895, -84.3958567
+        ]]></description>
+        <Point>
+          <coordinates>-84.39585672,33.77688952,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 021</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 12</b><br/>
+          Type: pole<br/>
+          Index: 21<br/>
+          Lat,Lng: 33.7767388, -84.3956129
+        ]]></description>
+        <Point>
+          <coordinates>-84.39561286,33.77673876,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 022</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 13</b><br/>
+          Type: pole<br/>
+          Index: 22<br/>
+          Lat,Lng: 33.7774121, -84.3967878
+        ]]></description>
+        <Point>
+          <coordinates>-84.39678784,33.77741209,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 023</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 14</b><br/>
+          Type: pole<br/>
+          Index: 23<br/>
+          Lat,Lng: 33.7772380, -84.3968037
+        ]]></description>
+        <Point>
+          <coordinates>-84.39680375,33.77723795,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 024</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 15</b><br/>
+          Type: pole<br/>
+          Index: 24<br/>
+          Lat,Lng: 33.7771239, -84.3969185
+        ]]></description>
+        <Point>
+          <coordinates>-84.39691850,33.77712390,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 025</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 16</b><br/>
+          Type: pole<br/>
+          Index: 25<br/>
+          Lat,Lng: 33.7770099, -84.3970332
+        ]]></description>
+        <Point>
+          <coordinates>-84.39703324,33.77700986,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 026</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 17</b><br/>
+          Type: pole<br/>
+          Index: 26<br/>
+          Lat,Lng: 33.7768958, -84.3971480
+        ]]></description>
+        <Point>
+          <coordinates>-84.39714799,33.77689581,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 027</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 18</b><br/>
+          Type: pole<br/>
+          Index: 27<br/>
+          Lat,Lng: 33.7766151, -84.3955784
+        ]]></description>
+        <Point>
+          <coordinates>-84.39557841,33.77661508,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 028</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 19</b><br/>
+          Type: pole<br/>
+          Index: 28<br/>
+          Lat,Lng: 33.7766422, -84.3957878
+        ]]></description>
+        <Point>
+          <coordinates>-84.39578782,33.77664215,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 029</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 20</b><br/>
+          Type: pole<br/>
+          Index: 29<br/>
+          Lat,Lng: 33.7766692, -84.3959972
+        ]]></description>
+        <Point>
+          <coordinates>-84.39599722,33.77666923,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pole 030</name>
+        <styleUrl>#pole</styleUrl>
+        <description><![CDATA[
+          <b>Pole 21</b><br/>
+          Type: pole<br/>
+          Index: 30<br/>
+          Lat,Lng: 33.7782267, -84.3955590
+        ]]></description>
+        <Point>
+          <coordinates>-84.39555902,33.77822670,0</coordinates>
+        </Point>
+      </Placemark>
+    </Folder>
+
+    <Folder>
+      <name>Power Lines</name>
+      <open>1</open>
+      
+      <Placemark>
+        <name>Line 1 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 1</b><br/>
+          Voltage: low<br/>
+          Length: 9 m<br/>
+          Est. cost: $90
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39658829,33.77734179,0
+            -84.39668900,33.77735200,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 2 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 2</b><br/>
+          Voltage: low<br/>
+          Length: 23 m<br/>
+          Est. cost: $230
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39658829,33.77734179,0
+            -84.39643847,33.77751009,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 3 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 3</b><br/>
+          Voltage: low<br/>
+          Length: 28 m<br/>
+          Est. cost: $280
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39658829,33.77734179,0
+            -84.39634443,33.77719103,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 4 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 4</b><br/>
+          Voltage: low<br/>
+          Length: 15 m<br/>
+          Est. cost: $150
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39668900,33.77735200,0
+            -84.39659201,33.77724130,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 5 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 5</b><br/>
+          Voltage: low<br/>
+          Length: 11 m<br/>
+          Est. cost: $110
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39668900,33.77735200,0
+            -84.39678784,33.77741209,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 6 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 6</b><br/>
+          Voltage: low<br/>
+          Length: 17 m<br/>
+          Est. cost: $170
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39668900,33.77735200,0
+            -84.39680375,33.77723795,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 7 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 7</b><br/>
+          Voltage: low<br/>
+          Length: 21 m<br/>
+          Est. cost: $210
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39598900,33.77801500,0
+            -84.39580600,33.77812800,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 8 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 8</b><br/>
+          Voltage: low<br/>
+          Length: 8 m<br/>
+          Est. cost: $80
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39598900,33.77801500,0
+            -84.39598382,33.77794372,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 9 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 9</b><br/>
+          Voltage: low<br/>
+          Length: 8 m<br/>
+          Est. cost: $80
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39598900,33.77801500,0
+            -84.39599424,33.77808587,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 10 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 10</b><br/>
+          Voltage: low<br/>
+          Length: 13 m<br/>
+          Est. cost: $130
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39536900,33.77658800,0
+            -84.39523828,33.77654655,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 11 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 11</b><br/>
+          Voltage: low<br/>
+          Length: 13 m<br/>
+          Est. cost: $130
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39536900,33.77658800,0
+            -84.39549876,33.77662885,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 12 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 12</b><br/>
+          Voltage: low<br/>
+          Length: 20 m<br/>
+          Est. cost: $200
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39536900,33.77658800,0
+            -84.39557841,33.77661508,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 13 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 13</b><br/>
+          Voltage: low<br/>
+          Length: 12 m<br/>
+          Est. cost: $120
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39580600,33.77812800,0
+            -84.39568200,33.77817100,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 14 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 14</b><br/>
+          Voltage: low<br/>
+          Length: 13 m<br/>
+          Est. cost: $130
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39568200,33.77817100,0
+            -84.39555902,33.77822670,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 15 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 15</b><br/>
+          Voltage: low<br/>
+          Length: 23 m<br/>
+          Est. cost: $230
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39643847,33.77751009,0
+            -84.39628864,33.77767840,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 16 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 16</b><br/>
+          Voltage: low<br/>
+          Length: 23 m<br/>
+          Est. cost: $230
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39628864,33.77767840,0
+            -84.39613882,33.77784670,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 17 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 17</b><br/>
+          Voltage: low<br/>
+          Length: 23 m<br/>
+          Est. cost: $230
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39613882,33.77784670,0
+            -84.39598900,33.77801500,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 18 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 18</b><br/>
+          Voltage: low<br/>
+          Length: 28 m<br/>
+          Est. cost: $280
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39634443,33.77719103,0
+            -84.39610057,33.77704027,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 19 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 19</b><br/>
+          Voltage: low<br/>
+          Length: 28 m<br/>
+          Est. cost: $280
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39610057,33.77704027,0
+            -84.39585672,33.77688952,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 20 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 20</b><br/>
+          Voltage: low<br/>
+          Length: 28 m<br/>
+          Est. cost: $280
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39585672,33.77688952,0
+            -84.39561286,33.77673876,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 21 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 21</b><br/>
+          Voltage: low<br/>
+          Length: 28 m<br/>
+          Est. cost: $280
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39561286,33.77673876,0
+            -84.39536900,33.77658800,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 22 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 22</b><br/>
+          Voltage: low<br/>
+          Length: 11 m<br/>
+          Est. cost: $110
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39678784,33.77741209,0
+            -84.39688668,33.77747217,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 23 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 23</b><br/>
+          Voltage: low<br/>
+          Length: 17 m<br/>
+          Est. cost: $170
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39680375,33.77723795,0
+            -84.39691850,33.77712390,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 24 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 24</b><br/>
+          Voltage: low<br/>
+          Length: 17 m<br/>
+          Est. cost: $170
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39691850,33.77712390,0
+            -84.39703324,33.77700986,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 25 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 25</b><br/>
+          Voltage: low<br/>
+          Length: 17 m<br/>
+          Est. cost: $170
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39703324,33.77700986,0
+            -84.39714799,33.77689581,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 26 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 26</b><br/>
+          Voltage: low<br/>
+          Length: 17 m<br/>
+          Est. cost: $170
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39714799,33.77689581,0
+            -84.39726274,33.77678176,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 27 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 27</b><br/>
+          Voltage: low<br/>
+          Length: 20 m<br/>
+          Est. cost: $200
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39557841,33.77661508,0
+            -84.39578782,33.77664215,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 28 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 28</b><br/>
+          Voltage: low<br/>
+          Length: 20 m<br/>
+          Est. cost: $200
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39578782,33.77664215,0
+            -84.39599722,33.77666923,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 29 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 29</b><br/>
+          Voltage: low<br/>
+          Length: 20 m<br/>
+          Est. cost: $200
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39599722,33.77666923,0
+            -84.39620663,33.77669631,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name>Line 30 (low)</name>
+        <styleUrl>#lowVoltage</styleUrl>
+        <description><![CDATA[
+          <b>Segment 30</b><br/>
+          Voltage: low<br/>
+          Length: 13 m<br/>
+          Est. cost: $130
+        ]]></description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -84.39555902,33.77822670,0
+            -84.39543603,33.77828239,0
+          </coordinates>
+        </LineString>
+      </Placemark>
+    </Folder>
+
+    <Folder>
+      <name>Summary</name>
+      
+    <Placemark>
+      <name>Mini-Grid Cost Summary</name>
+      <styleUrl>#summary</styleUrl>
+      <description><![CDATA[
+    <b>Grand Total:</b> $26,428<br/>
+    <b>Wire:</b> $5,428<br/>
+      • Low: 543 m → $5,428<br/>
+      • High: 0 m → $0<br/>
+    <b>Poles:</b> 21 × $1,000<br/>
+    <br/>Nodes: 31 • Segments: 30
+  ]]></description>
+      <coordinates>-84.39655581,33.77736879,0</coordinates>;
+    </Placemark>
+  
+    </Folder>
+
+  </Document>
+</kml>
