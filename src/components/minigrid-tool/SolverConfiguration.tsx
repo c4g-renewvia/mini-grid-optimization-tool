@@ -164,7 +164,7 @@ export default function SolverConfiguration({
         </button>
 
         <p className='mt-4 text-center text-xs text-zinc-500 dark:text-zinc-400'>
-          Solving may take a few moments to a few hours
+          Solving may take a few minutes to a few hours
         </p>
         <p className='mt-4 text-center text-xs text-zinc-500 dark:text-zinc-400'>
           Beta • Low Voltage Only • Limited to Single Power Source

@@ -843,10 +843,16 @@ class BaseMiniGridSolver(ABC):
 
         return current_graph
 
+    def _get_local_incident_cost(self, graph, node_idx: int) -> float:
+        """Calculate the sum of weights for all edges directly connected to node_idx."""
+        incident_edges = list(graph.in_edges(node_idx, data=True)) + \
+                         list(graph.out_edges(node_idx, data=True))
+        return sum(data.get('weight', 0.0) for u, v, data in incident_edges)
+
     def _pole_gradient_optimizer(self, graph: Union[nx.Graph, nx.DiGraph]):
         """
-        Local gradient descent on each pole to minimize total cost,
-        while strictly respecting lengthConstraints (pole-to-pole and pole-to-terminal).
+        Local gradient descent on each pole using ONLY local incident edge costs,
+        while strictly respecting lengthConstraints.
         """
         if len([n for n, d in graph.nodes(data=True) if d.get('type') == 'pole']) == 0:
             return graph  # nothing to optimize
@@ -871,43 +877,37 @@ class BaseMiniGridSolver(ABC):
             if self.request.debug > 1:
                 print(f"Optimizing pole {node_idx} ({node_data.get('name', 'Pole')})...")
 
-            current_cost = self._compute_total_cost(graph)
+            # === Baseline Local Cost ===
+            # We only track the cost of edges touching this specific pole.
+            current_local_cost = self._get_local_incident_cost(graph, node_idx)
 
             for iteration in range(max_iterations):
                 lat, lng = graph.nodes[node_idx]['lat'], graph.nodes[node_idx]['lng']
 
-                # === Compute numerical gradient ===
-                # +lat
-                graph.nodes[node_idx]['lat'] = lat + eps_deg
-                graph.nodes[node_idx]['lng'] = lng
-                self._recompute_edges_for_node(graph, node_idx)
-                cost_p_lat = self._compute_total_cost(graph) if self._all_edges_valid(graph, node_idx) else 1e9
+                # Helper to quickly evaluate local cost at a new test position
+                def eval_pos(test_lat, test_lng):
+                    graph.nodes[node_idx]['lat'] = test_lat
+                    graph.nodes[node_idx]['lng'] = test_lng
+                    self._recompute_edges_for_node(graph, node_idx)
 
-                # -lat
-                graph.nodes[node_idx]['lat'] = lat - eps_deg
-                self._recompute_edges_for_node(graph, node_idx)
-                cost_m_lat = self._compute_total_cost(graph) if self._all_edges_valid(graph, node_idx) else 1e9
+                    if not self._all_edges_valid(graph, node_idx):
+                        return 1e9
+                    return self._get_local_incident_cost(graph, node_idx)
 
-                # +lng
-                graph.nodes[node_idx]['lat'] = lat
-                graph.nodes[node_idx]['lng'] = lng + eps_deg
-                self._recompute_edges_for_node(graph, node_idx)
-                cost_p_lng = self._compute_total_cost(graph) if self._all_edges_valid(graph, node_idx) else 1e9
+                # === Compute numerical gradient (using local costs) ===
+                cost_p_lat = eval_pos(lat + eps_deg, lng)
+                cost_m_lat = eval_pos(lat - eps_deg, lng)
+                cost_p_lng = eval_pos(lat, lng + eps_deg)
+                cost_m_lng = eval_pos(lat, lng - eps_deg)
 
-                # -lng
-                graph.nodes[node_idx]['lat'] = lat
-                graph.nodes[node_idx]['lng'] = lng - eps_deg
-                self._recompute_edges_for_node(graph, node_idx)
-                cost_m_lng = self._compute_total_cost(graph) if self._all_edges_valid(graph, node_idx) else 1e9
-
-                # Restore
+                # Restore exact baseline position before line search
                 graph.nodes[node_idx]['lat'] = lat
                 graph.nodes[node_idx]['lng'] = lng
                 self._recompute_edges_for_node(graph, node_idx)
 
+                # Calculate gradient vectors
                 grad_lat = (cost_p_lat - cost_m_lat) / (2 * eps_deg)
                 grad_lng = (cost_p_lng - cost_m_lng) / (2 * eps_deg)
-
                 grad_norm = math.sqrt(grad_lat ** 2 + grad_lng ** 2)
 
                 if grad_norm < 1e-3:  # practically flat
@@ -919,136 +919,51 @@ class BaseMiniGridSolver(ABC):
                 step_lat = -grad_lat / grad_norm * max_step_meters * one_meter_deg
                 step_lng = -grad_lng / grad_norm * max_step_meters * one_meter_deg
 
-                # === Backtracking line search with constraint checking ===
+                # === Backtracking line search ===
                 best_step_lat = 0.0
                 best_step_lng = 0.0
-                best_new_cost = current_cost
+                best_new_local_cost = current_local_cost
 
                 for scale in [1.0, 0.5, 0.25, 0.125, 0.0625]:
-                    test_lat = lat + scale * step_lat
-                    test_lng = lng + scale * step_lng
+                    test_cost = eval_pos(lat + scale * step_lat, lng + scale * step_lng)
 
-                    # Temporarily apply
-                    graph.nodes[node_idx]['lat'] = test_lat
-                    graph.nodes[node_idx]['lng'] = test_lng
-                    self._recompute_edges_for_node(graph, node_idx)
+                    if test_cost < best_new_local_cost:
+                        best_new_local_cost = test_cost
+                        best_step_lat = scale * step_lat
+                        best_step_lng = scale * step_lng
 
-                    if self._all_edges_valid(graph, node_idx):
-
-                        new_cost = self._compute_total_cost(graph)
-                        if new_cost < best_new_cost:
-                            best_new_cost = new_cost
-                            best_step_lat = scale * step_lat
-                            best_step_lng = scale * step_lng
-
-                # Apply best valid step
+                # === Apply best valid step ===
                 if best_step_lat != 0.0 or best_step_lng != 0.0:
                     graph.nodes[node_idx]['lat'] = lat + best_step_lat
                     graph.nodes[node_idx]['lng'] = lng + best_step_lng
                     self._recompute_edges_for_node(graph, node_idx)
 
-                    improvement = current_cost - best_new_cost
-                    current_cost = best_new_cost
+                    improvement = current_local_cost - best_new_local_cost
+                    current_local_cost = best_new_local_cost
                     improved = True
 
                     move_m = math.hypot(best_step_lat / one_meter_deg, best_step_lng / one_meter_deg)
-                    if self.request.debug or improvement > 0.05:
-                        if self.request.debug > 1:
-                            print(f"  Iter {iteration + 1:2d}: moved {move_m:.1f}m, Δcost = -{improvement:.2f}")
+                    if self.request.debug > 1 and improvement > 0.05:
+                        print(f"  Iter {iteration + 1:2d}: moved {move_m:.1f}m, Δcost = -{improvement:.2f}")
                 else:
+                    # Restore one last time to be safe if no step was taken
+                    graph.nodes[node_idx]['lat'] = lat
+                    graph.nodes[node_idx]['lng'] = lng
+                    self._recompute_edges_for_node(graph, node_idx)
+
                     if self.request.debug > 1:
                         print(f"  Iter {iteration + 1:2d}: no valid improving step")
                     break
 
-        final_cost = self._compute_total_cost(graph)
-        delta = self._compute_total_cost(graph) - final_cost  # should be near zero
         if self.request.debug > 1:
-            print(f"Local GD finished. Final cost: {final_cost:.2f} "
-                  f"({'improved ' + str(delta) if improved else 'no significant change'})")
+            final_cost = self._compute_total_cost(graph)
+            print(f"Local GD finished. Final global cost: {final_cost:.2f} "
+                  f"({'improved' if improved else 'no significant change'})")
 
         if self.request.debug > 0:
             self._plot_current_tree(graph, [], title="After Local Optimization")
 
         return graph
-
-    def _post_solver_local_opt_brute_force(self, graph: Union[nx.Graph, nx.DiGraph]):
-        """
-        Optional local optimization step after the initial solve.
-
-        This method "jiggles" each pole by a small amount in all directions to find a more optimal solution.
-
-        Args:
-            graph (Union[nx.Graph, nx.DiGraph]): The graph resulting from the main solver.
-
-        """
-        one_meter_deg = 1 / 111111.0
-        grid_size = 10
-        grid = np.linspace(-one_meter_deg * grid_size, one_meter_deg * grid_size, grid_size)
-        grid_points = [(lat, lng) for lat in grid for lng in grid]
-
-        best_graph = graph.copy()
-        best_total_cost = self._compute_total_cost(best_graph)
-
-        print(f"Starting local opt. Initial cost: {best_total_cost:.2f}")
-
-        for node_idx, node_data in list(graph.nodes(data=True)):
-            if node_data['type'] != "pole":
-                continue
-
-            original_lat = node_data['lat']
-            original_lng = node_data['lng']
-
-            local_best_cost = best_total_cost
-            local_best_pos = (original_lat, original_lng)
-
-            for dlat, dlng in grid_points:
-                test_lat = original_lat + dlat
-                test_lng = original_lng + dlng
-
-                # Temporarily move in best_graph
-                best_graph.nodes[node_idx]['lat'] = test_lat
-                best_graph.nodes[node_idx]['lng'] = test_lng
-
-                # Recompute all edges connected to this pole
-                for u, v in list(best_graph.edges(node_idx)):
-                    length = self.haversine_meters(
-                        best_graph.nodes[u]['lat'], best_graph.nodes[u]['lng'],
-                        best_graph.nodes[v]['lat'], best_graph.nodes[v]['lng']
-                    )
-                    best_graph[u][v]['length'] = length
-                    best_graph[u][v]['weight'] = self.calc_edge_weight(length,
-                                                                       best_graph[u][v].get('voltage', 'low'))
-
-                new_cost = self._compute_total_cost(best_graph)
-
-                if new_cost < local_best_cost:
-                    local_best_cost = new_cost
-                    local_best_pos = (test_lat, test_lng)
-                    if self.request.debug:
-                        print(f"  Better position for pole {node_idx}: Δcost = {best_total_cost - new_cost:.4f}")
-
-            # Apply best position found for this pole
-            best_graph.nodes[node_idx]['lat'] = local_best_pos[0]
-            best_graph.nodes[node_idx]['lng'] = local_best_pos[1]
-
-            # Recompute edges one final time for this pole
-            for u, v in list(best_graph.edges(node_idx)):
-                length = self.haversine_meters(
-                    best_graph.nodes[u]['lat'], best_graph.nodes[u]['lng'],
-                    best_graph.nodes[v]['lat'], best_graph.nodes[v]['lng']
-                )
-                best_graph[u][v]['length'] = length
-                best_graph[u][v]['weight'] = self.calc_edge_weight(length,
-                                                                   best_graph[u][v].get('voltage', 'low'))
-
-            if local_best_cost < best_total_cost:
-                best_total_cost = local_best_cost
-                print(f"Pole {node_idx} improved cost to {best_total_cost:.2f}")
-
-        final_cost = self._compute_total_cost(best_graph)
-        print(f"Local optimization finished. Cost: {final_cost:.2f} (was {self._compute_total_cost(graph):.2f})")
-
-        return best_graph
 
     @staticmethod
     def _get_num_poles_and_wire_length(graph: Union[nx.Graph, nx.DiGraph]):
