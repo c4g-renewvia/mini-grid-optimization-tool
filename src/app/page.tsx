@@ -1836,8 +1836,6 @@ export default function MiniGridToolPage() {
 
       const data = await res.json();
 
-      console.log(data);
-
       if (debug) {
         console.log('Solver result:', data);
       }
