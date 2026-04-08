@@ -4,7 +4,6 @@ import React from 'react';
 import type {
   CostBreakdown,
   MiniGridNode,
-  MiniGridEdge,
 } from '@/types/minigrid';
 
 interface ExportSummaryProps {
@@ -14,7 +13,6 @@ interface ExportSummaryProps {
   lowVoltageCost: number;
   highVoltageCost: number;
   miniGridNodes: MiniGridNode[];
-  miniGridEdges: MiniGridEdge[];
   allowDragTerminals: boolean;
   onAllowDragTerminalsChange: (_allow: boolean) => void;
   onDownloadKml: () => void;
@@ -40,7 +38,6 @@ export default function ExportSummary({
   lowVoltageCost,
   highVoltageCost,
   miniGridNodes,
-  miniGridEdges,
   allowDragTerminals,
   onAllowDragTerminalsChange,
   onDownloadKml,
@@ -224,9 +221,6 @@ export default function ExportSummary({
           <div className='flex flex-col gap-3'>
             <button
               onClick={onDownloadKml}
-              disabled={
-                miniGridNodes.length === 0 || miniGridEdges.length === 0
-              }
               className='w-full rounded-xl bg-purple-600 py-4 font-semibold text-white hover:bg-purple-700 disabled:opacity-50 dark:text-white'
             >
               📥 Download KML
@@ -236,7 +230,6 @@ export default function ExportSummary({
               onClick={onSaveToDatabase}
               disabled={
                 computingMiniGrid ||
-                miniGridNodes.length === 0 ||
                 savedRunsCount >= 10
               }
               className='w-full rounded-xl bg-emerald-600 py-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 dark:text-white'

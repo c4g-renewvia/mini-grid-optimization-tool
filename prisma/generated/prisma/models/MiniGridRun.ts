@@ -69,7 +69,6 @@ export type MiniGridRunCountAggregateOutputType = {
   fileName: number
   createdAt: number
   updatedAt: number
-  dataPoints: number
   miniGridNodes: number
   miniGridEdges: number
   costBreakdown: number
@@ -123,7 +122,6 @@ export type MiniGridRunCountAggregateInputType = {
   fileName?: true
   createdAt?: true
   updatedAt?: true
-  dataPoints?: true
   miniGridNodes?: true
   miniGridEdges?: true
   costBreakdown?: true
@@ -226,7 +224,6 @@ export type MiniGridRunGroupByOutputType = {
   fileName: string | null
   createdAt: Date
   updatedAt: Date
-  dataPoints: runtime.JsonValue | null
   miniGridNodes: runtime.JsonValue | null
   miniGridEdges: runtime.JsonValue | null
   costBreakdown: runtime.JsonValue | null
@@ -240,7 +237,7 @@ export type MiniGridRunGroupByOutputType = {
   _max: MiniGridRunMaxAggregateOutputType | null
 }
 
-export type GetMiniGridRunGroupByPayload<T extends MiniGridRunGroupByArgs> = Prisma.PrismaPromise<
+type GetMiniGridRunGroupByPayload<T extends MiniGridRunGroupByArgs> = Prisma.PrismaPromise<
   Array<
     Prisma.PickEnumerable<MiniGridRunGroupByOutputType, T['by']> &
       {
@@ -265,7 +262,6 @@ export type MiniGridRunWhereInput = {
   fileName?: Prisma.StringNullableFilter<"MiniGridRun"> | string | null
   createdAt?: Prisma.DateTimeFilter<"MiniGridRun"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MiniGridRun"> | Date | string
-  dataPoints?: Prisma.JsonNullableFilter<"MiniGridRun">
   miniGridNodes?: Prisma.JsonNullableFilter<"MiniGridRun">
   miniGridEdges?: Prisma.JsonNullableFilter<"MiniGridRun">
   costBreakdown?: Prisma.JsonNullableFilter<"MiniGridRun">
@@ -282,7 +278,6 @@ export type MiniGridRunOrderByWithRelationInput = {
   fileName?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
-  dataPoints?: Prisma.SortOrderInput | Prisma.SortOrder
   miniGridNodes?: Prisma.SortOrderInput | Prisma.SortOrder
   miniGridEdges?: Prisma.SortOrderInput | Prisma.SortOrder
   costBreakdown?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -302,7 +297,6 @@ export type MiniGridRunWhereUniqueInput = Prisma.AtLeast<{
   fileName?: Prisma.StringNullableFilter<"MiniGridRun"> | string | null
   createdAt?: Prisma.DateTimeFilter<"MiniGridRun"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MiniGridRun"> | Date | string
-  dataPoints?: Prisma.JsonNullableFilter<"MiniGridRun">
   miniGridNodes?: Prisma.JsonNullableFilter<"MiniGridRun">
   miniGridEdges?: Prisma.JsonNullableFilter<"MiniGridRun">
   costBreakdown?: Prisma.JsonNullableFilter<"MiniGridRun">
@@ -319,7 +313,6 @@ export type MiniGridRunOrderByWithAggregationInput = {
   fileName?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
-  dataPoints?: Prisma.SortOrderInput | Prisma.SortOrder
   miniGridNodes?: Prisma.SortOrderInput | Prisma.SortOrder
   miniGridEdges?: Prisma.SortOrderInput | Prisma.SortOrder
   costBreakdown?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -343,7 +336,6 @@ export type MiniGridRunScalarWhereWithAggregatesInput = {
   fileName?: Prisma.StringNullableWithAggregatesFilter<"MiniGridRun"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"MiniGridRun"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"MiniGridRun"> | Date | string
-  dataPoints?: Prisma.JsonNullableWithAggregatesFilter<"MiniGridRun">
   miniGridNodes?: Prisma.JsonNullableWithAggregatesFilter<"MiniGridRun">
   miniGridEdges?: Prisma.JsonNullableWithAggregatesFilter<"MiniGridRun">
   costBreakdown?: Prisma.JsonNullableWithAggregatesFilter<"MiniGridRun">
@@ -358,7 +350,6 @@ export type MiniGridRunCreateInput = {
   fileName?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -375,7 +366,6 @@ export type MiniGridRunUncheckedCreateInput = {
   fileName?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -390,7 +380,6 @@ export type MiniGridRunUpdateInput = {
   fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -407,7 +396,6 @@ export type MiniGridRunUncheckedUpdateInput = {
   fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -423,7 +411,6 @@ export type MiniGridRunCreateManyInput = {
   fileName?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -438,7 +425,6 @@ export type MiniGridRunUpdateManyMutationInput = {
   fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -454,7 +440,6 @@ export type MiniGridRunUncheckedUpdateManyInput = {
   fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -470,7 +455,6 @@ export type MiniGridRunCountOrderByAggregateInput = {
   fileName?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
-  dataPoints?: Prisma.SortOrder
   miniGridNodes?: Prisma.SortOrder
   miniGridEdges?: Prisma.SortOrder
   costBreakdown?: Prisma.SortOrder
@@ -581,7 +565,6 @@ export type MiniGridRunCreateWithoutUserInput = {
   fileName?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -596,7 +579,6 @@ export type MiniGridRunUncheckedCreateWithoutUserInput = {
   fileName?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -641,7 +623,6 @@ export type MiniGridRunScalarWhereInput = {
   fileName?: Prisma.StringNullableFilter<"MiniGridRun"> | string | null
   createdAt?: Prisma.DateTimeFilter<"MiniGridRun"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MiniGridRun"> | Date | string
-  dataPoints?: Prisma.JsonNullableFilter<"MiniGridRun">
   miniGridNodes?: Prisma.JsonNullableFilter<"MiniGridRun">
   miniGridEdges?: Prisma.JsonNullableFilter<"MiniGridRun">
   costBreakdown?: Prisma.JsonNullableFilter<"MiniGridRun">
@@ -656,7 +637,6 @@ export type MiniGridRunCreateManyUserInput = {
   fileName?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -671,7 +651,6 @@ export type MiniGridRunUpdateWithoutUserInput = {
   fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -686,7 +665,6 @@ export type MiniGridRunUncheckedUpdateWithoutUserInput = {
   fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -701,7 +679,6 @@ export type MiniGridRunUncheckedUpdateManyWithoutUserInput = {
   fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataPoints?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridNodes?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   miniGridEdges?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   costBreakdown?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -719,7 +696,6 @@ export type MiniGridRunSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   fileName?: boolean
   createdAt?: boolean
   updatedAt?: boolean
-  dataPoints?: boolean
   miniGridNodes?: boolean
   miniGridEdges?: boolean
   costBreakdown?: boolean
@@ -736,7 +712,6 @@ export type MiniGridRunSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   fileName?: boolean
   createdAt?: boolean
   updatedAt?: boolean
-  dataPoints?: boolean
   miniGridNodes?: boolean
   miniGridEdges?: boolean
   costBreakdown?: boolean
@@ -753,7 +728,6 @@ export type MiniGridRunSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   fileName?: boolean
   createdAt?: boolean
   updatedAt?: boolean
-  dataPoints?: boolean
   miniGridNodes?: boolean
   miniGridEdges?: boolean
   costBreakdown?: boolean
@@ -770,7 +744,6 @@ export type MiniGridRunSelectScalar = {
   fileName?: boolean
   createdAt?: boolean
   updatedAt?: boolean
-  dataPoints?: boolean
   miniGridNodes?: boolean
   miniGridEdges?: boolean
   costBreakdown?: boolean
@@ -779,7 +752,7 @@ export type MiniGridRunSelectScalar = {
   highVoltageCost?: boolean
 }
 
-export type MiniGridRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "name" | "fileName" | "createdAt" | "updatedAt" | "dataPoints" | "miniGridNodes" | "miniGridEdges" | "costBreakdown" | "poleCost" | "lowVoltageCost" | "highVoltageCost", ExtArgs["result"]["miniGridRun"]>
+export type MiniGridRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "name" | "fileName" | "createdAt" | "updatedAt" | "miniGridNodes" | "miniGridEdges" | "costBreakdown" | "poleCost" | "lowVoltageCost" | "highVoltageCost", ExtArgs["result"]["miniGridRun"]>
 export type MiniGridRunInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -802,7 +775,6 @@ export type $MiniGridRunPayload<ExtArgs extends runtime.Types.Extensions.Interna
     fileName: string | null
     createdAt: Date
     updatedAt: Date
-    dataPoints: runtime.JsonValue | null
     miniGridNodes: runtime.JsonValue | null
     miniGridEdges: runtime.JsonValue | null
     costBreakdown: runtime.JsonValue | null
@@ -1239,7 +1211,6 @@ export interface MiniGridRunFieldRefs {
   readonly fileName: Prisma.FieldRef<"MiniGridRun", 'String'>
   readonly createdAt: Prisma.FieldRef<"MiniGridRun", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"MiniGridRun", 'DateTime'>
-  readonly dataPoints: Prisma.FieldRef<"MiniGridRun", 'Json'>
   readonly miniGridNodes: Prisma.FieldRef<"MiniGridRun", 'Json'>
   readonly miniGridEdges: Prisma.FieldRef<"MiniGridRun", 'Json'>
   readonly costBreakdown: Prisma.FieldRef<"MiniGridRun", 'Json'>
@@ -1442,11 +1413,6 @@ export type MiniGridRunFindManyArgs<ExtArgs extends runtime.Types.Extensions.Int
    * Skip the first `n` MiniGridRuns.
    */
   skip?: number
-  /**
-   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
-   * 
-   * Filter by unique combinations of MiniGridRuns.
-   */
   distinct?: Prisma.MiniGridRunScalarFieldEnum | Prisma.MiniGridRunScalarFieldEnum[]
 }
 

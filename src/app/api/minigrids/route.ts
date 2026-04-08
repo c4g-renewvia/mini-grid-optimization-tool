@@ -36,7 +36,6 @@ export async function POST(req: NextRequest) {
         userId: session.user.id,
         name: body.name || null,
         fileName: body.fileName || null,
-        dataPoints: body.dataPoints,
         miniGridNodes: body.miniGridNodes,
         miniGridEdges: body.miniGridEdges,
         costBreakdown: body.costBreakdown,

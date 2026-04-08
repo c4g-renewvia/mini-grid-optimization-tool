@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import Script from 'next/script';
 import Papa from 'papaparse';
-import {useSession} from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 
 import { useMiniGridHistory } from '@/hooks/useMiniGridHistory';
 
@@ -22,16 +22,15 @@ import ManualPointInput from '@/components/minigrid-tool/ManualPointInput';
 import ExportSummary from '@/components/minigrid-tool/ExportSummary';
 import SavedGridsSection from '@/components/minigrid-tool/SavedGridsSection';
 import MapControls from '@/components/minigrid-tool/MapControls';
-import { SidebarUserMenu } from '@/components/minigrid-tool/SidebarUserMenu';
 
 import type {
-  MarkerPoint,
   MiniGridEdge,
   MiniGridNode,
   CostBreakdown,
   MiniGridRun,
   Solvers,
 } from '@/types/minigrid';
+import { SidebarUserMenu } from '@/components/minigrid-tool/SidebarUserMenu';
 
 const GOOGLE_MAPS_API_KEY =
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY';
@@ -80,10 +79,9 @@ export default function MiniGridToolPage() {
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const markerDragRef = useRef<string | null>(null);
 
-  const [dataPoints, setDataPoints] = useState<MarkerPoint[]>([]);
   const [miniGridEdges, setMiniGridEdges] = useState<MiniGridEdge[]>([]);
   const [miniGridNodes, setMiniGridNodes] = useState<MiniGridNode[]>([]);
-  const [originalDataPoints, setOriginalDataPoints] = useState<MarkerPoint[]>(
+  const [originalMiniGridNodes, setOriginalMiniGridNodes] = useState<MiniGridNode[]>(
     []
   );
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
@@ -107,11 +105,6 @@ export default function MiniGridToolPage() {
   ] = useState<number>(20);
 
   const [
-    lowVoltagePoleToTerminalMinimumLength,
-    setLowVoltagePoleToTerminalMinimumLength,
-  ] = useState<number>(5);
-
-  const [
     highVoltagePoleToPoleLengthConstraint,
     setHighVoltagePoleToPoleLengthConstraint,
   ] = useState<number>(50);
@@ -119,13 +112,6 @@ export default function MiniGridToolPage() {
     highVoltagePoleToTerminalLengthConstraint,
     setHighVoltagePoleToTerminalLengthConstraint,
   ] = useState<number>(20);
-
-  const [
-    highVoltagePoleToTerminalMinimumLength,
-    setHighVoltagePoleToTerminalMinimumLength,
-  ] = useState<number>(5);
-
-
 
   const [costBreakdown, setCostBreakdown] = useState<CostBreakdown>({
     lowVoltageMeters: 0,
@@ -211,7 +197,6 @@ export default function MiniGridToolPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const { saveState, undo, redo, canUndo, canRedo } = useMiniGridHistory({
-    dataPoints: [],
     miniGridNodes: [],
     miniGridEdges: [],
     costBreakdown: {
@@ -230,7 +215,6 @@ export default function MiniGridToolPage() {
 
   // 1. Add this near your other refs
   const stateRef = useRef({
-    dataPoints,
     miniGridNodes,
     miniGridEdges,
     costBreakdown,
@@ -242,7 +226,6 @@ export default function MiniGridToolPage() {
   // 2. Add this effect to sync it automatically
   useEffect(() => {
     stateRef.current = {
-      dataPoints,
       miniGridNodes,
       miniGridEdges,
       costBreakdown,
@@ -251,7 +234,6 @@ export default function MiniGridToolPage() {
       saveState,
     };
   }, [
-    dataPoints,
     miniGridNodes,
     miniGridEdges,
     costBreakdown,
@@ -262,7 +244,6 @@ export default function MiniGridToolPage() {
 
   // Helper to bundle current state for the hook
   const captureState = (overrides = {}) => ({
-    dataPoints,
     miniGridNodes,
     miniGridEdges,
     costBreakdown,
@@ -289,7 +270,6 @@ export default function MiniGridToolPage() {
           if (canRedo) {
             const s = redo();
             if (s) {
-              setDataPoints(s.dataPoints);
               setMiniGridNodes(s.miniGridNodes);
               setMiniGridEdges(s.miniGridEdges);
               setCostBreakdown(s.costBreakdown);
@@ -300,7 +280,6 @@ export default function MiniGridToolPage() {
           if (canUndo) {
             const s = undo();
             if (s) {
-              setDataPoints(s.dataPoints);
               setMiniGridNodes(s.miniGridNodes);
               setMiniGridEdges(s.miniGridEdges);
               setCostBreakdown(s.costBreakdown);
@@ -336,9 +315,6 @@ export default function MiniGridToolPage() {
 
         // Optional: ignore clicks that are very close to existing markers
         const tooClose =
-          dataPoints.some(
-            (p) => haversineDistance(p.lat, p.lng, lat, lng) < 5 // ~5 meters
-          ) ||
           miniGridNodes.some(
             (n) => haversineDistance(n.lat, n.lng, lat, lng) < 5
           );
@@ -354,7 +330,7 @@ export default function MiniGridToolPage() {
     return () => {
       google.maps.event.removeListener(clickListener);
     };
-  }, [map, dataPoints, miniGridNodes]); // Re-attach if points change (optional)
+  }, [map, miniGridNodes]); // Re-attach if points change (optional)
 
   const handleRemovePoint = useCallback(
     (pointName: string) => {
@@ -362,9 +338,6 @@ export default function MiniGridToolPage() {
       const current = stateRef.current;
 
       // 2. Filter out the point and its node
-      const updatedPoints = current.dataPoints.filter(
-        (p) => p.name !== pointName
-      );
       const updatedNodes = current.miniGridNodes.filter(
         (n) => n.name !== pointName
       );
@@ -386,13 +359,11 @@ export default function MiniGridToolPage() {
       });
 
       // 4. Update React State
-      setDataPoints(updatedPoints);
       setMiniGridNodes(updatedNodes);
       setMiniGridEdges(updatedEdges);
 
       // 5. Push to History
       current.saveState({
-        dataPoints: updatedPoints,
         miniGridNodes: updatedNodes,
         miniGridEdges: updatedEdges,
         costBreakdown: current.costBreakdown, // You may want to trigger a cost recalc here
@@ -457,7 +428,6 @@ export default function MiniGridToolPage() {
 
     // Save to history
     current.saveState({
-      dataPoints: current.dataPoints,
       miniGridNodes: current.miniGridNodes,
       miniGridEdges: updatedEdges,
       costBreakdown: newCostBreakdown,
@@ -758,10 +728,6 @@ export default function MiniGridToolPage() {
           n.name === point.name ? { ...n, lat: finalLat, lng: finalLng } : n
         );
 
-        const updatedPoints = current.dataPoints.map((p) =>
-          p.name === point.name ? { ...p, lat: finalLat, lng: finalLng } : p
-        );
-
         const updatedEdges = current.miniGridEdges.map((edge) => {
           // Identify if the dragged point was the start or end of this edge
           const isStart =
@@ -795,12 +761,10 @@ export default function MiniGridToolPage() {
 
         // 3. Update React State with the newly calculated arrays
         setMiniGridNodes(updatedNodes);
-        setDataPoints(updatedPoints);
         setMiniGridEdges(updatedEdges);
 
         // 4. Save to History EXACTLY the fresh state you just calculated
         current.saveState({
-          dataPoints: updatedPoints,
           miniGridNodes: updatedNodes,
           miniGridEdges: updatedEdges,
           costBreakdown: current.costBreakdown,
@@ -842,7 +806,7 @@ export default function MiniGridToolPage() {
   };
 
   const getNextNameForType = (type: 'source' | 'terminal' | 'pole'): string => {
-    const allPoints = [...dataPoints, ...miniGridNodes];
+    const allPoints = [...miniGridNodes];
 
     const existingNumbers = allPoints
       .filter((p) => p.type === type)
@@ -866,7 +830,7 @@ export default function MiniGridToolPage() {
     if (!isAddPointDialogOpen) return;
     const nextName = getNextNameForType(newPointDetails.type);
     setNewPointDetails((prev) => ({ ...prev, name: nextName }));
-  }, [isAddPointDialogOpen, newPointDetails.type, dataPoints, miniGridNodes]);
+  }, [isAddPointDialogOpen, newPointDetails.type, miniGridNodes]);
 
   // 1. Wrap initMap in useCallback to stabilize it
   const initMap = useCallback(() => {
@@ -880,11 +844,11 @@ export default function MiniGridToolPage() {
       fullscreenControl: false,
       streetViewControl: false,
       mapId: 'DEMO_MAP_ID',
-      mapTypeControl: true,                    // ensure it's visible
+      mapTypeControl: true, // ensure it's visible
       mapTypeControlOptions: {
-        style: google.maps.MapTypeControlStyle.DEFAULT,   // or HORIZONTAL_BAR, DROPDOWN_MENU
+        style: google.maps.MapTypeControlStyle.DEFAULT, // or HORIZONTAL_BAR, DROPDOWN_MENU
         position: google.maps.ControlPosition.TOP_RIGHT,
-      }
+      },
     });
 
     setMap(googleMap);
@@ -907,37 +871,13 @@ export default function MiniGridToolPage() {
       window.removeEventListener('mouseup', handleMouseUp);
     };
   });
-
   // ==================== SOLVERS & PARAMETERS ====================
   useEffect(() => {
-    const fetchSolvers = async () => {
-      const url =
-        process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers';
-
-      try {
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data = await res.json();
-        setSolvers(data.solvers || []);
-      } catch (err) {
-        console.warn('⚠️ Could not fetch solvers from backend (using fallback):', err);
-
-        // Safe fallback so build never fails
-        const fallbackSolvers: Solvers[] = [
-          { name: 'SimpleMSTSolver', params: [] },
-          { name: 'SteinerizedMSTSolver', params: [] },
-          { name: 'GreedyIterSteinerSolver', params: [] },
-        ];
-        setSolvers(fallbackSolvers);
-      }
-    };
-
-    fetchSolvers();
+    fetch(
+      process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers'
+    )
+      .then((res) => res.json())
+      .then((data) => setSolvers(data.solvers || []));
   }, []);
 
   useEffect(() => {
@@ -1073,16 +1013,10 @@ export default function MiniGridToolPage() {
     markersRef.current = [];
 
     // Combine points - miniGridNodes has priority
-    const allPointsMap = new Map<string, MiniGridNode | MarkerPoint>();
+    const allPointsMap = new Map<string, MiniGridNode>();
 
     miniGridNodes.forEach((node) => {
       if (node?.name) allPointsMap.set(node.name, node);
-    });
-
-    dataPoints.forEach((point) => {
-      if (point?.name && !allPointsMap.has(point.name)) {
-        allPointsMap.set(point.name, point);
-      }
     });
 
     const pointsToShow = Array.from(allPointsMap.values());
@@ -1117,7 +1051,7 @@ export default function MiniGridToolPage() {
         map.fitBounds(bounds, { bottom: 80, left: 200, right: 80, top: 80 });
       }, 100);
     }
-  }, [map, miniGridNodes, dataPoints, createMarker]);
+  }, [map, miniGridNodes, createMarker]);
 
   useEffect(() => {
     fetch(getSolversURL)
@@ -1142,27 +1076,22 @@ export default function MiniGridToolPage() {
   const handleConfirmNewPoint = () => {
     if (!pendingPoint) return;
 
-    const newLocation: MarkerPoint = {
+    const newLocation: MiniGridNode = {
+      index: miniGridNodes.length + 1,
       name: newPointDetails.name,
       type: newPointDetails.type,
       lat: pendingPoint.lat,
       lng: pendingPoint.lng,
     };
 
-    const updatedPoints = [...dataPoints, newLocation];
-    const updatedNodes: MiniGridNode[] = [
-      ...miniGridNodes,
-      { ...newLocation, index: miniGridNodes.length },
-    ];
+    const updatedNodes: MiniGridNode[] = [...miniGridNodes, newLocation];
 
     // Update React State
-    setDataPoints(updatedPoints);
     setMiniGridNodes(updatedNodes);
 
     // Save to History (Pass the updated arrays directly)
     saveState(
       captureState({
-        dataPoints: updatedPoints,
         miniGridNodes: updatedNodes,
         miniGridEdges: [...miniGridEdges],
         costBreakdown: { ...costBreakdown },
@@ -1183,14 +1112,15 @@ export default function MiniGridToolPage() {
       return;
     }
 
-    const newPoint: MarkerPoint = {
-      name: manualPoint.name || `Manual Point ${dataPoints.length + 1}`,
+    const newPoint: MiniGridNode = {
+      index: miniGridNodes.length + 1,
+      name: manualPoint.name || `Manual Point ${miniGridNodes.length + 1}`,
       type: manualPoint.type,
       lat: lat,
       lng: lng,
     };
 
-    setDataPoints((prev) => [...prev, newPoint]);
+    setMiniGridNodes((prev) => [...prev, newPoint]);
 
     // Reset form
     setManualPoint({ name: '', lat: '', lng: '', type: 'terminal' });
@@ -1402,7 +1332,6 @@ export default function MiniGridToolPage() {
     });
     setCalcError(null);
     setError(null);
-    setDataPoints([]);
     setFileName(file.name);
     setOriginalFileName(file.name);
     setLoading(true);
@@ -1431,9 +1360,10 @@ export default function MiniGridToolPage() {
               index: n.index >= 0 ? n.index : idx,
             }));
 
-          const originalPoints: MarkerPoint[] = validNodes
+          const originalPoints: MiniGridNode[] = validNodes
             .filter((n) => n.type !== 'pole')
             .map((n) => ({
+              index: n.index,
               name: n.name,
               type: n.type,
               lat: n.lat,
@@ -1458,8 +1388,7 @@ export default function MiniGridToolPage() {
           // ─────────────────────────────────────────────────────
           setMiniGridNodes(validNodes);
           setMiniGridEdges(parsed.edges);
-          setDataPoints(originalPoints);
-          setOriginalDataPoints(originalPoints);
+          setOriginalMiniGridNodes(originalPoints);
           setCostBreakdown(newCostBreakdown);
 
           // Restore per-unit costs if they were saved in the KML
@@ -1494,7 +1423,6 @@ export default function MiniGridToolPage() {
           // SAVE THE CORRECT NEW STATE TO HISTORY (this fixes redo)
           // ─────────────────────────────────────────────────────
           saveState({
-            dataPoints: originalPoints,
             miniGridNodes: validNodes,
             miniGridEdges: parsed.edges,
             costBreakdown: newCostBreakdown,
@@ -1522,8 +1450,9 @@ export default function MiniGridToolPage() {
           try {
             const rows = result.data as Record<string, string>[];
 
-            const parsedPoints: MarkerPoint[] = rows
+            const parsedPoints: MiniGridNode[] = rows
               .map((row) => {
+                const index: number = Number(row.index?.trim() || row['index'])
                 const name = row.name?.trim() || row['name'] || 'Unnamed';
                 const typeStr = row.type?.trim() || row['type'] || 'terminal';
                 const latStr = row.latitude || row.lat || '';
@@ -1537,9 +1466,9 @@ export default function MiniGridToolPage() {
                 const type =
                   typeStr.toLowerCase() === 'source' ? 'source' : 'terminal';
 
-                return { name, type, lat, lng };
+                return { index, name, lat, lng, type};
               })
-              .filter((p): p is MarkerPoint => p !== null);
+              .filter((p): p is MiniGridNode => p !== null);
 
             if (parsedPoints.length === 0) {
               setError(
@@ -1549,14 +1478,12 @@ export default function MiniGridToolPage() {
               // ─────────────────────────────────────────────────────
               // UPDATE UI STATE
               // ─────────────────────────────────────────────────────
-              setDataPoints(parsedPoints);
-              setOriginalDataPoints(parsedPoints);
+              setOriginalMiniGridNodes(parsedPoints);
 
               // ─────────────────────────────────────────────────────
               // SAVE THE CORRECT NEW STATE TO HISTORY (this fixes redo)
               // ─────────────────────────────────────────────────────
               saveState({
-                dataPoints: parsedPoints,
                 miniGridNodes: [], // CSV has no poles/edges yet
                 miniGridEdges: [],
                 costBreakdown: {
@@ -1632,45 +1559,45 @@ export default function MiniGridToolPage() {
     const latRange = 0.001;
     const lngRange = 0.001 / Math.cos((centerLat * Math.PI) / 180);
 
-    const points: MarkerPoint[] = [];
+    const newMiniGridNodes: MiniGridNode[] = [];
     const maxAttempts = count * 10;
     let attempts = 0;
 
-    while (points.length < count && attempts < maxAttempts) {
+    while (newMiniGridNodes.length < count && attempts < maxAttempts) {
       const latOffset = (Math.random() - 0.5) * latRange * 2;
       const lngOffset = (Math.random() - 0.5) * lngRange * 2;
 
       const lat = parseFloat((centerLat + latOffset).toFixed(8));
       const lng = parseFloat((centerLng + lngOffset).toFixed(8));
 
-      const isDuplicate = points.some(
+      const isDuplicate = newMiniGridNodes.some(
         (point) =>
           Math.abs(point.lat - lat) < 0.0001 &&
           Math.abs(point.lng - lng) < 0.0001
       );
 
       if (!isDuplicate) {
-        const type = points.length === 0 ? 'source' : 'terminal';
+        const type = newMiniGridNodes.length === 0 ? 'source' : 'terminal';
         const name =
-          points.length === 0
+          newMiniGridNodes.length === 0
             ? 'Source 01'
-            : `Terminal ${String(points.length).padStart(2, '0')}`;
+            : `Terminal ${String(newMiniGridNodes.length).padStart(2, '0')}`;
 
-        points.push({ name, type, lat, lng });
+        const index = newMiniGridNodes.length + 1;
+
+        newMiniGridNodes.push({index, name, lat, lng, type });
       }
       attempts++;
     }
 
-    if (points.length < count) {
+    if (newMiniGridNodes.length < count) {
       throw new Error(`Could not generate ${count} unique markers.`);
     }
 
-    const newDataPoints = points; // we already have the array
-    const newOriginalDataPoints = points;
+    const newOriginalDataPoints = newMiniGridNodes;
 
     const newState = {
-      dataPoints: newDataPoints,
-      miniGridNodes: [], // you clear these
+      miniGridNodes: newMiniGridNodes,
       miniGridEdges: [],
       costBreakdown: {
         lowVoltageMeters: 0,
@@ -1687,9 +1614,8 @@ export default function MiniGridToolPage() {
     };
 
     // Now update the UI
-    setDataPoints(newDataPoints);
-    setOriginalDataPoints(newOriginalDataPoints);
-    setMiniGridNodes([]);
+    setOriginalMiniGridNodes(newOriginalDataPoints);
+    setMiniGridNodes(newMiniGridNodes);
     setMiniGridEdges([]);
     setCostBreakdown(newState.costBreakdown);
     setFileName(null);
@@ -1719,9 +1645,8 @@ export default function MiniGridToolPage() {
     polylinesRef.current = [];
 
     // Reset state
-    setDataPoints(originalDataPoints); // if you're using the originalPoints state
     setSolverOriginalCost(0);
-    setMiniGridNodes([]);
+    setMiniGridNodes(originalMiniGridNodes);
     setMiniGridEdges([]);
     setCostBreakdown({
       lowVoltageMeters: 0,
@@ -1754,12 +1679,15 @@ export default function MiniGridToolPage() {
   };
 
   const handleRunSolver = async () => {
-    const pointsToSend =
-      useExistingPoles && hasPoles
-        ? miniGridNodes // ← includes ALL existing poles + original terminals/source
-        : dataPoints; // ← only the original uploaded/added points (no solver poles)
 
-    if (pointsToSend.length < 2) {
+    console.log(
+      `[handleRunSolver] Sending ${miniGridNodes.length} points to backend`
+    );
+    console.log(
+      `[handleRunSolver] Using existing poles? ${useExistingPoles && hasPoles ? 'YES' : 'NO'} (${miniGridNodes.filter((p) => p.type === 'pole').length} poles)`
+    );
+
+    if (miniGridNodes.length < 2) {
       alert('Need at least 2 points to run solver.');
       return;
     }
@@ -1794,21 +1722,17 @@ export default function MiniGridToolPage() {
         body: JSON.stringify({
           solver: selectedSolverName,
           params: paramValues,
-          points: pointsToSend,
+          points: miniGridNodes,
           lengthConstraints: {
             low: {
               poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
               poleToHouseLengthConstraint:
                 lowVoltagePoleToTerminalLengthConstraint,
-              poleToTerminalMinimumLength:
-                lowVoltagePoleToTerminalMinimumLength,
             },
             high: {
               poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
               poleToHouseLengthConstraint:
                 highVoltagePoleToTerminalLengthConstraint,
-              poleToTerminalMinimumLength:
-                highVoltagePoleToTerminalMinimumLength,
             },
           },
           costs: {
@@ -1886,24 +1810,14 @@ export default function MiniGridToolPage() {
         usedHighCostPerMeter: usedCosts?.highVoltageCostPerMeter,
       };
 
-      const newDataPoints: MarkerPoint[] = newMiniGridNodes
-        .filter((n: MiniGridNode) => n.type !== 'pole')
-        .map((n: MiniGridNode) => ({
-          name: n.name,
-          type: n.type,
-          lat: n.lat,
-          lng: n.lng,
-        }));
 
       // Now update React state
-      setDataPoints(newDataPoints);
       setMiniGridNodes(newMiniGridNodes);
       setMiniGridEdges(newMiniGridEdges);
       setCostBreakdown(newCostBreakdown);
 
       // Save the CORRECT solved state to history
       saveState({
-        dataPoints: newDataPoints, // input points usually don't change
         miniGridNodes: newMiniGridNodes,
         miniGridEdges: newMiniGridEdges,
         costBreakdown: newCostBreakdown,
@@ -2092,7 +2006,7 @@ export default function MiniGridToolPage() {
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-    <name>Mini-Grid • ${fileName || 'Solved Network'}</name>
+    <name>Mini-Grid • ${miniGridEdges.length > 0 ? "Solved" : "" }</name>
     <open>1</open>
 
     ${kmlStyles}
@@ -2140,7 +2054,6 @@ export default function MiniGridToolPage() {
     });
 
     // Reset and load core data
-    setDataPoints(run.dataPoints || []);
     setMiniGridNodes(run.miniGridNodes || []);
     setMiniGridEdges(
       (run.miniGridEdges || []).map((e: MiniGridEdge) => ({
@@ -2183,14 +2096,12 @@ export default function MiniGridToolPage() {
     });
 
     const newState = {
-      dataPoints: run.dataPoints || [],
       miniGridNodes: run.miniGridNodes || [],
       miniGridEdges: run.miniGridEdges || [],
       costBreakdown: run.costBreakdown,
     };
 
     // 1. Update React State
-    setDataPoints(newState.dataPoints);
     setMiniGridNodes(newState.miniGridNodes);
     setMiniGridEdges(newState.miniGridEdges);
     setCostBreakdown(newState.costBreakdown);
@@ -2262,7 +2173,6 @@ export default function MiniGridToolPage() {
     const payload = {
       name,
       fileName: fileName || null,
-      dataPoints,
       miniGridNodes,
       miniGridEdges,
       costBreakdown,
@@ -2322,7 +2232,6 @@ export default function MiniGridToolPage() {
   return (
     <div className='fixed inset-0 z-50 overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white'>
       {/* 1. Sidebar Toggle Button (Hamburger) */}
-      {/* Sidebar Toggle Button - Moved Up */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className='fixed top-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xl transition-all hover:scale-110 hover:bg-emerald-500 active:scale-95'
@@ -2432,8 +2341,8 @@ export default function MiniGridToolPage() {
                           <span className='mt-1 text-emerald-500'>•</span>
                           <span>
                             <strong>Drag markers</strong> to adjust their
-                            placement. Edges cannot exceed lengths set in{' '}
-                            <strong>Costs & Solver</strong> section.
+                            placement. Edges cannot exceed{' '}
+                            <strong>30 meters</strong>.
                           </span>
                         </li>
                         <li className='flex items-start gap-3'>
@@ -2458,7 +2367,7 @@ export default function MiniGridToolPage() {
                     <FileUploadArea
                       isDragOver={isDragOver}
                       fileName={fileName}
-                      dataPointsLength={dataPoints.length}
+                      dataPointsLength={miniGridNodes.length}
                       loading={loading}
                       error={error}
                       onDragOver={(e) => {
@@ -2550,17 +2459,11 @@ export default function MiniGridToolPage() {
                       lowVoltagePoleToTerminalLengthConstraint={
                         lowVoltagePoleToTerminalLengthConstraint
                       }
-                      lowVoltagePoleToTerminalMinimumLength={
-                        lowVoltagePoleToTerminalMinimumLength
-                      }
                       highVoltagePoleToPoleLengthConstraint={
                         highVoltagePoleToPoleLengthConstraint
                       }
                       highVoltagePoleToTerminalLengthConstraint={
                         highVoltagePoleToTerminalLengthConstraint
-                      }
-                      highVoltagePoleToTerminalMinimumLength={
-                        highVoltagePoleToTerminalMinimumLength
                       }
                       onLowVoltagePoleToPoleChange={
                         setLowVoltagePoleToPoleLengthConstraint
@@ -2568,18 +2471,24 @@ export default function MiniGridToolPage() {
                       onLowVoltagePoleToHouseChange={
                         setLowVoltagePoleToTerminalLengthConstraint
                       }
-                      onLowVoltagePoleToTerminalMinimumChange={
-                        setLowVoltagePoleToTerminalMinimumLength
-                      }
                       onHighVoltagePoleToPoleChange={
                         setHighVoltagePoleToPoleLengthConstraint
                       }
                       onHighVoltagePoleToHouseChange={
                         setHighVoltagePoleToTerminalLengthConstraint
                       }
-                      onHighVoltagePoleToTerminalMinimumChange={
-                        setHighVoltagePoleToTerminalMinimumLength
-                      }
+                      lowVoltagePoleToTerminalMinimumLength={0}
+                      highVoltagePoleToTerminalMinimumLength={0}
+                      onLowVoltagePoleToTerminalMinimumChange={function (
+                        _value: number
+                      ): void {
+                        throw new Error('Function not implemented.');
+                      }}
+                      onHighVoltagePoleToTerminalMinimumChange={function (
+                        _value: number
+                      ): void {
+                        throw new Error('Function not implemented.');
+                      }}
                     />
 
                     <SolverConfiguration
@@ -2635,7 +2544,6 @@ export default function MiniGridToolPage() {
                     lowVoltageCost={lowVoltageCost}
                     highVoltageCost={highVoltageCost}
                     miniGridNodes={miniGridNodes}
-                    miniGridEdges={miniGridEdges}
                     allowDragTerminals={allowDragTerminals}
                     onAllowDragTerminalsChange={setAllowDragTerminals}
                     onDownloadKml={downloadKml}
@@ -2661,12 +2569,7 @@ export default function MiniGridToolPage() {
             <hr className='border-zinc-200 dark:border-zinc-700' />
             <br />
             <p className='text-center text-xs text-zinc-500 dark:text-zinc-400'>
-              <a
-                href={
-                  'https://drive.google.com/file/d/1m5vtUijPxrbMqG0B-hNIa4mG5RXADIH5/view?usp=drive_link'
-                }
-                target='_blank'
-              >
+              <a href={'https://forms.gle/Az6j5cjtzJJDEQAEA'} target='_blank'>
                 User Manual |
               </a>
               <a href={'https://forms.gle/Az6j5cjtzJJDEQAEA'} target='_blank'>
@@ -2684,7 +2587,6 @@ export default function MiniGridToolPage() {
           onUndo={() => {
             const s = undo();
             if (s) {
-              setDataPoints(s.dataPoints);
               setMiniGridNodes(s.miniGridNodes);
               setMiniGridEdges(s.miniGridEdges);
               setCostBreakdown(s.costBreakdown);
@@ -2693,15 +2595,13 @@ export default function MiniGridToolPage() {
           onRedo={() => {
             const s = redo();
             if (s) {
-              setDataPoints(s.dataPoints);
               setMiniGridNodes(s.miniGridNodes);
               setMiniGridEdges(s.miniGridEdges);
               setCostBreakdown(s.costBreakdown);
             }
           }}
           onReset={handleResetMap}
-          hasData={dataPoints.length > 0 || miniGridNodes.length > 0}
-          sidebarOpen={sidebarOpen}
+          hasData={miniGridNodes.length > 0}
         />
 
         {/* FOOTER - Minimal */}
@@ -2712,7 +2612,6 @@ export default function MiniGridToolPage() {
         <Script
           src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=marker`}
           strategy='afterInteractive'
-          async={true}
           onLoad={initMap}
         />
       </div>

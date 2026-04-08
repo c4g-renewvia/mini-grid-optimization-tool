@@ -7,7 +7,6 @@ model MiniGridRun {
   updatedAt DateTime @updatedAt
 
   // Core data (JSON serialized)
-  dataPoints    Json? // original uploaded points
   miniGridNodes      Json?
   miniGridEdges      Json?
   costBreakdown Json?

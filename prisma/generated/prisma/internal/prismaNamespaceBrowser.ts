@@ -100,7 +100,6 @@ export const MiniGridRunScalarFieldEnum = {
   fileName: 'fileName',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
-  dataPoints: 'dataPoints',
   miniGridNodes: 'miniGridNodes',
   miniGridEdges: 'miniGridEdges',
   costBreakdown: 'costBreakdown',

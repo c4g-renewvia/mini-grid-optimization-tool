@@ -2,13 +2,11 @@ import { useState, useCallback } from 'react';
 
 import {
   CostBreakdown,
-  MarkerPoint,
   MiniGridNode,
   MiniGridEdge,
 } from '@/types/minigrid';
 
 interface HistoryState {
-  dataPoints: MarkerPoint[];
   miniGridNodes: MiniGridNode[];
   miniGridEdges: MiniGridEdge[];
   costBreakdown: CostBreakdown;

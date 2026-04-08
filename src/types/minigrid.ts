@@ -2,13 +2,6 @@
 
 // ====================== CORE DATA TYPES ======================
 
-export interface MarkerPoint {
-  name: string;
-  type: 'source' | 'terminal' | 'pole';
-  lat: number;
-  lng: number;
-}
-
 export interface MiniGridEdge {
   start: { lat: number; lng: number };
   end: { lat: number; lng: number };
@@ -18,9 +11,9 @@ export interface MiniGridEdge {
 
 export interface MiniGridNode {
   index: number;
+  name: string;
   lat: number;
   lng: number;
-  name: string;
   type: 'source' | 'terminal' | 'pole';
 }
 
@@ -49,7 +42,6 @@ export interface MiniGridRun {
   name?: string;
   createdAt: string;
   fileName?: string | null;
-  dataPoints: MarkerPoint[];
   miniGridNodes: MiniGridNode[];
   miniGridEdges: MiniGridEdge[];
   costBreakdown: CostBreakdown;
@@ -96,7 +88,6 @@ export interface NewPointDetails {
 // ====================== STATE SNAPSHOT FOR HISTORY ======================
 
 export interface MiniGridState {
-  dataPoints: MarkerPoint[];
   miniGridNodes: MiniGridNode[];
   miniGridEdges: MiniGridEdge[];
   costBreakdown: CostBreakdown;
