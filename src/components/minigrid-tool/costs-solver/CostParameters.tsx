@@ -23,9 +23,9 @@ interface CostParametersProps {
 
   // Handlers
   onLowVoltagePoleToPoleChange: (_value: number) => void;
-  onLowVoltagePoleToHouseChange: (_value: number) => void; // Pole to Terminal (LV)
+  onLowVoltagePoleToTerminalChange: (_value: number) => void; // Pole to Terminal (LV)
   onHighVoltagePoleToPoleChange: (_value: number) => void;
-  onHighVoltagePoleToHouseChange: (_value: number) => void; // Pole to Terminal (HV)
+  onHighVoltagePoleToTerminalChange: (_value: number) => void; // Pole to Terminal (HV)
 
   onLowVoltagePoleToTerminalMinimumChange: (_value: number) => void;
   onHighVoltagePoleToTerminalMinimumChange: (_value: number) => void;
@@ -52,9 +52,9 @@ export default function CostParameters({
 
                                          // Handlers
                                          onLowVoltagePoleToPoleChange,
-                                         onLowVoltagePoleToHouseChange,
+                                         onLowVoltagePoleToTerminalChange,
                                          onHighVoltagePoleToPoleChange,
-                                         onHighVoltagePoleToHouseChange,
+                                         onHighVoltagePoleToTerminalChange,
 
                                          onLowVoltagePoleToTerminalMinimumChange,
                                          onHighVoltagePoleToTerminalMinimumChange,
@@ -156,7 +156,7 @@ export default function CostParameters({
                   min='1'
                   value={lowVoltagePoleToTerminalLengthConstraint}
                   onChange={(e) =>
-                    onLowVoltagePoleToHouseChange(parseFloat(e.target.value) || 20)
+                    onLowVoltagePoleToTerminalChange(parseFloat(e.target.value) || 20)
                   }
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
@@ -193,7 +193,7 @@ export default function CostParameters({
                   min='1'
                   value={highVoltagePoleToTerminalLengthConstraint}
                   onChange={(e) =>
-                    onHighVoltagePoleToHouseChange(parseFloat(e.target.value) || 20)
+                    onHighVoltagePoleToTerminalChange(parseFloat(e.target.value) || 20)
                   }
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />

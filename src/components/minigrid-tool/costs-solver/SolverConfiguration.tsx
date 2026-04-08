@@ -1,13 +1,15 @@
 'use client';
 
 import React from 'react';
+import { MiniGridNode } from '@/types/minigrid';
 
 interface SolverParam {
   name: string;
-  type?: 'integer' | 'float' | 'number';
-  default: number;
+  type?: string; // Accommodates 'integer', 'float', 'number', 'bool', 'string', etc.
+  default: any; // Changed from number to any
   min?: number;
   max?: number;
+  options?: string[]; // Added to support dropdown lists
   description?: string;
 }
 
@@ -20,14 +22,15 @@ interface SolverConfigurationProps {
   solvers: Solvers[];
   selectedSolverName: string;
   onSolverChange: (_solverName: string) => void;
-  paramValues: Record<string, number>;
-  onParamChange: (_paramName: string, _value: string) => void;
+  paramValues: Record<string, any>; // Changed from number to any
+  onParamChange: (_paramName: string, _value: any) => void; // Changed value to any
   useExistingPoles: boolean;
   onUseExistingPolesChange: (_use: boolean) => void;
   poleCount: number;
   onRunSolver: () => void;
   computing: boolean;
   calcError?: string | null;
+  miniGridNodes: MiniGridNode[];
 }
 
 export default function SolverConfiguration({
@@ -42,6 +45,7 @@ export default function SolverConfiguration({
   onRunSolver,
   computing,
   calcError,
+  miniGridNodes,
 }: SolverConfigurationProps) {
   const selectedSolver = solvers.find((s) => s.name === selectedSolverName);
 
@@ -85,35 +89,91 @@ export default function SolverConfiguration({
             {selectedSolver.name} Parameters
           </h4>
           <div className='grid gap-5 sm:grid-cols-2'>
-            {selectedSolver.params.map((param) => (
-              <div key={param.name} className='space-y-1.5'>
-                <label
-                  htmlFor={`param-${param.name}`}
-                  className='block text-sm font-medium text-zinc-700 dark:text-zinc-300'
-                >
-                  {param.name}
-                  <span className='ml-2 text-xs text-zinc-500 dark:text-zinc-400'>
-                    (default: {param.default})
-                  </span>
-                </label>
-                <input
-                  id={`param-${param.name}`}
-                  type='number'
-                  min={param.min}
-                  max={param.max}
-                  step={param.type === 'integer' ? 1 : 0.01}
-                  value={paramValues[param.name] ?? param.default}
-                  onChange={(e) => onParamChange(param.name, e.target.value)}
-                  disabled={computing}
-                  className='w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
-                />
-                {param.description && (
-                  <p className='text-xs text-zinc-500 dark:text-zinc-400'>
-                    {param.description}
-                  </p>
-                )}
-              </div>
-            ))}
+            {selectedSolver.params.map((param) => {
+              const val = paramValues[param.name] ?? param.default;
+              const isBool = param.type === 'bool' || param.type === 'boolean';
+              const isNumber =
+                param.type === 'integer' ||
+                param.type === 'float' ||
+                param.type === 'number';
+
+              return (
+                <div key={param.name} className='space-y-1.5'>
+                  <label
+                    htmlFor={`param-${param.name}`}
+                    className='block text-sm font-medium text-zinc-700 dark:text-zinc-300'
+                  >
+                    {param.name}
+                    {!isBool && (
+                      <span className='ml-2 text-xs text-zinc-500 dark:text-zinc-400'>
+                        (default: {param.default})
+                      </span>
+                    )}
+                  </label>
+
+                  {/* Render Checkbox for Booleans */}
+                  {isBool ? (
+                    <div className='flex items-center gap-3 pt-1'>
+                      <input
+                        id={`param-${param.name}`}
+                        type='checkbox'
+                        checked={!!val}
+                        onChange={(e) =>
+                          onParamChange(param.name, e.target.checked)
+                        }
+                        disabled={computing}
+                        className='h-5 w-5 rounded border-zinc-300 bg-white text-purple-600 focus:ring-purple-500 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800'
+                      />
+                      <span className='text-sm text-zinc-600 dark:text-zinc-400'>
+                        Enable
+                      </span>
+                    </div>
+                  ) : /* Render Select Dropdown for Options */
+                  param.options && param.options.length > 0 ? (
+                    <select
+                      id={`param-${param.name}`}
+                      value={val}
+                      onChange={(e) =>
+                        onParamChange(param.name, e.target.value)
+                      }
+                      disabled={computing}
+                      className='w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+                    >
+                      {param.options.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    /* Render standard Number or Text input */
+                    <input
+                      id={`param-${param.name}`}
+                      type={isNumber ? 'number' : 'text'}
+                      step={
+                        param.type === 'integer'
+                          ? 1
+                          : isNumber
+                            ? 0.01
+                            : undefined
+                      }
+                      value={val}
+                      onChange={(e) =>
+                        onParamChange(param.name, e.target.value)
+                      }
+                      disabled={computing}
+                      className='w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+                    />
+                  )}
+
+                  {param.description && (
+                    <p className='text-xs text-zinc-500 dark:text-zinc-400'>
+                      {param.description}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -142,7 +202,9 @@ export default function SolverConfiguration({
       <div className='mt-auto pt-4'>
         <button
           onClick={onRunSolver}
-          disabled={computing || !selectedSolverName}
+          disabled={
+            computing || !selectedSolverName || miniGridNodes.length === 0
+          }
           className='group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-8 py-5 text-lg font-bold text-white shadow-xl shadow-purple-900/40 transition-all hover:scale-[1.02] hover:from-purple-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-75'
         >
           {/* Normal text */}

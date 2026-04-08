@@ -10,18 +10,7 @@ from matplotlib import collections as mc
 
 from ..utils.models import *
 
-MIN_DIST_TO_TERMINAL = 10.0,
-MAX_CIRCUMRADIUS = 300.0
-MIN_CANDIDATE_SEPARATION = 10.0
-
-MIN_POLE_TO_TERMINAL = 10.0
-MAX_POLE_TO_TERMINAL_LV = 30.0
-# MAX_POLE_TO_TERMINAL_HV = 50.0
-
-MIN_POLE_TO_POLE = 10.0
-
 MAX_EDGE_DIST_PENALTY = 10000
-
 
 class BaseMiniGridSolver(ABC):
     """
@@ -52,7 +41,36 @@ class BaseMiniGridSolver(ABC):
 
     # ─── Static Helper methods ───────────────────────────────────────────────
     @staticmethod
-    def get_input_params():
+    def get_input_params() -> List[SolverInputParams]:
+        """
+        Example:
+            [
+            SolverInputParams(
+                name="n_points",
+                type="int",
+                default=10,
+                min=2,
+                max=100,
+                description='Number of points'
+            ),
+            SolverInputParams(
+                name="steinerize",
+                type="bool",
+                default=False,
+                min=False,
+                max=True,
+                description='Steinerize the graph',
+            ),
+            SolverInputParams(
+                name="algorithm",
+                type="str",
+                default="",
+                options=['algo1', "algo2"],
+                description='Which algorith to use',
+
+            )
+        ]
+        """
         return []
 
     @staticmethod
@@ -135,28 +153,21 @@ class BaseMiniGridSolver(ABC):
         c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
         return 6371000 * c  # shape (n_candidates, n_buildings)
 
-    @staticmethod
-    def parse_input(request: SolverRequest, poles: bool = True, debug: int = 0):
+    def parse_input(self):
         """
-        Parses input request containing information about geographical points, solver, and their attributes to generate structured
-        data suitable for optimization tasks.
+        Parses input data to extract points, their coordinates, and relevant attributes like names and source identification.
 
-        This function processes the input `SolverRequest` to extract coordinates, their names, and classify one of the
-        markers as the "Power Source". It ensures that the input contains at least two valid points, assigns a "Power Source"
-        if not explicitly provided, and organizes the remaining points as terminals. The function also validates and cleans input
-        data for consistency.
+        This method processes a set of points to determine their geographical coordinates, assigns unique names to each
+        point, and identifies a primary source point based on predefined keywords. The parsed data is retained internally
+        for further processing.
 
-        Args:
-            request: Input request containing points and their associated solver
-            poles: If True, poles will be included in the parsed data.
-            debug: Debug level.
-
-        Returns:
-            A tuple containing coords, terminal_indices, source_idx, original_names, solver
+        Parameters:
+            poles (bool): Specifies whether to include points containing the keyword "pole" in their names. Defaults to True.
+            debug (int): Debug level. If set to a non-zero value, additional information will be printed during execution.
         """
 
-        points = request.points
-        costs: Costs = request.costs.model_copy()  # defensive copy
+        points = self.request.points
+        costs: Costs = self.request.costs.model_copy()  # defensive copy
 
         if len(points) < 2:
             raise ValueError("At least 2 points required")
@@ -174,7 +185,7 @@ class BaseMiniGridSolver(ABC):
             # Name handling
             raw_name = p.get("name")
 
-            if not poles and "pole" in raw_name.lower():
+            if not self.request.usePoles and "pole" in raw_name.lower():
                 continue
 
             if raw_name is not None:
@@ -211,14 +222,20 @@ class BaseMiniGridSolver(ABC):
         coords = np.array(coords_list, dtype=np.float64)
 
         if source_idx is None:
-            if debug:
+            if self.request.debug > 1:
                 print("No explicit power source found → using first point (index 0)")
             source_idx = 0
             names[0] = "Power Source"
 
         terminal_indices = [i for i in range(len(coords)) if i != source_idx]
 
-        return coords, terminal_indices, source_idx, names, costs
+        self._coords = coords
+        self._names = names
+        self._source_idx = source_idx
+        self._costs = costs
+        self._terminal_indices = terminal_indices
+
+        return
 
     @staticmethod
     def _plot_current_tree(graph, added_points=None, title="Current tree after candidate addition", filename=None):
@@ -336,15 +353,15 @@ class BaseMiniGridSolver(ABC):
     # ─── Core abstract methods ───────────────────────────────────────────────
 
     @abstractmethod
-    def _solve(self, input_tuple) -> Union[nx.DiGraph, nx.Graph]:
+    def _solve(self) -> Union[nx.DiGraph, nx.Graph]:
         """
         Abstract method to be implemented by subclasses.
         Solves the given input data and returns the resulting graph, list of nodes, and an array of results.
 
         :param input_tuple: The input data containing necessary information to process the solution. The
             structure and data type of the input must align with the expected requirements of the solution.
-        :return: A tuple containing three elements:
-            - A ``nx.Graph`` object representing the computed graph.
+        :return: A directed or undirected graph representing the computed solution:
+            - A ``nx.(Di)Graph`` object representing the computed graph.
         """
         pass
 
@@ -356,13 +373,13 @@ class BaseMiniGridSolver(ABC):
 
         """
 
-        # 1. Parse input and input into abstract solver method
-        graph = self._solve(self.parse_and_validate_input(poles=True))
+        # Parse input and input into abstract solver method
+        self.parse_and_validate_input()
 
-        # 2. Gradient Decent each pole placement to ensure not local optimization is left on the table
-        final_graph = self._post_solver_local_opt(graph)
+        # Pass to implemented solver
+        graph = self._solve()
 
-        return self.build_solver_result(final_graph)
+        return self.build_solver_result(graph)
 
     # ─── Helpful common utilities (can be used or overridden) ────────────────
     def _build_nodes(self, coords, candidates, names):
@@ -400,8 +417,7 @@ class BaseMiniGridSolver(ABC):
 
         return nodes
 
-    def parse_and_validate_input(self, poles: bool = True) -> Tuple[
-        List[Node], np.ndarray, int, List[int], List[str], Dict[str, float]]:
+    def parse_and_validate_input(self):
         """
         Parses and validates the input data for constructing nodes. This includes parsing input data
         such as coordinates, source index, terminal indices, names, and solver, as well as ensuring
@@ -409,7 +425,7 @@ class BaseMiniGridSolver(ABC):
         provided.
 
         Args:
-            poles (bool): Determines whether poles should be included in the constructed nodes.
+
 
         Returns:
             Tuple[list[Node], np.ndarray, int, List[int], List[str], Dict[str, float]]:
@@ -419,11 +435,7 @@ class BaseMiniGridSolver(ABC):
         Raises:
             ValueError: If the input does not contain at least one source and one terminal.
         """
-        if self._coords is not None:
-            return self._coords, self._source_idx, self._terminal_indices, self._names, self._costs
-
-        self._coords, self._terminal_indices, self._source_idx, self._names, self._costs = self.parse_input(
-            self.request, poles=poles, debug=self.request.debug)
+        self.parse_input()
 
         # You can add more validation / normalization here if desired
         if len(self._coords) < 2:
@@ -431,7 +443,7 @@ class BaseMiniGridSolver(ABC):
 
         self._nodes = self._build_nodes(self._coords, [], self._names)
 
-        return self._nodes, self._coords, self._source_idx, self._terminal_indices, self._names, self._costs
+        return
 
     def calc_edge_weight(self, length, voltage="low", to_terminal=False):
         """
@@ -675,12 +687,15 @@ class BaseMiniGridSolver(ABC):
 
         return graph
 
-    def _recompute_edges_for_node(self, graph, node_idx: int):
+    def _recompute_edges_for_node(self, graph: Union[nx.DiGraph, nx.Graph], node_idx: int):
         """Recompute length and weight for ALL incident edges (in + out)
         after moving a pole. Required because the graph is a DiGraph."""
         # Get ALL edges touching this node (incoming + outgoing)
-        incident_edges = list(graph.in_edges(node_idx, data=True)) + \
-                         list(graph.out_edges(node_idx, data=True))
+        if isinstance(graph, nx.DiGraph):
+            incident_edges = list(graph.in_edges(node_idx, data=True)) + \
+                             list(graph.out_edges(node_idx, data=True))
+        else:
+            incident_edges = list(graph.edges(node_idx, data=True))
 
         for u, v, data in incident_edges:
             lat1, lng1 = graph.nodes[u]['lat'], graph.nodes[u]['lng']
@@ -697,8 +712,11 @@ class BaseMiniGridSolver(ABC):
 
     def _all_edges_valid(self, graph, node_idx: int) -> bool:
         """Check that ALL incident edges (in + out) respect lengthConstraints."""
-        incident_edges = list(graph.in_edges(node_idx, data=True)) + \
-                         list(graph.out_edges(node_idx, data=True))
+        if isinstance(graph, nx.DiGraph):
+            incident_edges = list(graph.in_edges(node_idx, data=True)) + \
+                             list(graph.out_edges(node_idx, data=True))
+        else:
+            incident_edges = list(graph.edges(node_idx, data=True))
 
         for u, v, data in incident_edges:
             length = data.get('length', 0.0)
@@ -847,10 +865,14 @@ class BaseMiniGridSolver(ABC):
 
         return current_graph
 
-    def _get_local_incident_cost(self, graph, node_idx: int) -> float:
+    def _get_local_incident_cost(self, graph: nx.DiGraph, node_idx: int) -> float:
         """Calculate the sum of weights for all edges directly connected to node_idx."""
-        incident_edges = list(graph.in_edges(node_idx, data=True)) + \
-                         list(graph.out_edges(node_idx, data=True))
+
+        if isinstance(graph, nx.DiGraph):
+            incident_edges = list(graph.in_edges(node_idx, data=True)) + \
+                             list(graph.out_edges(node_idx, data=True))
+        else:
+            incident_edges = list(graph.edges(node_idx, data=True))
         return sum(data.get('weight', 0.0) for u, v, data in incident_edges)
 
     def _pole_gradient_optimizer(self, graph: Union[nx.Graph, nx.DiGraph]):

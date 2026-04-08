@@ -5,10 +5,12 @@ from pydantic import BaseModel, Field, ConfigDict
 
 poleToTerminalLengthConstraint: float
 
+
 class LengthConstraintsBase(BaseModel):
     poleToPoleLengthConstraint: float = 30.0
     poleToTerminalLengthConstraint: float = 20.0
     poleToTerminalMinimumLength: float = 5.0
+
 
 class LengthConstraints(BaseModel):
     low: LengthConstraintsBase
@@ -35,13 +37,23 @@ class SolverRequest(BaseModel):
     points: List[Dict[str, Union[float, str, None]]]
     lengthConstraints: LengthConstraints
     costs: Costs
+    usePoles: bool = True
     debug: int = 0
 
+
+class SolverInputParams(BaseModel):
+    name: str
+    type: Literal["int", "float", "bool", "str", "list"]
+    default: str
+    description: str
+    min: Optional[float] = None
+    max: Optional[float] = None
+    options: Optional[List[Any]] = None
 
 
 class Solver(BaseModel):
     name: str
-    params: List[Dict[str, Any]] = []
+    params: List[SolverInputParams]
 
 
 class Node(BaseModel):

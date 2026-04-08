@@ -29,7 +29,7 @@ export default function ManualPointInput({
             </label>
             <input
               type='text'
-              placeholder='e.g. House A'
+              placeholder='e.g. Terminal A'
               value={manualPoint.name}
               onChange={(e) =>
                 onManualPointChange({ ...manualPoint, name: e.target.value })

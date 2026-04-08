@@ -13,20 +13,21 @@ import { useSession } from 'next-auth/react';
 
 import { useMiniGridHistory } from '@/hooks/useMiniGridHistory';
 
-import AddPointDialog from '@/components/minigrid-tool/AddPointDialog';
-import TestDataGenerator from '@/components/minigrid-tool/TestDataGenerator';
-import FileUploadArea from '@/components/minigrid-tool/FileUploadArea';
-import CostParameters from '@/components/minigrid-tool/CostParameters';
-import SolverConfiguration from '@/components/minigrid-tool/SolverConfiguration';
-import ManualPointInput from '@/components/minigrid-tool/ManualPointInput';
-import ExportSummary from '@/components/minigrid-tool/ExportSummary';
+import AddPointDialog from '@/components/minigrid-tool/define-markers/AddPointDialog';
+import DefineMarkersSection from '@/components/minigrid-tool/define-markers/DefineMarkersSection';
+
+import CostsAndSolverSection from '@/components/minigrid-tool/costs-solver/CostsAndSolverSection';
+
+import ExportAndSummarySection from '@/components/minigrid-tool/export-summary/ExportAndSummarySection';
+
 import SavedGridsSection from '@/components/minigrid-tool/SavedGridsSection';
+
 import MapControls from '@/components/minigrid-tool/MapControls';
 
 import type {
+  CostBreakdown,
   MiniGridEdge,
   MiniGridNode,
-  CostBreakdown,
   MiniGridRun,
   Solvers,
 } from '@/types/minigrid';
@@ -81,9 +82,9 @@ export default function MiniGridToolPage() {
 
   const [miniGridEdges, setMiniGridEdges] = useState<MiniGridEdge[]>([]);
   const [miniGridNodes, setMiniGridNodes] = useState<MiniGridNode[]>([]);
-  const [originalMiniGridNodes, setOriginalMiniGridNodes] = useState<MiniGridNode[]>(
-    []
-  );
+  const [originalMiniGridNodes, setOriginalMiniGridNodes] = useState<
+    MiniGridNode[]
+  >([]);
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
   const [fileName, setFileName] = useState<string | null>(null);
@@ -105,6 +106,11 @@ export default function MiniGridToolPage() {
   ] = useState<number>(20);
 
   const [
+    lowVoltagePoleToTerminalMinimumLength,
+    setLowVoltagePoleToTerminalMinimumLength,
+  ] = useState<number>(5);
+
+  const [
     highVoltagePoleToPoleLengthConstraint,
     setHighVoltagePoleToPoleLengthConstraint,
   ] = useState<number>(50);
@@ -112,6 +118,11 @@ export default function MiniGridToolPage() {
     highVoltagePoleToTerminalLengthConstraint,
     setHighVoltagePoleToTerminalLengthConstraint,
   ] = useState<number>(20);
+
+  const [
+    highVoltagePoleToTerminalMinimumLength,
+    setHighVoltagePoleToTerminalMinimumLength,
+  ] = useState<number>(5);
 
   const [costBreakdown, setCostBreakdown] = useState<CostBreakdown>({
     lowVoltageMeters: 0,
@@ -167,16 +178,16 @@ export default function MiniGridToolPage() {
     'GreedyIterSteinerSolver'
   );
   // Pulling solvers manually, could change to be dynamic in the future. Just add solver names as you go
-  useEffect(() => {
-    const initialSolvers: Solvers[] = [
-      { name: 'SimpleMSTSolver', params: [] },
-      { name: 'SteinerizedMSTSolver', params: [] },
-      { name: 'GreedyIterSteinerSolver', params: [] },
-    ];
-    setSolvers(initialSolvers);
-  }, []);
+  // useEffect(() => {
+  //   const initialSolvers: Solvers[] = [
+  //     { name: 'SimpleMSTSolver', params: [] },
+  //     { name: 'SteinerizedMSTSolver', params: [] },
+  //     { name: 'GreedyIterSteinerSolver', params: [] },
+  //   ];
+  //   setSolvers(initialSolvers);
+  // }, []);
   const selectedSolver = solvers.find((s) => s.name === selectedSolverName);
-  const [paramValues, setParamValues] = useState<Record<string, number>>({});
+  const [paramValues, setParamValues] = useState<Record<string, any>>({});
   const [useExistingPoles, setUseExistingPoles] = useState(false);
 
   const [calcError, setCalcError] = useState<string | null>(null);
@@ -314,10 +325,9 @@ export default function MiniGridToolPage() {
         const lng = e.latLng.lng();
 
         // Optional: ignore clicks that are very close to existing markers
-        const tooClose =
-          miniGridNodes.some(
-            (n) => haversineDistance(n.lat, n.lng, lat, lng) < 5
-          );
+        const tooClose = miniGridNodes.some(
+          (n) => haversineDistance(n.lat, n.lng, lat, lng) < 5
+        );
 
         if (tooClose) return;
 
@@ -885,17 +895,37 @@ export default function MiniGridToolPage() {
       setParamValues({});
       return;
     }
-    const initial: Record<string, number> = {};
+
+    // Changed from Record<string, number> to Record<string, any>
+    const initial: Record<string, any> = {};
     selectedSolver.params.forEach((p) => {
       initial[p.name] = p.default;
     });
+
+    console.log('paramValues', selectedSolver.params);
+
     setParamValues(initial);
   }, [selectedSolverName, selectedSolver]);
 
-  const updateParam = (paramName: string, value: string) => {
-    const numValue = Number(value);
-    if (isNaN(numValue)) return;
-    setParamValues((prev) => ({ ...prev, [paramName]: numValue }));
+  const updateParam = (paramName: string, value: any) => {
+    const paramDef = selectedSolver?.params.find((p) => p.name === paramName);
+    if (!paramDef) return;
+
+    let parsedValue = value;
+
+    if (paramDef.type === 'bool') {
+      parsedValue = Boolean(value); // safely convert to boolean
+    } else if (
+      paramDef.type === 'int' ||
+      paramDef.type === 'float'
+    ) {
+      parsedValue = Number(value);
+      if (isNaN(parsedValue)) return;
+    } else {
+      parsedValue = String(value);
+    }
+
+    setParamValues((prev) => ({ ...prev, [paramName]: parsedValue }));
   };
 
   // ==================== MAP EFFECTS (Markers + Lines) ====================
@@ -980,6 +1010,8 @@ export default function MiniGridToolPage() {
   const getSolversURL =
     process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers';
 
+  console.log('getSolversURL', getSolversURL);
+
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -1053,24 +1085,88 @@ export default function MiniGridToolPage() {
     }
   }, [map, miniGridNodes, createMarker]);
 
+  // ==================== FETCH SOLVERS ====================
   useEffect(() => {
-    fetch(getSolversURL)
-      .then((res) => res.json())
-      .then((data) => setSolvers(data.solvers));
+    const fetchSolvers = async () => {
+      try {
+        // 1. ADD A CACHE BUSTER TO THE URL
+        const cacheBusterUrl = `${getSolversURL}?t=${Date.now()}`;
+        console.log('Fetching solvers from:', cacheBusterUrl);
+
+        const res = await fetch(cacheBusterUrl, {
+          method: 'GET',
+          cache: 'no-store', // Force fresh response
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        const rawData = await res.json();
+
+
+        let solversList: any[] = [];
+
+        if (Array.isArray(rawData)) {
+          solversList = rawData;
+        } else if (rawData.solvers && Array.isArray(rawData.solvers)) {
+          solversList = rawData.solvers;
+        } else if (rawData.data) {
+          solversList = Array.isArray(rawData.data) ? rawData.data : [];
+        }
+
+        // Final cleaning
+        const cleanedSolvers = solversList.map((s: any) => ({
+          name: s.name || String(s),
+          params: Array.isArray(s.params) ? s.params : [],
+        }));
+
+        setSolvers(cleanedSolvers);
+      } catch (err) {
+        console.error('❌ Failed to fetch solvers:', err);
+
+        // Emergency fallback
+        setSolvers([
+          {
+            name: 'SimpleMSTSolver',
+            params: [
+              {
+                name: 'steinerize',
+                type: 'bool',
+                default: false,
+                description: 'Whether to steinerize the MST Edges',
+              },
+            ],
+          },
+          { name: 'SteinerizedMSTSolver', params: [] },
+          { name: 'GreedyIterSteinerSolver', params: [] },
+        ]);
+      }
+    };
+
+    fetchSolvers();
   }, [getSolversURL]);
 
+  // ==================== INITIALIZE PARAM VALUES ====================
   useEffect(() => {
     if (!selectedSolver) {
       setParamValues({});
       return;
     }
 
-    const initialValues: Record<string, number> = {};
-    selectedSolver.params.forEach((p) => {
-      initialValues[p.name] = p.default;
+    const initial: Record<string, any> = {};
+
+    selectedSolver.params.forEach((param) => {
+      // Use the default value as-is (boolean, number, string, etc.)
+      initial[param.name] = param.default;
     });
 
-    setParamValues(initialValues);
+    setParamValues(initial);
   }, [selectedSolver, selectedSolverName]);
 
   const handleConfirmNewPoint = () => {
@@ -1089,6 +1185,25 @@ export default function MiniGridToolPage() {
     // Update React State
     setMiniGridNodes(updatedNodes);
 
+    // --- START COST RECALCULATION ---
+    let updatedCostBreakdown = { ...costBreakdown };
+
+    if (newPointDetails.type === 'pole') {
+      const newPoleCount = updatedCostBreakdown.poleCount + 1;
+      const newPoleCostTotal = newPoleCount * poleCost;
+
+      updatedCostBreakdown = {
+        ...updatedCostBreakdown,
+        poleCount: newPoleCount,
+        poleCost: newPoleCostTotal,
+        // Update grand total by adding a single pole's cost
+        grandTotal: updatedCostBreakdown.grandTotal + poleCost,
+      };
+
+      // Update state so the UI reflects the change immediately
+      setCostBreakdown(updatedCostBreakdown);
+    }
+
     // Save to History (Pass the updated arrays directly)
     saveState(
       captureState({
@@ -1100,7 +1215,7 @@ export default function MiniGridToolPage() {
 
     setIsAddPointDialogOpen(false);
     setPendingPoint(null);
-  };
+  };;
 
   const handleAddCoordinatesManually = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1452,7 +1567,7 @@ export default function MiniGridToolPage() {
 
             const parsedPoints: MiniGridNode[] = rows
               .map((row) => {
-                const index: number = Number(row.index?.trim() || row['index'])
+                const index: number = Number(row.index?.trim() || row['index']);
                 const name = row.name?.trim() || row['name'] || 'Unnamed';
                 const typeStr = row.type?.trim() || row['type'] || 'terminal';
                 const latStr = row.latitude || row.lat || '';
@@ -1466,7 +1581,7 @@ export default function MiniGridToolPage() {
                 const type =
                   typeStr.toLowerCase() === 'source' ? 'source' : 'terminal';
 
-                return { index, name, lat, lng, type};
+                return { index, name, lat, lng, type };
               })
               .filter((p): p is MiniGridNode => p !== null);
 
@@ -1585,7 +1700,7 @@ export default function MiniGridToolPage() {
 
         const index = newMiniGridNodes.length + 1;
 
-        newMiniGridNodes.push({index, name, lat, lng, type });
+        newMiniGridNodes.push({ index, name, lat, lng, type });
       }
       attempts++;
     }
@@ -1679,7 +1794,6 @@ export default function MiniGridToolPage() {
   };
 
   const handleRunSolver = async () => {
-
     console.log(
       `[handleRunSolver] Sending ${miniGridNodes.length} points to backend`
     );
@@ -1726,12 +1840,12 @@ export default function MiniGridToolPage() {
           lengthConstraints: {
             low: {
               poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
-              poleToHouseLengthConstraint:
+              poleToTerminalLengthConstraint:
                 lowVoltagePoleToTerminalLengthConstraint,
             },
             high: {
               poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
-              poleToHouseLengthConstraint:
+              poleToTerminalLengthConstraint:
                 highVoltagePoleToTerminalLengthConstraint,
             },
           },
@@ -1741,6 +1855,7 @@ export default function MiniGridToolPage() {
             highVoltageCostPerMeter: highVoltageCost || 0,
           },
           debug: debug,
+          usePoles: useExistingPoles,
         }),
       });
 
@@ -1810,7 +1925,6 @@ export default function MiniGridToolPage() {
         usedHighCostPerMeter: usedCosts?.highVoltageCostPerMeter,
       };
 
-
       // Now update React state
       setMiniGridNodes(newMiniGridNodes);
       setMiniGridEdges(newMiniGridEdges);
@@ -1853,8 +1967,6 @@ export default function MiniGridToolPage() {
   };
 
   const downloadKml = () => {
-    if (miniGridNodes.length === 0 || miniGridEdges.length === 0) return;
-
     const escapeXml = (str: string) =>
       str
         .replace(/&/g, '&amp;')
@@ -2006,7 +2118,7 @@ export default function MiniGridToolPage() {
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-    <name>Mini-Grid • ${miniGridEdges.length > 0 ? "Solved" : "" }</name>
+    <name>Mini-Grid • ${miniGridEdges.length > 0 ? 'Solved' : ''}</name>
     <open>1</open>
 
     ${kmlStyles}
@@ -2300,259 +2412,153 @@ export default function MiniGridToolPage() {
           <div className='h-[calc(100%-4rem)] overflow-y-auto p-6'>
             <div className='space-y-12'>
               {/* 1. Define Marker Section */}
-              <section>
-                <button
-                  onClick={() => toggleSection('markers')}
-                  className='mb-6 flex w-full items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 transition-all hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30'
-                >
-                  <h2 className='text-xl font-bold text-emerald-700 dark:text-emerald-300'>
-                    1. Define Markers
-                  </h2>
-                  <svg
-                    className={`h-5 w-5 text-emerald-600 transition-transform dark:text-emerald-400 ${expandedSections.markers ? 'rotate-180' : ''}`}
-                    fill='none'
-                    stroke='currentColor'
-                    viewBox='0 0 24 24'
-                  >
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth={2}
-                      d='M19 14l-7 7m0 0l-7-7m7 7V3'
-                    />
-                  </svg>
-                </button>
-
-                {expandedSections.markers && (
-                  <div className='space-y-4'>
-                    {/* Click to Set Marker*/}
-                    <div className='rounded-xl border border-zinc-200 bg-white p-6 backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/50'>
-                      <ul className='space-y-3 text-sm'>
-                        <li className='flex items-start gap-3'>
-                          <span className='mt-1 text-emerald-500'>•</span>
-                          <span>
-                            <strong>Click on the map</strong> to place a marker.
-                            Click the <strong>×</strong> button to delete a
-                            marker.
-                          </span>
-                        </li>
-                        <li className='flex items-start gap-3'>
-                          <span className='mt-1 text-emerald-500'>•</span>
-                          <span>
-                            <strong>Drag markers</strong> to adjust their
-                            placement. Edges cannot exceed{' '}
-                            <strong>30 meters</strong>.
-                          </span>
-                        </li>
-                        <li className='flex items-start gap-3'>
-                          <span className='mt-1 text-emerald-500'>•</span>
-                          <span>
-                            <strong>Click on an Edge</strong> to delete it.
-                          </span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    {/* Inside the expanded markers section */}
-                    <TestDataGenerator
-                      selectedCount={selectedCount}
-                      onCountChange={setSelectedCount}
-                      onGenerate={handleGenerateTestData}
-                      loading={loading}
-                      error={error}
-                    />
-
-                    {/* File Upload Area - Now using the component */}
-                    <FileUploadArea
-                      isDragOver={isDragOver}
-                      fileName={fileName}
-                      dataPointsLength={miniGridNodes.length}
-                      loading={loading}
-                      error={error}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setIsDragOver(true);
-                      }}
-                      onDragLeave={(e) => {
-                        e.preventDefault();
-                        setIsDragOver(false);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setIsDragOver(false);
-
-                        const files = e.dataTransfer.files;
-                        if (files.length === 0) return;
-
-                        const file = files[0];
-                        const name = file.name.toLowerCase();
-
-                        if (
-                          file.type === 'text/csv' ||
-                          name.endsWith('.csv') ||
-                          name.endsWith('.kml') ||
-                          file.type === 'application/vnd.google-earth.kml+xml'
-                        ) {
-                          processFile(file);
-                          setExpandedSections({
-                            markers: false,
-                            solver_cost: true,
-                            export: false,
-                            savedGrids: false,
-                          });
-                        } else {
-                          setError('Please drop a CSV or KML file.');
-                        }
-                      }}
-                      onFileSelect={handleFileUpload}
-                    />
-
-                    {/* Manual Point Input - NEW */}
-                    <ManualPointInput
-                      manualPoint={manualPoint}
-                      onManualPointChange={setManualPoint}
-                      onAddPoint={handleAddCoordinatesManually}
-                    />
-                  </div>
-                )}
-              </section>
+              <DefineMarkersSection
+                isExpanded={expandedSections.markers}
+                onToggle={() => toggleSection('markers')}
+                map={map}
+                // TestDataGenerator
+                selectedCount={selectedCount}
+                onCountChange={setSelectedCount}
+                onGenerate={handleGenerateTestData}
+                loading={loading}
+                error={error}
+                // FileUploadArea
+                isDragOver={isDragOver}
+                fileName={fileName}
+                dataPointsLength={miniGridNodes.length}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(false);
+                  const files = e.dataTransfer.files;
+                  if (files.length === 0) return;
+                  const file = files[0];
+                  const name = file.name.toLowerCase();
+                  if (
+                    file.type === 'text/csv' ||
+                    name.endsWith('.csv') ||
+                    name.endsWith('.kml') ||
+                    file.type === 'application/vnd.google-earth.kml+xml'
+                  ) {
+                    processFile(file);
+                    setExpandedSections({
+                      markers: false,
+                      solver_cost: true,
+                      export: false,
+                      savedGrids: false,
+                    });
+                  } else {
+                    setError('Please drop a CSV or KML file.');
+                  }
+                }}
+                onFileSelect={handleFileUpload}
+                // MapSearchBar
+                onPlaceSelected={(lat, lng, name) => {
+                  setPendingPoint({ lat, lng });
+                  setNewPointDetails({
+                    name: name,
+                    type: 'terminal' as const,
+                  });
+                  setIsAddPointDialogOpen(true);
+                }}
+                // ManualPointInput
+                manualPoint={manualPoint}
+                onManualPointChange={setManualPoint}
+                onAddManualPoint={handleAddCoordinatesManually}
+              />
 
               {/* 2. Costs & Solver Section - (your existing code) */}
-              <section>
-                <button
-                  onClick={() => toggleSection('solver_cost')}
-                  className='mb-6 flex w-full items-center justify-between rounded-2xl border border-purple-200 bg-purple-50 px-5 py-4 transition-all hover:bg-purple-100 dark:border-purple-500/30 dark:bg-purple-900/20 dark:hover:bg-purple-900/30'
-                >
-                  <h2 className='text-xl font-bold text-purple-700 dark:text-purple-300'>
-                    2. Costs & Solver
-                  </h2>
-                  <svg
-                    className={`h-5 w-5 text-purple-600 transition-transform dark:text-purple-400 ${expandedSections.solver_cost ? 'rotate-180' : ''}`}
-                    fill='none'
-                    stroke='currentColor'
-                    viewBox='0 0 24 24'
-                  >
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth={2}
-                      d='M19 14l-7 7m0 0l-7-7m7 7V3'
-                    />
-                  </svg>
-                </button>
-
-                {expandedSections.solver_cost && (
-                  <div className='space-y-4'>
-                    <CostParameters
-                      poleCost={poleCost}
-                      lowVoltageCost={lowVoltageCost}
-                      highVoltageCost={highVoltageCost}
-                      onPoleCostChange={setPoleCost}
-                      onLowVoltageCostChange={setLowVoltageCost}
-                      onHighVoltageCostChange={setHighVoltageCost}
-                      onRandomCosts={generateRandomCosts}
-                      // New length constraint props
-                      lowVoltagePoleToPoleLengthConstraint={
-                        lowVoltagePoleToPoleLengthConstraint
-                      }
-                      lowVoltagePoleToTerminalLengthConstraint={
-                        lowVoltagePoleToTerminalLengthConstraint
-                      }
-                      highVoltagePoleToPoleLengthConstraint={
-                        highVoltagePoleToPoleLengthConstraint
-                      }
-                      highVoltagePoleToTerminalLengthConstraint={
-                        highVoltagePoleToTerminalLengthConstraint
-                      }
-                      onLowVoltagePoleToPoleChange={
-                        setLowVoltagePoleToPoleLengthConstraint
-                      }
-                      onLowVoltagePoleToHouseChange={
-                        setLowVoltagePoleToTerminalLengthConstraint
-                      }
-                      onHighVoltagePoleToPoleChange={
-                        setHighVoltagePoleToPoleLengthConstraint
-                      }
-                      onHighVoltagePoleToHouseChange={
-                        setHighVoltagePoleToTerminalLengthConstraint
-                      }
-                      lowVoltagePoleToTerminalMinimumLength={0}
-                      highVoltagePoleToTerminalMinimumLength={0}
-                      onLowVoltagePoleToTerminalMinimumChange={function (
-                        _value: number
-                      ): void {
-                        throw new Error('Function not implemented.');
-                      }}
-                      onHighVoltagePoleToTerminalMinimumChange={function (
-                        _value: number
-                      ): void {
-                        throw new Error('Function not implemented.');
-                      }}
-                    />
-
-                    <SolverConfiguration
-                      solvers={solvers}
-                      selectedSolverName={selectedSolverName}
-                      onSolverChange={setSelectedSolverName}
-                      paramValues={paramValues}
-                      onParamChange={updateParam} // your existing updateParam function
-                      useExistingPoles={useExistingPoles}
-                      onUseExistingPolesChange={setUseExistingPoles}
-                      poleCount={
-                        miniGridNodes.filter((n) => n.type === 'pole').length
-                      }
-                      onRunSolver={handleRunSolver}
-                      computing={computingMiniGrid}
-                      calcError={calcError}
-                    />
-                  </div>
-                )}
-              </section>
+              {/* ==================== COSTS & SOLVER SECTION ==================== */}
+              <CostsAndSolverSection
+                isExpanded={expandedSections.solver_cost}
+                onToggle={() => toggleSection('solver_cost')}
+                // Cost Parameters
+                poleCost={poleCost}
+                lowVoltageCost={lowVoltageCost}
+                highVoltageCost={highVoltageCost}
+                onPoleCostChange={setPoleCost}
+                onLowVoltageCostChange={setLowVoltageCost}
+                onHighVoltageCostChange={setHighVoltageCost}
+                onRandomCosts={generateRandomCosts}
+                lowVoltagePoleToPoleLengthConstraint={
+                  lowVoltagePoleToPoleLengthConstraint
+                }
+                lowVoltagePoleToTerminalLengthConstraint={
+                  lowVoltagePoleToTerminalLengthConstraint
+                }
+                lowVoltagePoleToTerminalMinimumLength={
+                  lowVoltagePoleToTerminalMinimumLength
+                }
+                highVoltagePoleToPoleLengthConstraint={
+                  highVoltagePoleToPoleLengthConstraint
+                }
+                highVoltagePoleToTerminalLengthConstraint={
+                  highVoltagePoleToTerminalLengthConstraint
+                }
+                highVoltagePoleToTerminalMinimumLength={
+                  highVoltagePoleToTerminalMinimumLength
+                }
+                onLowVoltagePoleToPoleChange={
+                  setLowVoltagePoleToPoleLengthConstraint
+                }
+                onLowVoltagePoleToTerminalChange={
+                  setLowVoltagePoleToTerminalLengthConstraint
+                }
+                onLowVoltagePoleToTerminalMinimumChange={
+                  setLowVoltagePoleToTerminalMinimumLength
+                }
+                onHighVoltagePoleToPoleChange={
+                  setHighVoltagePoleToPoleLengthConstraint
+                }
+                onHighVoltagePoleToTerminalChange={
+                  setHighVoltagePoleToTerminalLengthConstraint
+                }
+                onHighVoltagePoleToTerminalMinimumChange={
+                  setHighVoltagePoleToTerminalMinimumLength
+                }
+                // Solver Configuration
+                solvers={solvers}
+                selectedSolverName={selectedSolverName}
+                onSolverChange={setSelectedSolverName}
+                paramValues={paramValues}
+                onParamChange={updateParam}
+                useExistingPoles={useExistingPoles}
+                onUseExistingPolesChange={setUseExistingPoles}
+                poleCount={
+                  miniGridNodes.filter((n) => n.type === 'pole').length
+                }
+                onRunSolver={handleRunSolver}
+                computing={computingMiniGrid}
+                calcError={calcError}
+                miniGridNodes={miniGridNodes}
+              />
 
               {/* 3. Export & Summary Section */}
-              <section>
-                <button
-                  onClick={() => toggleSection('export')}
-                  className='mb-6 flex w-full items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 transition-all hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-900/20 dark:hover:bg-blue-900/30'
-                >
-                  <h2 className='text-xl font-bold text-blue-700 dark:text-blue-300'>
-                    3. Export & Summary
-                  </h2>
-                  <svg
-                    className={`h-5 w-5 text-blue-600 transition-transform dark:text-blue-400 ${
-                      expandedSections.export ? 'rotate-180' : ''
-                    }`}
-                    fill='none'
-                    stroke='currentColor'
-                    viewBox='0 0 24 24'
-                  >
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth={2}
-                      d='M19 14l-7 7m0 0l-7-7m7 7V3'
-                    />
-                  </svg>
-                </button>
-
-                {expandedSections.export && (
-                  <ExportSummary
-                    costBreakdown={costBreakdown}
-                    solverOriginalCost={solverOriginalCost}
-                    poleCost={poleCost}
-                    lowVoltageCost={lowVoltageCost}
-                    highVoltageCost={highVoltageCost}
-                    miniGridNodes={miniGridNodes}
-                    allowDragTerminals={allowDragTerminals}
-                    onAllowDragTerminalsChange={setAllowDragTerminals}
-                    onDownloadKml={downloadKml}
-                    onSaveToDatabase={handleSaveToDatabase}
-                    isAuthenticated={!!session?.user}
-                    savedRunsCount={savedRuns.length}
-                    computingMiniGrid={computingMiniGrid}
-                  />
-                )}
-              </section>
+              <ExportAndSummarySection
+                isExpanded={expandedSections.export}
+                onToggle={() => toggleSection('export')}
+                // ExportSummary props
+                costBreakdown={costBreakdown}
+                solverOriginalCost={solverOriginalCost}
+                poleCost={poleCost}
+                lowVoltageCost={lowVoltageCost}
+                highVoltageCost={highVoltageCost}
+                miniGridNodes={miniGridNodes}
+                allowDragTerminals={allowDragTerminals}
+                onAllowDragTerminalsChange={setAllowDragTerminals}
+                onDownloadKml={downloadKml}
+                onSaveToDatabase={handleSaveToDatabase}
+                isAuthenticated={!!session?.user}
+                savedRunsCount={savedRuns.length}
+                computingMiniGrid={computingMiniGrid}
+              />
 
               {/* 4. Saved Mini-grids Section */}
               <SavedGridsSection
@@ -2609,7 +2615,7 @@ export default function MiniGridToolPage() {
         </footer>
 
         <Script
-          src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=marker`}
+          src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=marker,places`}
           strategy='afterInteractive'
           onLoad={initMap}
         />

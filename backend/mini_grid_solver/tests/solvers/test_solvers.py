@@ -44,11 +44,11 @@ def kml_points():
         pytest.skip("KML file not found or incorrectly formatted")
 
 
-@pytest.fixture
-def kml_points2():
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml", "test_data_sets/minigrid_2026-04-08.kml"])
+def kml_points_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
-        kml_file_path = "test_data_sets/minigrid_2026-04-07.kml"
+        kml_file_path = request.param
         with open(kml_file_path, 'r', encoding="utf-8") as f:
             root = parser.parse(f).getroot()
 
@@ -140,6 +140,31 @@ def test_all_solvers_with_csv(solver_name, csv_points, default_costs, default_le
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
+@pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
+def test_all_solvers_with_csv(kml_points_random_test_set, solver_name, csv_points, default_costs, default_length_constraints):
+    """
+    Parametrized test: Runs every solver in the registry using CSV data.
+    Validates that each solver returns a result with nodes and edges.
+    """
+    solver_class = SOLVER_REGISTRY[solver_name]
+
+    # Create request with default params
+    req = SolverRequest(
+        points=kml_points_random_test_set,
+        costs=default_costs,
+        lengthConstraints=default_length_constraints,
+        debug=0,
+    )
+
+    result = solver_class(req).solve()
+
+    # Assertions for output quality
+    assert result is not None, f"{solver_name} returned no result"
+    assert len(result.nodes) >= len(csv_points), f"{solver_name} lost points during solve"
+    assert len(result.edges) > 0, f"{solver_name} failed to create any connections"
+    assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
+
+
 def test_steiner_solver_specific_logic(kml_points, default_costs, default_length_constraints):
     """Specific check for GreedyIterSteinerSolver using the KML dataset."""
     if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
@@ -150,7 +175,7 @@ def test_steiner_solver_specific_logic(kml_points, default_costs, default_length
         points=kml_points,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=2,
+        debug=0,
     )
 
     result = solver_class(req).solve()
@@ -160,17 +185,17 @@ def test_steiner_solver_specific_logic(kml_points, default_costs, default_length
     assert len(poles) >= 0  # Validates the result contains a nodes list
     assert result.totalCostEstimate > 0
 
-def test_steiner_solver_specific_logic2(kml_points2, default_costs, default_length_constraints):
+def test_steiner_solver_specific_logic2(kml_points_random_test_set, default_costs, default_length_constraints):
     """Specific check for GreedyIterSteinerSolver using the KML dataset."""
     if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
         pytest.skip("GreedyIterSteinerSolver not registered")
 
     solver_class = SOLVER_REGISTRY["GreedyIterSteinerSolver"]
     req = SolverRequest(
-        points=kml_points2,
+        points=kml_points_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=2,
+        debug=0,
     )
 
     result = solver_class(req).solve()

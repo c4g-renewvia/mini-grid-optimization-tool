@@ -38,10 +38,6 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         self._cached_kd_coords = None  # copy of coords used to build it
 
     @staticmethod
-    def get_input_params():
-        return []
-
-    @staticmethod
     def fermat_torricelli_point(pts: np.ndarray) -> np.ndarray:
         """
         Compute approximate Fermat-Torricelli point for a triangle (3 points).
@@ -590,7 +586,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         to_concat = [
             masked_dict['Fermat Candidates'],
             masked_dict['Adaptive Fermat Candidates'],
-            masked_dict['Collinear Candidates'],
+            # masked_dict['Collinear Candidates'],
             masked_dict['Cluster Candidates'],
             # masked_dict['Projection Candidates'],   # ← still disabled (uncomment when ready)
         ]
@@ -923,7 +919,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 "success": False
             }
 
-    def _solve(self, input_tuple) -> nx.DiGraph:
+    def _solve(self) -> nx.DiGraph:
         """
         Solves the optimization problem of constructing the minimum spanning arborescence with additional candidate nodes
         from an initial set of nodes and edges. The algorithm iteratively improves upon the solution by adding and pruning
@@ -945,11 +941,10 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 - Numpy array of the final coordinate set including additional nodes.
 
         """
-        nodes, coords, source_idx, terminal_indices, names, costs = input_tuple
 
         # Initial state tracking
-        current_coords = np.array(coords)
-        current_names = list(names)
+        current_coords = np.array(self._coords)
+        current_names = list(self._names)
         added_candidates = np.empty((0, 2), dtype=float)
 
         # Constants for Beam Search and Rollout
@@ -984,9 +979,6 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             if len(candidates) == 0:
                 if self.request.debug: print("No more candidates to evaluate.")
                 break
-
-            # --- STEP 1: IMMEDIATE FILTERING (The "Beam" Selection) ---
-            dist_matrix = self._get_distance_matrix(current_coords)
 
             # --- STEP 1: IMMEDIATE FILTERING (The "Beam" Selection) ---
             def eval_wrapper(cand):
@@ -1082,4 +1074,8 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 self._plot_current_tree(best_pruned_graph, added_points=[winner["cand"]],
                                         title=f"Iteration {iteration} (Δ {improvement:+.2f} m)")
 
-        return best_pruned_graph
+
+        # Finally Gradient Decent each pole placement to ensure not local optimization is left on the table
+        final_graph = self._post_solver_local_opt(best_pruned_graph)
+
+        return final_graph

@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,8 +63,8 @@ async def solve(request: SolverRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/solvers")
-async def get_solvers() -> dict:
+@app.get("/solvers", response_model=List[Solver])
+async def get_solvers() -> List[Solver]:
     """
     Handles the retrieval of available solvers and their input parameters.
 
@@ -83,9 +84,9 @@ async def get_solvers() -> dict:
     if len(SOLVER_REGISTRY) == 0 or SOLVER_REGISTRY is None:
         raise HTTPException(status_code=500, detail="No solvers available")
 
-    solvers = {"solvers": []}
+    solvers: List[Solver] = []
     for solver_name, solver_class in SOLVER_REGISTRY.items():
         params = solver_class.get_input_params()
-        solvers['solvers'].append(Solver(name = str(solver_name), params = params))
+        solvers.append(Solver(name = str(solver_name), params = params))
 
     return solvers

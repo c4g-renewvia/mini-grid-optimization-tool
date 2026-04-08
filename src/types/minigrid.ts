@@ -54,10 +54,11 @@ export interface MiniGridRun {
 
 export interface SolverParam {
   name: string;
-  type?: 'integer' | 'float' | 'number';
-  default: number;
+  type?: 'int' | 'str' | "bool" | "float";
+  default: number | string | boolean;
   min?: number;
   max?: number;
+  options?: string[];
   description?: string;
 }
 
