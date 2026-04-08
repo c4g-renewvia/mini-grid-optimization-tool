@@ -2087,7 +2087,6 @@ export default function MiniGridToolPage() {
       }
     }, 300);
 
-    alert(`Loaded: ${run.name || 'Mini-grid run'}`);
     setExpandedSections({
       markers: false,
       solver_cost: false,
