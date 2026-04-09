@@ -1,6 +1,5 @@
 import { ImpersonationProvider } from '@/components/contexts/impersonation-context';
 import { Footer } from '@/components/layout/footer';
-import { Header } from '@/components/layout/header';
 import { ServiceWorkerRegistration } from '@/components/layout/service-worker-registration';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
@@ -69,7 +68,6 @@ export default async function RootLayout({
           <SessionProvider session={session}>
             <ImpersonationProvider>
               <ServiceWorkerRegistration />
-              <Header />
               <div className='mt-16 min-h-[calc(100dvh-8.4rem)]'>
                 {children}
                 <SpeedInsights />

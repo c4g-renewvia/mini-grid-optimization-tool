@@ -894,8 +894,6 @@ export default function MiniGridToolPage() {
       initial[p.name] = p.default;
     });
 
-    console.log('paramValues', selectedSolver.params);
-
     setParamValues(initial);
   }, [selectedSolverName, selectedSolver]);
 
@@ -1002,8 +1000,6 @@ export default function MiniGridToolPage() {
   const getSolversURL =
     process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers';
 
-  console.log('getSolversURL', getSolversURL);
-
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -1083,7 +1079,6 @@ export default function MiniGridToolPage() {
       try {
         // 1. ADD A CACHE BUSTER TO THE URL
         const cacheBusterUrl = `${getSolversURL}?t=${Date.now()}`;
-        console.log('Fetching solvers from:', cacheBusterUrl);
 
         const res = await fetch(cacheBusterUrl, {
           method: 'GET',
@@ -1602,8 +1597,6 @@ export default function MiniGridToolPage() {
               })
               .filter((p): p is MiniGridNode => p !== null);
 
-            console.log('Parsed Points:', parsedPoints);
-
             if (parsedPoints.length === 0) {
               setError(
                 'No valid rows found. Expected columns: Name, Type (source/terminal), Latitude, Longitude.'
@@ -1809,8 +1802,6 @@ export default function MiniGridToolPage() {
       // map.setCenter({ lat: 33.777, lng: -84.396 });
       // map.setZoom(14);
     }
-
-    console.log('Map and data reset');
   };
 
   const handleRunSolver = async () => {
