@@ -9,7 +9,7 @@ from scipy.spatial import Delaunay, KDTree
 import scipy.sparse as sp
 from scipy.sparse.csgraph import minimum_spanning_tree
 
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 
 from .base_mini_grid_solver import BaseMiniGridSolver
 from .registry import register_solver
@@ -80,7 +80,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 len(coords) != len(self._cached_kd_coords) or
                 np.max(np.abs(coords - self._cached_kd_coords)) > 1e-6):
 
-            if self.request.debug >= 1:
+            if self.request.debug >= 2:
                 print(f"Rebuilding KDTree for {len(coords)} points")
 
             self._kdtree_cache = KDTree(coords)
@@ -126,7 +126,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 self._cached_coords_hash != current_hash or
                 self._dist_matrix.shape[0] != len(coords)):
 
-            if self.request.debug >= 1:
+            if self.request.debug >= 2:
                 print(f"Recomputing distance matrix for {len(coords)} points")
 
             self._dist_matrix = self.haversine_vec(coords, coords)  # vectorized, fast
@@ -284,7 +284,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         return candidates
 
     @staticmethod
-    def generate_cluster_center_candidates(coords, n_init=10):
+    def kmeans_generate_cluster_center_candidates(coords, n_init=10):
         """
         Generate candidate pole markers as centers of K-Means clusters.
 
@@ -297,7 +297,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         candidates = []
         coords_array = np.array(coords)  # shape (n, 2) [lat, lng] or [lng, lat]
 
-        for k in range(len(coords) // 2, len(coords) // 2 + 2):
+        for k in range(len(coords) // 2, len(coords) // 2 + 3):
             try:
                 kmeans = KMeans(n_clusters=k, n_init=n_init, random_state=42)
                 kmeans.fit(coords_array)
@@ -322,51 +322,198 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
         return cluster_centers
 
+
+    def dbscan_generate_cluster_center_candidates(self, coords, eps_meters = 40.0 ,min_samples = 2 ):
+        """
+        Generates cluster center candidates using the DBSCAN clustering algorithm based on geospatial
+        coordinate data. This function identifies clusters of points and computes their geometric centroids
+        as candidate cluster centers.
+
+        Arguments:
+        coords (list[tuple[float, float]]): List of geospatial coordinates represented as tuples
+            of latitude and longitude.
+        eps_meters (float): Maximum distance in meters within which points are considered to
+            be neighbors in the clustering process. The default is 40.0 meters.
+        min_samples (int): Minimum number of data points required to form a cluster. The
+            default is 2.
+
+        Returns:
+        numpy.ndarray: A 2D array of cluster-center coordinates, where each row corresponds to a
+            cluster center. If no valid clusters are found, an empty array with shape (0, 2) is returned.
+
+        Raises:
+        None
+        """
+        coords_array = np.array(coords)
+        n = len(coords_array)
+
+        if n < 3:
+            if self.request.debug >= 1:
+                print("DBSCAN cluster centers: too few points → returning empty")
+            return np.empty((0, 2), dtype=float)
+
+        # Precompute full distance matrix once (very fast for your n ≤ 50)
+        dist_matrix = self.haversine_vec(coords_array, coords_array)
+
+        # Run DBSCAN with precomputed metric (exact meter distances)
+        db = DBSCAN(
+            eps=eps_meters,
+            min_samples=min_samples,
+            metric='precomputed',
+            n_jobs=1
+        )
+        db.fit(dist_matrix)
+
+        labels = db.labels_
+        unique_labels = set(labels) - {-1}  # exclude noise
+
+        candidates = []
+        for label in unique_labels:
+            cluster_mask = labels == label
+            cluster_points = coords_array[cluster_mask]
+
+            if len(cluster_points) >= min_samples:
+                # Use geometric centroid as the candidate pole location
+                center = np.mean(cluster_points, axis=0)
+                candidates.append(center)
+
+        if not candidates:
+            if self.request.debug >= 1:
+                print("DBSCAN cluster centers: no valid clusters found")
+            return np.empty((0, 2), dtype=float)
+
+        cluster_centers = np.array(candidates)
+
+        # Final deduplication (~1 cm precision)
+        cluster_centers = np.unique(np.round(cluster_centers, decimals=6), axis=0)
+
+        if self.request.debug >= 1:
+            print(f"DBSCAN generated {len(cluster_centers)} cluster-center candidates "
+                  f"(eps={eps_meters}m, min_samples={min_samples}, "
+                  f"clusters found={len(unique_labels)})")
+
+        return cluster_centers
+
     def generate_adaptive_fermat_candidates(
             self,
             current_coords: np.ndarray,
             terminal_indices: List[int],
             pole_indices: List[int],
-            max_distance: float = 60.0
+            max_distance: float = 60.0,
+            max_per_pole: int = 10,  # ← New: hard limit per pole
+            min_angle_deg: float = 60.0  # ← New: avoid very flat angles
     ) -> np.ndarray:
         """
-        Generates Fermat points for triplets consisting of:
-        - 1 existing pole + 2 terminals
-        - 2 existing poles + 1 terminal
-        """
-        candidates = []
+        Generates adaptive Fermat point candidates based on current coordinates and input constraints.
 
-        # Iterate through each existing pole to see if it can 'bridge' nearby terminals
+        This method computes potential locations for Fermat-Torricelli points, which minimize the
+        total distance to a set of given input points under various constraints such as maximum
+        distance, minimum angular separation, and other geometric considerations.
+
+        Arguments:
+            current_coords (np.ndarray): Array of coordinates representing current points of
+              interest (e.g., poles or terminals). Shape is (n, 2), where n is the number of points.
+            terminal_indices (List[int]): List of indices identifying terminal points in
+              `current_coords` to be considered for Fermat point calculation.
+            pole_indices (List[int]): List of indices identifying pole points in `current_coords`
+              around which Fermat point candidates are generated.
+            max_distance (float): Maximum allowed distance (in meters) for a terminal point
+              to be considered near a given pole. Default is 60.0.
+            max_per_pole (int): Maximum number of Fermat point candidates generated per pole.
+              Default is 8.
+            min_angle_deg (float): Minimum allowed angular separation (in degrees) between
+              terminal connections to avoid very flat configurations. Default is 30.0.
+
+        Returns:
+            np.ndarray: Array of generated Fermat point candidates. Shape is (m, 2), where `m`
+              is the total number of candidates. Returns an empty array if no candidates are found.
+
+        Raises:
+            None.
+        """
+        if not pole_indices or len(terminal_indices) < 2:
+            return np.empty((0, 2), dtype=float)
+
+        candidates = []
+        max_dist_sq = max_distance ** 2  # for faster comparison if needed
+
         for p_idx in pole_indices:
             pole_coord = current_coords[p_idx]
+            pole_term_dists = []
 
-            # Find terminals within reach of this specific pole
-            nearby_terminals = [
-                t_idx for t_idx in terminal_indices
-                if self.haversine_meters(pole_coord[0], pole_coord[1],
-                                         current_coords[t_idx][0], current_coords[t_idx][1]) <= max_distance
-            ]
+            # Collect nearby terminals with distances (for sorting)
+            for t_idx in terminal_indices:
+                dist = self.haversine_meters(pole_coord[0], pole_coord[1],
+                                             current_coords[t_idx][0], current_coords[t_idx][1])
+                if dist <= max_distance and dist > 5.0:  # avoid too close
+                    pole_term_dists.append((dist, t_idx))
 
-            # If we have at least 2 nearby terminals, try forming a Steiner junction
-            if len(nearby_terminals) >= 2:
-                for i, j in itertools.combinations(nearby_terminals, 2):
-                    pts = np.array([
-                        pole_coord,
-                        current_coords[i],
-                        current_coords[j]
-                    ])
+            if len(pole_term_dists) < 2:
+                continue
 
+            # Sort by distance — closer pairs are usually more useful
+            pole_term_dists.sort()
+
+            local_cands = []
+            count = 0
+
+            for idx1 in range(len(pole_term_dists)):
+                for idx2 in range(idx1 + 1, len(pole_term_dists)):
+                    if count >= max_per_pole:
+                        break
+
+                    dist1, i = pole_term_dists[idx1]
+                    dist2, j = pole_term_dists[idx2]
+
+                    # Optional: skip if the two terminals are very far from each other
+                    d_term_term = self.haversine_meters(
+                        current_coords[i][0], current_coords[i][1],
+                        current_coords[j][0], current_coords[j][1]
+                    )
+                    if d_term_term > max_distance * 1.5:  # too spread out
+                        continue
+
+                    # Optional: angle check to avoid very flat configurations
+                    if min_angle_deg > 0:
+                        a = dist1
+                        b = dist2
+                        c = d_term_term
+                        if a > 0 and b > 0 and c > 0:
+                            cos_angle = (a * a + b * b - c * c) / (2 * a * b)
+                            cos_angle = np.clip(cos_angle, -1.0, 1.0)
+                            angle_deg = np.degrees(np.arccos(cos_angle))
+                            if angle_deg < min_angle_deg:
+                                continue
+
+                    pts = np.array([pole_coord, current_coords[i], current_coords[j]])
                     st_pt = self.fermat_torricelli_point(pts)
-                    candidates.append(st_pt)
+                    local_cands.append(st_pt)
+                    count += 1
+
+                if count >= max_per_pole:
+                    break
+
+            candidates.extend(local_cands)
 
         if not candidates:
-            return np.empty((0, 2))
+            return np.empty((0, 2), dtype=float)
 
-        # Filter by minimum separation from existing points to avoid redundancy
         candidates_array = np.array(candidates)
-        mask = (self.haversine_vec(candidates_array, current_coords) >= 10.0).all(axis=1)
 
-        return np.unique(np.round(candidates_array[mask], decimals=6), axis=0)
+        # Final global filtering
+        min_sep = 10.0
+        mask = (self.haversine_vec(candidates_array, current_coords) >= min_sep).all(axis=1)
+        candidates_array = candidates_array[mask]
+
+        # Deduplicate
+        if len(candidates_array) > 0:
+            candidates_array = np.unique(np.round(candidates_array, decimals=6), axis=0)
+
+        if self.request.debug >= 1:
+            print(f"Adaptive Fermat: generated {len(candidates_array)} candidates "
+                  f"(from {len(pole_indices)} poles, max_per_pole={max_per_pole})")
+
+        return candidates_array
 
     def generate_proximity_fermat_candidates(
             self,
@@ -385,7 +532,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         if n < 3:
             return np.empty((0, 2), dtype=float)
 
-        if self.request.debug >= 1:
+        if self.request.debug >= 2:
             print(f"Generating proximity Fermat candidates for {n} points "
                   f"(max_dist={max_distance}m)")
 
@@ -440,7 +587,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         if len(candidates) > max_candidates:
             candidates = candidates[:max_candidates]
 
-        if self.request.debug >= 1:
+        if self.request.debug >= 2:
             print(f"KDTree (cached) generated {len(candidates)} Fermat candidates "
                   f"from {len(close_pairs)} close pairs")
 
@@ -498,9 +645,92 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
         return candidates
 
+    def filter_candidates(
+            self,
+            candidates: np.ndarray,
+            current_coords: np.ndarray,
+            added_candidates: np.ndarray,
+            pole_indices: List[int],
+            terminal_indices: List[int]
+    ) -> np.ndarray:
+        """
+        Comprehensive filtering of candidate Steiner/pole points.
+
+        Applies ALL constraints in one place:
+        - Inside terminal bounding box (prevents far-away outliers)
+        - Minimum distance to any terminal (voltage-specific)
+        - Minimum distance to existing poles
+        - Not already added in previous iterations
+        - Final deduplication (~1 cm precision)
+        """
+        if len(candidates) == 0:
+            return np.empty((0, 2), dtype=float)
+
+        original_count = len(candidates)
+
+        # ─── 1. Bounding-box filter (moved here from generate_candidates) ───
+        if len(terminal_indices) > 0:
+            # Use ONLY terminal coordinates for the bounding box
+            # (this is what "terminal bounding box" originally meant)
+            terminal_coords = current_coords[terminal_indices]
+            bb = self.compute_bounding_box(terminal_coords)
+
+            lat_mask = (bb['min_lat'] <= candidates[:, 0]) & (candidates[:, 0] <= bb['max_lat'])
+            lng_mask = (bb['min_lng'] <= candidates[:, 1]) & (candidates[:, 1] <= bb['max_lng'])
+            mask_bb = lat_mask & lng_mask
+
+            candidates = candidates[mask_bb]
+            if self.request.debug >= 2:
+                print(f"    BB filter removed {original_count - len(candidates)} candidates outside terminal bbox")
+        else:
+            mask_bb = np.ones(len(candidates), dtype=bool)
+
+        # ─── 2. Minimum pole-to-terminal distance (voltage aware) ───
+        min_pole_to_term = (
+            self.request.lengthConstraints.low.poleToTerminalMinimumLength
+            if getattr(self.request, 'voltageLevel', 'low') == 'low'
+            else self.request.lengthConstraints.high.poleToTerminalMinimumLength
+        )
+
+        if len(terminal_indices) > 0 and len(candidates) > 0:
+            terminal_coords = current_coords[terminal_indices]
+            dists_to_terminals = self.haversine_vec(candidates, terminal_coords)
+            mask_term = np.min(dists_to_terminals, axis=1) >= min_pole_to_term
+            candidates = candidates[mask_term]
+
+        # ─── 3. Minimum pole-to-pole distance (existing poles) ───
+        min_pole_to_pole = 5.0  # you can later expose this in constraints if you want
+        if len(pole_indices) > 0 and len(candidates) > 0:
+            pole_coords = current_coords[pole_indices]
+            dists_to_poles = self.haversine_vec(candidates, pole_coords)
+            mask_poles = np.min(dists_to_poles, axis=1) >= min_pole_to_pole
+            candidates = candidates[mask_poles]
+
+        # ─── 4. Remove already-added candidates ───
+        if len(added_candidates) > 0 and len(candidates) > 0:
+            ac_set = {tuple(np.round(c, decimals=6)) for c in added_candidates}
+            candidates = np.array([
+                c for c in candidates
+                if tuple(np.round(c, decimals=6)) not in ac_set
+            ])
+
+        # ─── 5. Final deduplication ───
+        if len(candidates) > 0:
+            candidates = np.unique(np.round(candidates, decimals=6), axis=0)
+
+        # ─── Debug summary ───
+        if self.request.debug >= 1:
+            kept = len(candidates)
+            removed = original_count - kept
+            print(f"filter_candidates: kept {kept}/{original_count} candidates "
+                  f"(removed {removed} — BB + min-distance + duplicates)")
+
+        return candidates
+
     def generate_candidates(self,
                             coords,
                             cur_edges,
+                            fermat_candidates,
                             terminal_cluster_centers,
                             added_candidates,
                             num_per_edge=2):
@@ -536,9 +766,6 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 _cands = _cands[mask]
             return _cands
 
-        # === 1. Generate raw candidates (exactly as before) ===
-        fermat_candidates = self.generate_proximity_fermat_candidates(np.array(coords), max_candidates=100)
-
         n_terminals = len(self._terminal_indices) + 1  # +1 for source
         pole_indices = list(range(n_terminals, len(coords)))
         terminal_indices = list(range(n_terminals))
@@ -552,42 +779,34 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         projection_candidates = np.empty((0, 2))
         collinear_candidates = np.empty((0, 2))
 
-        if cur_edges is not None:
-            collinear_candidates = self.generate_collinear_candidates(np.array(coords),
-                                                                      cur_edges,
-                                                                      num_per_edge=num_per_edge)
+        # if cur_edges is not None:
+        #     collinear_candidates = self.generate_collinear_candidates(np.array(coords),
+        #                                                               cur_edges,
+        #                                                               num_per_edge=num_per_edge)
 
-            projection_candidates = self.generate_projection_candidates(
-                np.array(coords),
-                cur_edges,
-                terminal_indices=self._terminal_indices,
-                max_dist_to_line=40.0,
-                min_dist_to_existing=5.0
-            )
+            # projection_candidates = self.generate_projection_candidates(
+            #     np.array(coords),
+            #     cur_edges,
+            #     terminal_indices=self._terminal_indices,
+            #     max_dist_to_line=40.0,
+            #     min_dist_to_existing=5.0
+            # )
 
         # === 2. Store ALL candidates in a dictionary (raw, before any masking) ===
         candidate_dict = {
             'Fermat Candidates': fermat_candidates,
             'Adaptive Fermat Candidates': adaptive_fermat,
-            'Collinear Candidates': collinear_candidates,
-            'Projection Candidates': projection_candidates,
+            # 'Collinear Candidates': collinear_candidates,
+            # 'Projection Candidates': projection_candidates,
             'Cluster Candidates': terminal_cluster_centers,
         }
 
-        # === 3. Mask each set individually (for the actual candidate pool) ===
-        masked_dict = {}
-        for label, cands in candidate_dict.items():
-            if len(cands) > 0:
-                masked_dict[label] = mask_outside_terminal_bb(coords, cands)
-            else:
-                masked_dict[label] = np.empty((0, 2), dtype=float)
-
         # === 4. Build final candidate pool by concatenating only the sets we actually use ===
         to_concat = [
-            masked_dict['Fermat Candidates'],
-            masked_dict['Adaptive Fermat Candidates'],
+            candidate_dict['Fermat Candidates'],
+            candidate_dict['Adaptive Fermat Candidates'],
             # masked_dict['Collinear Candidates'],
-            masked_dict['Cluster Candidates'],
+            candidate_dict['Cluster Candidates'],
             # masked_dict['Projection Candidates'],   # ← still disabled (uncomment when ready)
         ]
 
@@ -597,12 +816,17 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             candidates = np.empty((0, 2), dtype=float)
 
         # -------------- FILTER CANDIDATES --------------
-        # remove candidates already added
-        ac = [tuple(c) for c in added_candidates]
-        candidates = np.array([c for c in candidates if tuple(c) not in ac])
+        n_terminals = len(self._terminal_indices) + 1  # +1 for source
+        pole_indices = list(range(n_terminals, len(coords)))
+        terminal_indices_for_filter = self._terminal_indices  # real homes only
 
-        # dedupe
-        candidates = np.unique(candidates, axis=0)
+        candidates = self.filter_candidates(
+            candidates=candidates,
+            current_coords=np.array(coords),
+            added_candidates=added_candidates,
+            pole_indices=pole_indices,
+            terminal_indices=terminal_indices_for_filter
+        )
 
         # === 5. Debug plot using the dictionary (loop instead of 5 separate scatters) ===
         if self.request.debug >= 1 and len(candidates) > 0:
@@ -962,7 +1186,15 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         cur_edges = None
 
         # 1. Initial Cluster Center Generation
-        terminal_cluster_centers = self.generate_cluster_center_candidates(current_coords, n_init=5)
+        # terminal_cluster_centers = self.kmeans_generate_cluster_center_candidates(current_coords, n_init=5)
+        terminal_cluster_centers = self.dbscan_generate_cluster_center_candidates(current_coords, eps_meters=30, min_samples=2)
+        fermat_candidates = self.generate_proximity_fermat_candidates(np.array(current_coords),
+                                                                      max_distance= 40,
+                                                                      max_candidates=50)
+
+        fermat_candidates = self.filter_candidates(fermat_candidates, current_coords, [], [], [])
+        terminal_cluster_centers = self.filter_candidates(terminal_cluster_centers, current_coords, [], [], [])
+
 
         while True:
             iteration += 1
@@ -971,7 +1203,8 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
             # 2. Generate candidates (including Adaptive Fermat and Projections)
             candidates = self.generate_candidates(
-                current_coords, cur_edges, terminal_cluster_centers,
+                current_coords, cur_edges,
+                fermat_candidates, terminal_cluster_centers,
                 added_candidates,
                 num_per_edge=3
             )
@@ -1029,6 +1262,9 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
             improvement = cur_total_weight - winner["cost"]
 
+            if self.request.debug >= 1:
+                print(f"Rollout Score: {rollout_score:.2f} (Improvement: {improvement:.2f})")
+
             if improvement < IMPROVEMENT_THRESHOLD:
                 stagnation_counter += 1
                 if self.request.debug: print(f"Stagnating: improvement of {improvement:.4f}m is below threshold.")
@@ -1071,6 +1307,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
             # Visualization for debugging
             if self.request.debug >= 1:
+
                 self._plot_current_tree(best_pruned_graph, added_points=[winner["cand"]],
                                         title=f"Iteration {iteration} (Δ {improvement:+.2f} m)")
 

@@ -12,6 +12,7 @@ from ..utils.models import *
 
 MAX_EDGE_DIST_PENALTY = 10000
 
+
 class BaseMiniGridSolver(ABC):
     """
     Abstract base class for MiniGrid power network optimizers.
@@ -745,37 +746,53 @@ class BaseMiniGridSolver(ABC):
 
     def _post_solver_local_opt(self, graph):
         """
-        Performs post-solver optimization on the given graph by refining node placement and reducing redundancy.
-
-        The method applies a series of optimization steps to improve the placement of nodes in the graph, potentially
-        reducing costs and redundancy. This involves splitting long edges, optimizing poles using gradient-based
-        techniques, and removing unnecessary poles. It continues iterating until the cost stabilizes. The final graph
-        is then updated with renamed poles for clarity.
-
-        Parameters:
-        graph: The input graph to be optimized.
-
-        Returns:
-        The optimized graph after node refinement and placement adjustments.
+        Performs post-solver optimization with multiple iterations until no further improvement.
         """
-
-        # Final Node Optimization Placement
+        # Initial cleanup
         graph = self.split_long_edges_with_coords(graph=graph)
-
         graph = self.rename_poles(graph)
 
-        current_cost = self._compute_total_cost(graph)
+        previous_cost = self._compute_total_cost(graph)
+        iteration = 0
+        max_iterations = 12  # safety limit
 
-        while True:
-            previous_cost = current_cost
+        if self.request.debug >= 1:
+            print(f"\n=== Starting Post-Solver Local Optimization ===")
+            print(f"Initial cost after split: {previous_cost:.2f}")
 
+        while iteration < max_iterations:
+            iteration += 1
+
+            if self.request.debug >= 1:
+                print(f"\n--- Post-opt iteration {iteration} ---")
+
+            # Run the two optimizers
             graph = self._pole_gradient_optimizer(graph)
             graph = self._drop_redundant_poles(graph)
 
             current_cost = self._compute_total_cost(graph)
+            delta = current_cost - previous_cost
 
-            if current_cost >= previous_cost:
+            if self.request.debug >= 1:
+                print(f"   Previous: {previous_cost:.2f} → Current: {current_cost:.2f} (Δ = {delta:+.2f})")
+
+            # Stop conditions
+            if current_cost > previous_cost + 1e-3:          # cost actually increased
+                if self.request.debug >= 1:
+                    print("   Cost increased → stopping")
                 break
+
+            if abs(delta) < 1e-3:                            # no meaningful improvement
+                if self.request.debug >= 1:
+                    print("   No meaningful improvement → stopping")
+                break
+
+            # Still improving → continue
+            previous_cost = current_cost
+
+        if self.request.debug >= 1:
+            print(f"\n=== Post-opt finished after {iteration} iteration(s). "
+                  f"Final cost: {previous_cost:.2f} ===\n")
 
         return graph
 
@@ -891,7 +908,7 @@ class BaseMiniGridSolver(ABC):
         grad_eps_m = 0.5  # finite difference step
         eps_deg = grad_eps_m * one_meter_deg
 
-        if self.request.debug > 1:
+        if self.request.debug >= 1:
             print(f"Starting constrained local gradient descent. Initial cost: {self._compute_total_cost(graph):.2f}")
 
         improved = False
@@ -981,7 +998,7 @@ class BaseMiniGridSolver(ABC):
                         print(f"  Iter {iteration + 1:2d}: no valid improving step")
                     break
 
-        if self.request.debug > 1:
+        if self.request.debug >= 1:
             final_cost = self._compute_total_cost(graph)
             print(f"Local GD finished. Final global cost: {final_cost:.2f} "
                   f"({'improved' if improved else 'no significant change'})")

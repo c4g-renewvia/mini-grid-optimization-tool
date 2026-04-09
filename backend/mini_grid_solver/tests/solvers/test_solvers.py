@@ -1,10 +1,11 @@
-import pandas as pd
-import pytest
-from mini_grid_solver.src.solvers.registry import SOLVER_REGISTRY
-from mini_grid_solver.src.utils.models import *
-from pykml import parser
 import re
 
+import pandas as pd
+import pytest
+from pykml import parser
+
+from mini_grid_solver.src.solvers.registry import SOLVER_REGISTRY
+from mini_grid_solver.src.utils.models import *
 from mini_grid_solver.src.utils.models import LengthConstraints, LengthConstraintsBase
 
 
@@ -44,7 +45,7 @@ def kml_points():
         pytest.skip("KML file not found or incorrectly formatted")
 
 
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml", "test_data_sets/minigrid_2026-04-08.kml"])
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml", "test_data_sets/minigrid_2026-04-08.kml", "test_data_sets/minigrid_2026-04-09.kml"])
 def kml_points_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
@@ -76,19 +77,23 @@ def kml_points_random_test_set(request):
 def default_costs():
     """Standard cost parameters used in your main script."""
     return Costs(
-        poleCost= 100.0,
+        poleCost=100.0,
         lowVoltageCostPerMeter=10.0,
-        highVoltageCostPerMeter =40.0,
+        highVoltageCostPerMeter=40.0,
     )
 
 
 @pytest.fixture
 def default_length_constraints():
     """Standard cost parameters used in your main script."""
-    return LengthConstraints(low=LengthConstraintsBase(poleToPoleLengthConstraint=30,
-                                                       poleToTerminalLengthConstraint=20),
-                             high=LengthConstraintsBase(poleToPoleLengthConstraint=50,
-                                                        poleToTerminalLengthConstraint=20))
+    return LengthConstraints(
+        low=LengthConstraintsBase(poleToPoleLengthConstraint=30,
+                                  poleToTerminalLengthConstraint=20,
+                                  poleToTerminalMinimumLength=5),
+        high=LengthConstraintsBase(poleToPoleLengthConstraint=50,
+                                   poleToTerminalLengthConstraint=20,
+                                   poleToTerminalMinimumLength=5)
+    )
 
 
 @pytest.fixture
@@ -141,7 +146,8 @@ def test_all_solvers_with_csv(solver_name, csv_points, default_costs, default_le
 
 
 @pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
-def test_all_solvers_with_csv(kml_points_random_test_set, solver_name, csv_points, default_costs, default_length_constraints):
+def test_all_solvers_with_kml(kml_points_random_test_set, solver_name, csv_points, default_costs,
+                              default_length_constraints):
     """
     Parametrized test: Runs every solver in the registry using CSV data.
     Validates that each solver returns a result with nodes and edges.
@@ -165,7 +171,7 @@ def test_all_solvers_with_csv(kml_points_random_test_set, solver_name, csv_point
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-def test_steiner_solver_specific_logic(kml_points, default_costs, default_length_constraints):
+def test_greedy_steiner_solver(kml_points, default_costs, default_length_constraints):
     """Specific check for GreedyIterSteinerSolver using the KML dataset."""
     if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
         pytest.skip("GreedyIterSteinerSolver not registered")
@@ -185,7 +191,8 @@ def test_steiner_solver_specific_logic(kml_points, default_costs, default_length
     assert len(poles) >= 0  # Validates the result contains a nodes list
     assert result.totalCostEstimate > 0
 
-def test_steiner_solver_specific_logic2(kml_points_random_test_set, default_costs, default_length_constraints):
+
+def test_greedy_steiner_solver2(kml_points_random_test_set, default_costs, default_length_constraints):
     """Specific check for GreedyIterSteinerSolver using the KML dataset."""
     if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
         pytest.skip("GreedyIterSteinerSolver not registered")
@@ -263,7 +270,7 @@ def test_connectivity_spanning(ga_tech_points, default_costs, default_length_con
     req = SolverRequest(params={},
                         points=ga_tech_points,
                         costs=default_costs,
-                        lengthConstraints=default_length_constraints,)
+                        lengthConstraints=default_length_constraints, )
     result = solver_class(req).solve()
 
     input_names = {p["name"] for p in ga_tech_points if "source" not in p['name'].lower()}

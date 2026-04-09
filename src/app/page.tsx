@@ -177,15 +177,7 @@ export default function MiniGridToolPage() {
   const [selectedSolverName, setSelectedSolverName] = useState<string>(
     'GreedyIterSteinerSolver'
   );
-  // Pulling solvers manually, could change to be dynamic in the future. Just add solver names as you go
-  // useEffect(() => {
-  //   const initialSolvers: Solvers[] = [
-  //     { name: 'SimpleMSTSolver', params: [] },
-  //     { name: 'SteinerizedMSTSolver', params: [] },
-  //     { name: 'GreedyIterSteinerSolver', params: [] },
-  //   ];
-  //   setSolvers(initialSolvers);
-  // }, []);
+
   const selectedSolver = solvers.find((s) => s.name === selectedSolverName);
   const [paramValues, setParamValues] = useState<Record<string, any>>({});
   const [useExistingPoles, setUseExistingPoles] = useState(false);
