@@ -1,4 +1,3 @@
-import { ImpersonationProvider } from '@/components/contexts/impersonation-context';
 import { Footer } from '@/components/layout/footer';
 import { ServiceWorkerRegistration } from '@/components/layout/service-worker-registration';
 import { ThemeProvider } from '@/components/layout/theme-provider';
@@ -66,7 +65,6 @@ export default async function RootLayout({
       >
         <ThemeProvider attribute='class' defaultTheme='system' enableSystem>
           <SessionProvider session={session}>
-            <ImpersonationProvider>
               <ServiceWorkerRegistration />
               <div className='mt-16 min-h-[calc(100dvh-8.4rem)]'>
                 {children}
@@ -75,7 +73,6 @@ export default async function RootLayout({
               </div>
               <Footer />
               <Toaster />
-            </ImpersonationProvider>
           </SessionProvider>
         </ThemeProvider>
       </body>
