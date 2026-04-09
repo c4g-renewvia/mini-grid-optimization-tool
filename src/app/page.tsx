@@ -1565,25 +1565,52 @@ export default function MiniGridToolPage() {
           try {
             const rows = result.data as Record<string, string>[];
 
+            let counter = 0;                    // overall index counter (if needed)
+            const nameCounter = new Map<string, number>();   // tracks how many times each name appeared
+
             const parsedPoints: MiniGridNode[] = rows
               .map((row) => {
-                const index: number = Number(row.index?.trim() || row['index']);
-                const name = row.name?.trim() || row['name'] || 'Unnamed';
+                // Parse basic fields
+                const rawName = (row.name?.trim() || row['name'] || 'Unnamed').trim();
                 const typeStr = row.type?.trim() || row['type'] || 'terminal';
                 const latStr = row.latitude || row.lat || '';
-                const lngStr = row.longitude || row.lng || row.logitude || '';
+                const lngStr = row.longitude || row.lng || '';
 
                 const lat = parseFloat(latStr);
                 const lng = parseFloat(lngStr);
 
                 if (isNaN(lat) || isNaN(lng)) return null;
 
-                const type =
-                  typeStr.toLowerCase() === 'source' ? 'source' : 'terminal';
+                const type = typeStr.toLowerCase();
 
-                return { index, name, lat, lng, type };
+                // === Name with intelligent counter logic ===
+                let displayName = rawName;
+
+                if (nameCounter.has(rawName)) {
+                  // Name has been seen before → increment counter
+                  const count = nameCounter.get(rawName)! + 1;
+                  nameCounter.set(rawName, count);
+                  displayName = `${rawName} ${count}`;
+                } else {
+                  // First time seeing this name
+                  nameCounter.set(rawName, 1);
+                  // Keep original name (no number)
+                }
+
+                // Optional: still keep an overall index if you need it
+                const index: number = Number(row.index?.trim()) || counter++;
+
+                return {
+                  index,
+                  name: displayName,
+                  lat,
+                  lng,
+                  type,
+                };
               })
               .filter((p): p is MiniGridNode => p !== null);
+
+            console.log('Parsed Points:', parsedPoints);
 
             if (parsedPoints.length === 0) {
               setError(
@@ -1594,6 +1621,7 @@ export default function MiniGridToolPage() {
               // UPDATE UI STATE
               // ─────────────────────────────────────────────────────
               setOriginalMiniGridNodes(parsedPoints);
+              setMiniGridNodes(parsedPoints);
 
               // ─────────────────────────────────────────────────────
               // SAVE THE CORRECT NEW STATE TO HISTORY (this fixes redo)
