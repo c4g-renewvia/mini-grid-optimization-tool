@@ -503,7 +503,7 @@ export default function MiniGridToolPage() {
 
       iconWrapper.appendChild(iconImg);
 
-      // Delete button (×)
+      // ==================== DELETE BUTTON (HOVER ONLY) ====================
       const deleteBtn = document.createElement('button');
       deleteBtn.textContent = '×';
       deleteBtn.style.position = 'absolute';
@@ -521,9 +521,20 @@ export default function MiniGridToolPage() {
       deleteBtn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)';
       deleteBtn.style.zIndex = '100';
       deleteBtn.style.pointerEvents = 'auto';
+      deleteBtn.style.opacity = '0';                    // ← Hidden by default
+      deleteBtn.style.transition = 'opacity 0.2s ease-in-out';
+
+      // Show on hover (works over icon AND label)
+      content.addEventListener('mouseenter', () => {
+        deleteBtn.style.opacity = '1';
+      });
+
+      content.addEventListener('mouseleave', () => {
+        deleteBtn.style.opacity = '0';
+      });
 
       deleteBtn.addEventListener('click', (e) => {
-        e.stopImmediatePropagation(); // Crucial: prevent map/marker events
+        e.stopImmediatePropagation();
         e.preventDefault();
 
         if (window.confirm(`Delete ${point.name}?`)) {
@@ -532,6 +543,7 @@ export default function MiniGridToolPage() {
       });
 
       iconWrapper.appendChild(deleteBtn);
+      // =================================================================
 
       // Label below the icon
       const labelSpan = document.createElement('span');
