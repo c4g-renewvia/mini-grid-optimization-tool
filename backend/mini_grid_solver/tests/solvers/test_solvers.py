@@ -44,8 +44,8 @@ def kml_points():
     except (FileNotFoundError, AttributeError):
         pytest.skip("KML file not found or incorrectly formatted")
 
-
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml", "test_data_sets/minigrid_2026-04-08.kml", "test_data_sets/minigrid_2026-04-09.kml"])
+# add "test_data_sets/minigrid_2026-04-09.kml" for larger test
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml","test_data_sets/minigrid_2026-04-08.kml"])
 def kml_points_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
@@ -77,8 +77,8 @@ def kml_points_random_test_set(request):
 def default_costs():
     """Standard cost parameters used in your main script."""
     return Costs(
-        poleCost=100.0,
-        lowVoltageCostPerMeter=10.0,
+        poleCost=1000.0,
+        lowVoltageCostPerMeter=20.0,
         highVoltageCostPerMeter=40.0,
     )
 

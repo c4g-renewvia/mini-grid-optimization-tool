@@ -73,13 +73,13 @@ class SimpleMSTSolver(BaseMiniGridSolver):
                 for j in range(i + 1, n):
                     d = dist_matrix[i, j]
                     cost = (self._costs.lowVoltageCostPerMeter
-                            if self.request.params.get("voltage","low") == "low"
+                            if self.request.voltageLevel
                             else self._costs.highVoltageCostPerMeter)
 
                     weight = d * cost
                     G.edges[i, j]["weight"] = weight
                     G.edges[i, j]["length"] = d
-                    G.edges[i, j]["voltage"] = "low"
+                    G.edges[i, j]["voltage"] = self.request.voltageLevel
             mst = nx.minimum_spanning_tree(G, weight="weight")
 
         if self.steinerize:

@@ -154,6 +154,30 @@ class BaseMiniGridSolver(ABC):
         c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
         return 6371000 * c  # shape (n_candidates, n_buildings)
 
+    def get_min_pole_to_term(self) -> float:
+        if self.request.voltageLevel == 'low':
+            return self.request.lengthConstraints.low.poleToTerminalMinimumLength
+        else:
+            return self.request.lengthConstraints.high.poleToTerminalMinimumLength
+
+    def get_max_pole_to_pole(self) -> float:
+        if self.request.voltageLevel == 'low':
+            return self.request.lengthConstraints.low.poleToPoleLengthConstraint
+        else:
+            return self.request.lengthConstraints.high.poleToPoleLengthConstraint
+
+    def get_max_pole_to_term(self) -> float:
+        if self.request.voltageLevel == 'low':
+            return self.request.lengthConstraints.low.poleToTerminalLengthConstraint
+        else:
+            return self.request.lengthConstraints.high.poleToTerminalLengthConstraint
+
+    def get_cost_per_meter(self) -> float:
+        if self.request.voltageLevel == "low":
+            return self.request.costs.lowVoltageCostPerMeter
+        else:
+            return self.request.costs.highVoltageCostPerMeter
+
     def parse_input(self):
         """
         Parses input data to extract points, their coordinates, and relevant attributes like names and source identification.
@@ -239,7 +263,7 @@ class BaseMiniGridSolver(ABC):
         return
 
     @staticmethod
-    def _plot_current_tree(graph, added_points=None, title="Current tree after candidate addition", filename=None):
+    def _plot_current_graph(graph, added_points=None, title="Current tree after candidate addition", filename=None):
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.set_title(title)
         ax.set_xlabel("Longitude")
@@ -446,7 +470,7 @@ class BaseMiniGridSolver(ABC):
 
         return
 
-    def calc_edge_weight(self, length, voltage="low", to_terminal=False):
+    def calc_edge_weight(self, length, to_terminal=False):
         """
         Cost of wire and pole
         Args:
@@ -458,9 +482,7 @@ class BaseMiniGridSolver(ABC):
         Returns:
 
         """
-        voltage_cost = (self.request.costs.lowVoltageCostPerMeter
-                        if voltage == "low"
-                        else self.request.costs.highVoltageCostPerMeter)
+        voltage_cost = self.get_cost_per_meter()
 
         pole_cost = self.request.costs.poleCost
 
@@ -468,14 +490,10 @@ class BaseMiniGridSolver(ABC):
         weight = length * voltage_cost
 
         # Cost of intermediate support poles for long spans
-        pole_to_pole_constraint = (self.request.lengthConstraints.low.poleToPoleLengthConstraint
-                                   if voltage == "low"
-                                   else self.request.lengthConstraints.high.poleToPoleLengthConstraint)
+        pole_to_pole_constraint = self.get_max_pole_to_pole()
 
         if to_terminal:
-            pole_to_terminal_constraint = (self.request.lengthConstraints.low.poleToTerminalLengthConstraint
-                                           if voltage == "low"
-                                           else self.request.lengthConstraints.high.poleToTerminalLengthConstraint)
+            pole_to_terminal_constraint = self.get_max_pole_to_term()
             length -= pole_to_terminal_constraint
 
         extra_poles = max(0, math.ceil(length / pole_to_pole_constraint) - 1)
@@ -564,37 +582,33 @@ class BaseMiniGridSolver(ABC):
         for p in pole_indices:
             d = dist_matrix[source_idx, p]
             if 0.1 < d:
-                voltage = "low"
-                w = self.calc_edge_weight(d, voltage=voltage)
-                DG.add_edge(source_idx, p, weight=w, length=d, voltage=voltage)
+                w = self.calc_edge_weight(d)
+                DG.add_edge(source_idx, p, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 2: Bidirectional pole ↔ pole (undirected spans)
         for i in range(len(pole_indices)):
             for j in range(i + 1, len(pole_indices)):
                 p1, p2 = pole_indices[i], pole_indices[j]
                 d = dist_matrix[p1, p2]
-                voltage = "low"
-                w = self.calc_edge_weight(d, voltage=voltage)
+                w = self.calc_edge_weight(d)
                 if 0.1 < d:
-                    DG.add_edge(p1, p2, weight=w, length=d, voltage=voltage)
-                    DG.add_edge(p2, p1, weight=w, length=d, voltage=voltage)
+                    DG.add_edge(p1, p2, weight=w, length=d, voltage=self.request.voltageLevel)
+                    DG.add_edge(p2, p1, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 3: poles → terminals (service drops)
         for p in pole_indices:
             for h in terminal_indices:
                 d = dist_matrix[p, h]
                 if 0.1 < d:
-                    voltage = "low"
-                    w = self.calc_edge_weight(d, voltage=voltage, to_terminal=True)
-                    DG.add_edge(p, h, weight=w, length=d, voltage=voltage)
+                    w = self.calc_edge_weight(d, to_terminal=True)
+                    DG.add_edge(p, h, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 4. Source to Terminals
         for h in terminal_indices:
             d = dist_matrix[source_idx, h]
             if 0.1 < d:
-                voltage = "low"
-                w = self.calc_edge_weight(d, voltage=voltage, to_terminal=True)
-                DG.add_edge(source_idx, h, weight=w, length=d, voltage=voltage)
+                w = self.calc_edge_weight(d, to_terminal=True)
+                DG.add_edge(source_idx, h, weight=w, length=d, voltage=self.request.voltageLevel)
 
         return DG
 
@@ -728,17 +742,11 @@ class BaseMiniGridSolver(ABC):
             v_type = graph.nodes[v].get('type')
 
             if u_type == 'terminal' or v_type == 'terminal':
-                max_len = (self.request.lengthConstraints.low.poleToTerminalLengthConstraint
-                           if voltage == 'low' else
-                           self.request.lengthConstraints.high.poleToTerminalLengthConstraint)
+                max_len = self.get_max_pole_to_term()
             else:
-                max_len = (self.request.lengthConstraints.low.poleToPoleLengthConstraint
-                           if voltage == 'low' else
-                           self.request.lengthConstraints.high.poleToPoleLengthConstraint)
+                max_len = self.get_max_pole_to_pole()
 
-            min_len = (self.request.lengthConstraints.low.poleToTerminalMinimumLength
-                       if voltage == 'low' else
-                       self.request.lengthConstraints.high.poleToTerminalMinimumLength)
+            min_len = self.get_min_pole_to_term()
 
             if (length < min_len + 0.01) or (length > max_len + 0.01):
                 return False
@@ -769,6 +777,7 @@ class BaseMiniGridSolver(ABC):
             # Run the two optimizers
             graph = self._pole_gradient_optimizer(graph)
             graph = self._drop_redundant_poles(graph)
+            graph = self.split_long_edges_with_coords(graph=graph)
 
             current_cost = self._compute_total_cost(graph)
             delta = current_cost - previous_cost
@@ -796,32 +805,104 @@ class BaseMiniGridSolver(ABC):
 
         return graph
 
+    def _fast_total_cost_for_coords(self, coords: np.ndarray) -> float:
+        """
+        Lightning-fast SciPy-based cost estimator used only for quick drop decisions.
+        Does NOT build any NetworkX graph — purely numeric for speed.
+        """
+        if len(coords) < 2:
+            return 1e9
+
+        n = len(coords)
+        source_idx = self._source_idx
+        terminals = self._terminal_indices
+        poles = [i for i in range(n) if i != source_idx and i not in terminals]
+
+        dist = self.haversine_vec(coords, coords)
+
+        low_cost = self.get_cost_per_meter()
+        pole_cost = self.request.costs.poleCost
+        max_pole_pole = self.get_max_pole_to_pole()
+        max_pole_term = self.get_max_pole_to_term()
+        MAX_PENALTY = 10000.0
+
+        wire_cost = dist * low_cost
+
+        # Trunk cost
+        extra_poles_trunk = np.maximum(0, np.ceil(dist / max_pole_pole) - 1)
+        excess_trunk = np.maximum(0, dist - max_pole_pole)
+        trunk_cost = wire_cost + (extra_poles_trunk * pole_cost) + (excess_trunk * MAX_PENALTY)
+
+        # Terminal drop cost
+        dist_adj = np.maximum(0, dist - max_pole_term)
+        extra_poles_term = np.maximum(0, np.ceil(dist_adj / max_pole_pole) - 1)
+        excess_term = np.maximum(0, dist - max_pole_term)
+        term_cost = wire_cost + (extra_poles_term * pole_cost) + (excess_term * MAX_PENALTY)
+
+        adj = np.zeros((n, n), dtype=float)
+
+        if poles:
+            adj[source_idx, poles] = trunk_cost[source_idx, poles]
+            adj[poles, source_idx] = trunk_cost[poles, source_idx]
+
+        if len(poles) > 1:
+            p_grid = np.ix_(poles, poles)
+            adj[p_grid] = trunk_cost[p_grid]
+
+        valid_sources = [source_idx] + poles
+        if valid_sources and terminals:
+            st_grid = np.ix_(valid_sources, terminals)
+            ts_grid = np.ix_(terminals, valid_sources)
+            adj[st_grid] = term_cost[st_grid]
+            adj[ts_grid] = term_cost[ts_grid]
+
+        adj[dist < 0.1] = 0.0
+        np.fill_diagonal(adj, 0.0)
+
+        from scipy.sparse import csr_matrix
+        from scipy.sparse.csgraph import minimum_spanning_tree
+
+        csr_adj = csr_matrix(adj)
+        mst = minimum_spanning_tree(csr_adj)
+
+        # Fast pruning
+        mst_dense = mst.toarray()
+        undirected_mst = mst_dense + mst_dense.T
+        degrees = np.count_nonzero(undirected_mst, axis=1)
+
+        pruned_nodes = set()
+        removed = True
+        while removed:
+            removed = False
+            for p in poles:
+                if p not in pruned_nodes and degrees[p] == 1:
+                    pruned_nodes.add(p)
+                    neighbors = np.nonzero(undirected_mst[p])[0]
+                    if len(neighbors) > 0:
+                        neighbor = neighbors[0]
+                        undirected_mst[p, neighbor] = 0.0
+                        undirected_mst[neighbor, p] = 0.0
+                        degrees[p] = 0
+                        degrees[neighbor] -= 1
+                    removed = True
+
+        total_wire_and_extra = np.sum(undirected_mst) / 2.0
+        num_active_poles = len(poles) - len(pruned_nodes)
+        return total_wire_and_extra + (num_active_poles * pole_cost)
+
     def _drop_redundant_poles(self, pruned_graph: nx.DiGraph) -> nx.DiGraph:
         """
-        Removes redundant poles from the provided pruned graph to reduce the overall cost
-        of the network while maintaining acceptable performance. This procedure iteratively
-        evaluates each pole, attempting to drop it and re-solving the network configuration
-        without increasing the total cost.
-
-        Parameters:
-            pruned_graph (nx.DiGraph): A directed graph representing the current pruned network,
-                                       where nodes contain attributes including their type,
-                                       coordinates, and name.
-
-        Returns:
-            nx.DiGraph: The optimized graph with redundant poles removed, ensuring minimal
-                        cost increase through a simplified reverse deletion method.
-
-        Raises:
-            None
+        Fast + correct version.
+        - Uses _fast_total_cost_for_coords for quick decisions.
+        - When a drop is accepted, we FULLY rebuild the arborescence on the reduced set
+          so that lost connections are properly re-established.
         """
         if self.request.debug >= 1:
-            print("\n--- Starting Drop Phase (Simplified Reverse Deletion) ---")
+            print("\n--- Starting Fast Drop Phase (with proper reconnection) ---")
 
         current_graph = pruned_graph.copy()
         cur_cost = self._compute_total_cost(current_graph)
 
-        # Get all pole indices, sorted in reverse order (last added first)
         pole_indices = sorted(
             [idx for idx, data in current_graph.nodes(data=True)
              if data.get('type') == 'pole'],
@@ -832,54 +913,42 @@ class BaseMiniGridSolver(ABC):
             if self.request.debug >= 2:
                 print(f"  Trying to drop pole {pole_to_drop}...")
 
-            # === Build coords and names from CURRENT graph (excluding the pole we're testing) ===
+            # === Build reduced coordinates (without the pole) ===
             coords_list = []
             names_list = []
-            node_mapping = {}  # old_index -> new_index (for _build_nodes)
-
-            idx_counter = 0
-            for idx, data in sorted(current_graph.nodes(data=True)):  # sort for stable order
+            for idx, data in sorted(current_graph.nodes(data=True)):
                 if idx == pole_to_drop:
-                    continue  # skip the pole we're trying to drop
-
+                    continue
                 coords_list.append([data['lat'], data['lng']])
-                names_list.append(data.get('name', f"Node {idx_counter}"))
-
-                node_mapping[idx] = idx_counter
-                idx_counter += 1
+                names_list.append(data.get('name', f"Node {len(coords_list)}"))
 
             coords_array = np.array(coords_list, dtype=float) if coords_list else np.empty((0, 2))
 
-            # Rebuild trial nodes using the extracted data
-            trial_nodes = self._build_nodes(coords_array, np.empty((0, 2)), names_list)
+            # Fast cost check
+            trial_cost = self._fast_total_cost_for_coords(coords_array)
 
-            # Re-solve from scratch on the reduced set
-            DG = self.build_directed_graph_for_arborescence(trial_nodes)
-            arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
-            pruned = self.prune_dead_end_pole_branches(arbo_graph)
-
-            new_cost = self._compute_total_cost(pruned)
-
-            # Accept removal only if cost does not increase
-            if new_cost <= cur_cost + 1e-3:
+            if trial_cost <= cur_cost + 1e-3:
+                # === ACCEPTED DROP → rebuild the correct graph ===
                 if self.request.debug >= 1:
-                    print(f"Drop Phase: Removed redundant pole {pole_to_drop}. "
-                          f"New cost: {new_cost:.2f} m (was {cur_cost:.2f})")
+                    print(f"Drop Phase: Removed pole {pole_to_drop} (cost {cur_cost:.2f} → {trial_cost:.2f})")
 
-                current_graph = pruned
-                cur_cost = new_cost
+                trial_nodes = self._build_nodes(coords_array, np.empty((0, 2)), names_list)
+
+                DG = self.build_directed_graph_for_arborescence(trial_nodes)
+                arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
+                new_graph = self.prune_dead_end_pole_branches(arbo_graph)
+
+                current_graph = new_graph
+                cur_cost = trial_cost
             else:
-                if self.request.debug >= 1:
-                    print(f"Drop Phase: Kept pole {pole_to_drop} "
-                          f"(removing would increase cost to {new_cost:.2f} m)")
+                if self.request.debug >= 2:
+                    print(f"Drop Phase: Kept pole {pole_to_drop} (would increase cost to {trial_cost:.2f})")
 
         if self.request.debug >= 1:
-            print("--- Drop Phase Complete ---\n")
-
-            self._plot_current_tree(current_graph, added_points=None, title="After Drop Phase")
+            print("--- Fast Drop Phase Complete ---\n")
+            self._plot_current_graph(current_graph, added_points=None, title="After Drop Phase")
 
         current_graph = self.rename_poles(current_graph)
-
         return current_graph
 
     def _get_local_incident_cost(self, graph: nx.DiGraph, node_idx: int) -> float:
@@ -1004,7 +1073,7 @@ class BaseMiniGridSolver(ABC):
                   f"({'improved' if improved else 'no significant change'})")
 
         if self.request.debug > 0:
-            self._plot_current_tree(graph, [], title="After Local Optimization")
+            self._plot_current_graph(graph, [], title="After Local Optimization")
 
         return graph
 
@@ -1057,19 +1126,10 @@ class BaseMiniGridSolver(ABC):
             length_m = data.get("length", 0.0)
             voltage = data.get("voltage", "unknown")
 
-            # Default max length
-            max_length_m = 30.0
-
             if u_type == "terminal" or v_type == "terminal":
-                if voltage == "low":
-                    max_length_m = self.request.lengthConstraints.low.poleToTerminalLengthConstraint
-                if voltage == "high":
-                    max_length_m = self.request.lengthConstraints.high.poleToTerminalLengthConstraint
+                max_length_m = self.get_max_pole_to_term()
             else:
-                if voltage == "low":
-                    max_length_m = self.request.lengthConstraints.low.poleToPoleLengthConstraint
-                if voltage == "high":
-                    max_length_m = self.request.lengthConstraints.high.poleToPoleLengthConstraint
+                max_length_m = self.get_max_pole_to_pole()
 
             # Skip short edges
             if length_m <= max_length_m + 0.01:  # small floating-point tolerance
@@ -1118,7 +1178,7 @@ class BaseMiniGridSolver(ABC):
                     next_index,
                     length=segment_length,
                     voltage=voltage,
-                    weight=self.calc_edge_weight(segment_length, voltage=voltage),
+                    weight=self.calc_edge_weight(segment_length),
                 )
 
                 prev_idx = next_index
@@ -1130,7 +1190,7 @@ class BaseMiniGridSolver(ABC):
                 v,
                 length=segment_length,
                 voltage=voltage,
-                weight=self.calc_edge_weight(segment_length, voltage=voltage),
+                weight=self.calc_edge_weight(segment_length),
             )
 
         # remove original edges
