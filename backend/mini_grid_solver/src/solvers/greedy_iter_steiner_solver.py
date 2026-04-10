@@ -1,14 +1,12 @@
-import itertools
 from typing import Tuple, List
 
 import networkx as nx
 import numpy as np
+import scipy.sparse as sp
 from joblib import Parallel, delayed
 from matplotlib import pyplot as plt
-from scipy.spatial import Delaunay, KDTree
-import scipy.sparse as sp
 from scipy.sparse.csgraph import minimum_spanning_tree
-
+from scipy.spatial import Delaunay, KDTree
 from sklearn.cluster import KMeans, DBSCAN
 
 from .base_mini_grid_solver import BaseMiniGridSolver
@@ -88,33 +86,46 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
         return self._kdtree_cache
 
-    def _get_delaunay(self, coords: np.ndarray) -> Delaunay:
-        """
-        Returns a Delaunay triangulation, rebuilding only when the point set changed significantly.
-        """
-        if (self._delaunay_cache is None or
-                self._cached_coords is None or
-                len(coords) != len(self._cached_coords) or
-                np.max(np.abs(coords - self._cached_coords)) > 1e-6):  # points actually changed
-
-            if self.request.debug >= 1:
-                print(f"Rebuilding Delaunay triangulation for {len(coords)} points")
-
-            self._delaunay_cache = Delaunay(coords)
-            self._cached_coords = coords.copy()
-
-        return self._delaunay_cache
-
     def _compute_coords_hash(self, coords: np.ndarray) -> str:
-        """Create a simple hash to detect if coordinates have changed."""
+        """
+        Computes a hash representing the provided coordinates array.
+
+        The method rounds the given coordinates to six decimal places to ensure
+        a meter-level precision and creates a hash from the rounded values. The
+        resulting hash is represented as a string.
+
+        Parameters:
+        coords : np.ndarray
+            A NumPy array containing coordinate values to be hashed.
+
+        Returns:
+        str
+            A hash represented as a string that corresponds to the input
+            coordinates after rounding.
+        """
         # Round to 6 decimals (meter-level precision) and hash
         rounded = np.round(coords, decimals=6)
         return str(rounded.tobytes())
 
     def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
         """
-        Returns the distance matrix for current coordinates.
-        Recomputes only when points have actually changed.
+        Computes and caches a distance matrix for a set of coordinates.
+
+        This method calculates the pairwise distances between all points in a given
+        set of coordinates using the Haversine formula. The distance matrix is cached
+        to optimize performance, and it is recomputed only if the input coordinates
+        change or if no valid cache is available.
+
+        Parameters:
+        coords (np.ndarray): A 2D numpy array where each row represents the latitude
+        and longitude of a point.
+
+        Returns:
+        np.ndarray: A 2D numpy array containing the pairwise distances between all
+        points in the input coordinates.
+
+        Raises:
+        ValueError: If the input coordinates are invalid or improperly formatted.
         """
         if coords is None or len(coords) == 0:
             return np.zeros((0, 0))
@@ -143,16 +154,36 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             min_dist_to_existing=5.0
     ):
         """
+        Generate candidate projection points near graph edges for terminal points.
 
-        Args:
-            coords_array:  np.array (n_total, 2) current points [lat, lng]
-            edge_list:  list of (u_idx, v_idx) from current tree
-            terminal_indices: original terminal indices (fixed)
-            max_dist_to_line: meters — how close a terminal must be to the line
-            min_dist_to_existing: avoid adding very close to existing points
+        This method calculates candidate projection points for a given set of terminal
+        points and edges in a graph. The projection points are computed based on their
+        distance from the terminal points to the edges, ensuring they comply with
+        maximum distance constraints. Additionally, candidates too close to existing
+        points are excluded.
+
+        Arguments:
+            coords_array (np.ndarray): Array of coordinates, where each row corresponds
+                to a point in the graph (e.g., nodes and terminal points). Each row is
+                represented as an [x, y] or [lat, lon] pair.
+            edge_list (list[tuple[int, int]]): List of edges where each edge is a tuple
+                of two integers representing the indices of points in `coords_array`
+                that form the edge.
+            terminal_indices (list[int]): List of indices in `coords_array` representing
+                the terminal points for which projections are to be generated.
+            max_dist_to_line (float): Maximum allowable distance in meters for terminal
+                points to project onto an edge. Defaults to 40.0.
+            min_dist_to_existing (float): Minimum allowable distance in meters from the
+                projected point to existing points to avoid duplication. Defaults to
+                5.0.
 
         Returns:
+            np.ndarray: A 2D array where each row corresponds to a unique candidate
+                projection point. Rows are deduplicated and rounded up to 6 decimal
+                places. Returns an empty array if no viable candidates are found.
 
+        Raises:
+            None.
         """
         candidates = []
 
@@ -200,7 +231,48 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             num_per_edge: int = 3
     ) -> np.ndarray:
         """
-        Generate ~num_per_edge intermediate candidates per long edge.
+        Generates collinear candidate points along existing edges in a graph.
+
+        This method computes intermediate collinear points along the edges of
+        a given tree structure in a 2D coordinate space, based on specified
+        distance constraints and the desired number of intermediate points
+        per edge. These points may serve as candidate nodes for further graph
+        augmentation or analysis.
+
+        Parameters:
+            coords (np.ndarray): A 2D array of shape (n, 2), where each row
+                contains the latitude and longitude of a node in the graph.
+            current_tree_edges (Iterable[Tuple[int, int]]): A collection of
+                tuples, where each tuple represents an edge in the tree,
+                using indices of the nodes in the `coords` array.
+            max_length (float): The maximum allowable length (in meters) of
+                edges to be considered for generating intermediate points.
+                Any edges shorter than this length will not have candidates
+                generated. Defaults to 30.0.
+            num_per_edge (int): The desired number of intermediate points to
+                generate per edge. This influences the number of segments
+                created along each edge. Defaults to 3.
+
+        Returns:
+            np.ndarray: A 2D array where each row represents an intermediate
+                candidate point, defined by its latitude and longitude. The
+                array is deduplicated and rounded to six decimal places. If no
+                suitable candidates are found, returns an empty array with
+                shape (0, 2).
+
+        Raises:
+            ValueError: If any input has mismatched shape or incompatible
+            data type.
+
+        Notes:
+            - The method employs the Haversine formula to calculate distances
+              on a spherical Earth model, ensuring accurate computations
+              for geographic coordinates.
+            - Intermediate points are computed using a great-circle
+              interpolation strategy, which accounts for the curvature of the
+              Earth.
+            - Near-duplicate points are automatically removed from the output
+              for improved robustness.
         """
         candidates = []
 
@@ -237,59 +309,29 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         # Remove near-duplicates (floating point)
         return np.unique(np.round(candidates_array, decimals=6), axis=0)
 
-    def generate_fermat_candidates(self, coords: np.ndarray, max_candidates: int = 30) -> np.ndarray:
-        """
-        Generate candidate pole markers using approximate Fermat-Torricelli points
-        from Delaunay triangles.
-
-        Args:
-            coords: (n, 2) array of terminal points [lat, lon]
-            max_candidates: limit number of generated points (avoid too many)
-
-        Returns:
-            np.ndarray: candidate points (m, 2)
-        """
-        if len(coords) < 3:
-            return np.empty((0, 2), dtype=float)
-
-        # Compute Delaunay triangulation
-        tri = self._get_delaunay(coords)
-
-        candidates = []
-
-        for simplex in tri.simplices:
-            if len(candidates) >= max_candidates:
-                break
-            pts = coords[simplex]
-            # Get approximate Steiner/Fermat point for this triangle
-            st_pt = self.fermat_torricelli_point(pts)
-            candidates.append(st_pt)
-
-        if not candidates:
-            return np.empty((0, 2), dtype=float)
-
-        candidates = np.array(candidates)
-
-        # mask candidates too close to terminals
-        mask = (self.haversine_vec(candidates,
-                                   coords) >= self.request.lengthConstraints.low.poleToTerminalMinimumLength).prod(
-            axis=1)
-
-        candidates = candidates[mask]
-
-        if self.request.debug >= 1:
-            print(f"Generated {len(candidates)} Fermat-Steiner candidate poles "
-                  f"(limited to {max_candidates}, after min separation filter)")
-
-        return candidates
-
     @staticmethod
     def kmeans_generate_cluster_center_candidates(coords, n_init=10):
         """
-        Generate candidate pole markers as centers of K-Means clusters.
+        Generates candidate cluster centers using the K-means clustering algorithm.
 
-        - Tries multiple k values and takes all unique centers
-        - Filters very small clusters (e.g. < 3 points)
+        This method processes the given coordinates and applies the K-means clustering
+        algorithm to generate possible cluster center points. It uses multiple values
+        for the number of clusters to improve the outcomes and to avoid scenarios where
+        a single configuration might not provide meaningful clusters. Duplicates among
+        generated candidates are filtered out.
+
+        Parameters:
+            coords (list of tuple or numpy.ndarray): A list or array of coordinates, where
+                each coordinate is represented as a tuple or array of floats (latitude and
+                longitude or longitude and latitude).
+            n_init (int): The number of times the K-means algorithm will be run with
+                different centroid seeds. The final result will be the best output of
+                n_init consecutive runs in terms of inertia. Default is 10.
+
+        Returns:
+            numpy.ndarray: A numpy array of unique candidate cluster centers. Each row
+                of the array represents a cluster center as a pair of coordinates. If no
+                meaningful cluster centers can be generated, an empty array is returned.
         """
         if len(coords) < 6:
             return np.array([])  # too few points → no meaningful clusters
@@ -322,8 +364,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
         return cluster_centers
 
-
-    def dbscan_generate_cluster_center_candidates(self, coords, eps_meters = 40.0 ,min_samples = 2 ):
+    def dbscan_generate_cluster_center_candidates(self, coords, eps_meters=40.0, min_samples=2):
         """
         Generates cluster center candidates using the DBSCAN clustering algorithm based on geospatial
         coordinate data. This function identifies clusters of points and computes their geometric centroids
@@ -522,11 +563,26 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             max_candidates: int = 30,
     ) -> np.ndarray:
         """
-        Generate Fermat-Torricelli candidates for triplets within max_distance.
+        Generates proximity Fermat candidates based on input coordinates and constraints.
 
-        - Uses fast brute-force for small n (<= 25) — fastest on your 10-terminal cases.
-        - Uses cached KDTree for larger n — scales well as poles are added.
-        - All caching is handled automatically (same pattern as your Delaunay cache).
+        This method identifies Fermat points (or generalized Steiner points) from a given
+        set of coordinates where three points have an associated spatial relationship. It uses
+        either a brute-force approach for small datasets or a cached KDTree implementation for
+        efficient processing in larger datasets. The candidates are filtered based on proximity
+        constraints relative to the input data to ensure valid and distinct results.
+
+        Parameters:
+            coords (np.ndarray): A 2D array of shape (n, 2) containing the coordinates of
+                the points in a format where each row represents a point (latitude, longitude).
+            max_distance (float): The maximum distance in meters within which points are
+                considered close for generating candidates (default: 50.0).
+            max_candidates (int): The maximum number of Fermat points to return after all
+                filtering and deduplication (default: 30).
+
+        Returns:
+            np.ndarray: A 2D array of shape (m, 2) containing the generated Fermat point
+                candidates, where each row represents a candidate coordinate (latitude, longitude).
+                Returns an empty array if no points can be generated.
         """
         n = len(coords)
         if n < 3:
@@ -599,7 +655,36 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             max_distance: float = 50.0,
             max_candidates: int = 100,
     ) -> np.ndarray:
-        """Your original (fast for small n) implementation, cleaned up slightly."""
+        """
+        Determine candidate Fermat-Torricelli points for triplets of coordinates within
+        a specified maximum distance using a brute-force approach.
+
+        The function computes potential Fermat-Torricelli points, which minimize the sum
+        of distances to three given points. It uses precomputed distance matrices for efficiency
+        and applies filtering and deduplication to refine the results.
+
+        Attributes:
+            coords: np.ndarray
+                Array containing the coordinates of points (latitude and longitude)
+                as an (n, 2) dimensional array.
+            max_distance: float, default 50.0
+                Maximum allowable distance between any two points in a triplet to be
+                considered for candidate generation.
+            max_candidates: int, default 100
+                Maximum number of Fermat-Torricelli point candidates to return in the
+                result after filtering and deduplication.
+
+        Returns:
+            np.ndarray:
+                Array of unique Fermat-Torricelli point candidates for the input
+                coordinates, limited to the specified maximum count and filtered by
+                distance constraints. If no candidates are generated, returns an empty
+                array with shape (0, 2).
+
+        Raises:
+            None explicitly, but the function may raise errors related to the numpy
+            operations or the invocation of other instance methods.
+        """
         n = len(coords)
         candidates = []
 
@@ -654,14 +739,25 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             terminal_indices: List[int]
     ) -> np.ndarray:
         """
-        Comprehensive filtering of candidate Steiner/pole points.
+        Filters a set of candidate coordinates based on various criteria, such as bounding box constraints,
+        minimum distance thresholds, and duplicate elimination. The function applies successive filters to
+        reduce the set of candidates while ensuring compliance with the specified constraints.
 
-        Applies ALL constraints in one place:
-        - Inside terminal bounding box (prevents far-away outliers)
-        - Minimum distance to any terminal (voltage-specific)
-        - Minimum distance to existing poles
-        - Not already added in previous iterations
-        - Final deduplication (~1 cm precision)
+        Parameters:
+        candidates (np.ndarray): A 2D numpy array of candidate coordinates, where each row represents a
+            latitude-longitude coordinate pair.
+        current_coords (np.ndarray): A 2D numpy array of current coordinates in the system, where each
+            row is a latitude-longitude coordinate pair.
+        added_candidates (np.ndarray): A 2D numpy array of already-added candidate coordinates to be excluded
+            from the results.
+        pole_indices (List[int]): A list of indices referencing existing pole coordinates within the
+            current_coords array.
+        terminal_indices (List[int]): A list of indices referencing terminal coordinates within the
+            current_coords array.
+
+        Returns:
+        np.ndarray: A 2D numpy array of filtered candidate coordinates, where each row represents a
+            latitude-longitude coordinate pair.
         """
         if len(candidates) == 0:
             return np.empty((0, 2), dtype=float)
@@ -686,11 +782,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             mask_bb = np.ones(len(candidates), dtype=bool)
 
         # ─── 2. Minimum pole-to-terminal distance (voltage aware) ───
-        min_pole_to_term = (
-            self.request.lengthConstraints.low.poleToTerminalMinimumLength
-            if getattr(self.request, 'voltageLevel', 'low') == 'low'
-            else self.request.lengthConstraints.high.poleToTerminalMinimumLength
-        )
+        min_pole_to_term = self.get_min_pole_to_term()
 
         if len(terminal_indices) > 0 and len(candidates) > 0:
             terminal_coords = current_coords[terminal_indices]
@@ -784,13 +876,13 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         #                                                               cur_edges,
         #                                                               num_per_edge=num_per_edge)
 
-            # projection_candidates = self.generate_projection_candidates(
-            #     np.array(coords),
-            #     cur_edges,
-            #     terminal_indices=self._terminal_indices,
-            #     max_dist_to_line=40.0,
-            #     min_dist_to_existing=5.0
-            # )
+        # projection_candidates = self.generate_projection_candidates(
+        #     np.array(coords),
+        #     cur_edges,
+        #     terminal_indices=self._terminal_indices,
+        #     max_dist_to_line=40.0,
+        #     min_dist_to_existing=5.0
+        # )
 
         # === 2. Store ALL candidates in a dictionary (raw, before any masking) ===
         candidate_dict = {
@@ -807,7 +899,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
             candidate_dict['Adaptive Fermat Candidates'],
             # masked_dict['Collinear Candidates'],
             candidate_dict['Cluster Candidates'],
-            # masked_dict['Projection Candidates'],   # ← still disabled (uncomment when ready)
+            # masked_dict['Projection Candidates'],
         ]
 
         if any(len(arr) > 0 for arr in to_concat):
@@ -823,7 +915,7 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
         candidates = self.filter_candidates(
             candidates=candidates,
             current_coords=np.array(coords),
-            added_candidates=added_candidates,
+            added_candidates=np.array(added_candidates),
             pole_indices=pole_indices,
             terminal_indices=terminal_indices_for_filter
         )
@@ -850,8 +942,27 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
     def _fast_scipy_rollout_eval(self, coords: np.ndarray) -> float:
         """
-        Calculates the pruned MST cost of a coordinate set entirely in NumPy/SciPy.
-        This skips all NetworkX object creation for a ~100x speedup in rollouts.
+        Evaluates the cost of a network rollout using a fast implementation relying on
+        SciPy's minimum spanning tree (MST) computation.
+
+        This method computes the total cost of the network rollout, including the
+        wire cost, pole cost, and penalties for exceeding length constraints. It uses
+        optimized, vectorized operations for calculating costs and constraints, and
+        employs the MST algorithm to minimize the overall cost. Pruning is then applied
+        to remove redundant dead-end poles.
+
+        Parameters:
+        coords: numpy.ndarray
+            A 2D array representing geographic coordinates (latitude and longitude)
+            of network nodes.
+
+        Returns:
+        float
+            The total cost of the network rollout, considering wire costs, pole costs,
+            and penalties.
+
+        Raises:
+        None
         """
         n = len(coords)
         source_idx = self._source_idx
@@ -945,7 +1056,22 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
     def _evaluate_rollout(self, current_coords, candidate, depth=2):
         """
-        Evaluates a candidate and future look-aheads using the fast SciPy array matrix.
+        Evaluates the rollout cost for a candidate location in relation to current coordinates.
+
+        This method performs a multi-level look-ahead to determine the best cost achievable by
+        adding a candidate location to the current set of coordinates. The evaluation is completed
+        using a recursive approach, iterating up to the given depth. The process includes generating
+        and testing proximity candidates at each level to improve the overall cost. The method
+        returns the best cost achieved at the end of the evaluation.
+
+        Parameters:
+            current_coords (np.ndarray): A 2D array representing the current coordinates.
+            candidate (np.ndarray): A 1D array representing the candidate coordinate to evaluate.
+            depth (int, optional): The number of look-ahead levels to evaluate. Defaults to 2.
+
+        Returns:
+            float: The best achievable cost after evaluating the candidate and performing look-ahead
+            up to the specified depth.
         """
         # First level: add the primary candidate
         temp_coords = np.vstack([current_coords, candidate])
@@ -1056,8 +1182,8 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                 d = base_dist_matrix[source_idx, p]
 
             if 0.1 < d < 1e6:  # safety upper bound
-                w = self.calc_edge_weight(d, voltage="low")
-                DG.add_edge(source_idx, p, weight=w, length=d, voltage="low")
+                w = self.calc_edge_weight(d)
+                DG.add_edge(source_idx, p, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 2. Pole ↔ Pole (bidirectional)
         for i in range(len(pole_indices)):
@@ -1073,9 +1199,9 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                     d = base_dist_matrix[p1, p2]
 
                 if 0.1 < d < 1e6:
-                    w = self.calc_edge_weight(d, voltage="low")
-                    DG.add_edge(p1, p2, weight=w, length=d, voltage="low")
-                    DG.add_edge(p2, p1, weight=w, length=d, voltage="low")
+                    w = self.calc_edge_weight(d)
+                    DG.add_edge(p1, p2, weight=w, length=d, voltage=self.request.voltageLevel)
+                    DG.add_edge(p2, p1, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 3. Poles → Terminals (service drops)
         for p in pole_indices:
@@ -1086,15 +1212,15 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
                     d = base_dist_matrix[p, h]
 
                 if 0.1 < d < 1e6:
-                    w = self.calc_edge_weight(d, voltage="low", to_terminal=True)
-                    DG.add_edge(p, h, weight=w, length=d, voltage="low")
+                    w = self.calc_edge_weight(d, to_terminal=True)
+                    DG.add_edge(p, h, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 4. Source → Terminals (unchanged, can use base matrix)
         for h in terminal_indices:
             d = base_dist_matrix[source_idx, h]
             if 0.1 < d < 1e6:
-                w = self.calc_edge_weight(d, voltage="low", to_terminal=True)
-                DG.add_edge(source_idx, h, weight=w, length=d, voltage="low")
+                w = self.calc_edge_weight(d, to_terminal=True)
+                DG.add_edge(source_idx, h, weight=w, length=d, voltage=self.request.voltageLevel)
 
         return DG
 
@@ -1187,14 +1313,14 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
         # 1. Initial Cluster Center Generation
         # terminal_cluster_centers = self.kmeans_generate_cluster_center_candidates(current_coords, n_init=5)
-        terminal_cluster_centers = self.dbscan_generate_cluster_center_candidates(current_coords, eps_meters=30, min_samples=2)
+        terminal_cluster_centers = self.dbscan_generate_cluster_center_candidates(current_coords, eps_meters=30,
+                                                                                  min_samples=2)
         fermat_candidates = self.generate_proximity_fermat_candidates(np.array(current_coords),
-                                                                      max_distance= 40,
+                                                                      max_distance=40,
                                                                       max_candidates=50)
 
         fermat_candidates = self.filter_candidates(fermat_candidates, current_coords, [], [], [])
         terminal_cluster_centers = self.filter_candidates(terminal_cluster_centers, current_coords, [], [], [])
-
 
         while True:
             iteration += 1
@@ -1307,10 +1433,8 @@ class GreedyIterSteinerSolver(BaseMiniGridSolver):
 
             # Visualization for debugging
             if self.request.debug >= 1:
-
-                self._plot_current_tree(best_pruned_graph, added_points=[winner["cand"]],
-                                        title=f"Iteration {iteration} (Δ {improvement:+.2f} m)")
-
+                self._plot_current_graph(best_pruned_graph, added_points=[winner["cand"]],
+                                         title=f"Iteration {iteration} (Δ {improvement:+.2f} m)")
 
         # Finally Gradient Decent each pole placement to ensure not local optimization is left on the table
         final_graph = self._post_solver_local_opt(best_pruned_graph)

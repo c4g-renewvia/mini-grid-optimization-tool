@@ -35,6 +35,7 @@ class SolverRequest(BaseModel):
     solver: str = "SimpleMSTSolver"
     params: Dict[str, Any] = {}
     points: List[Dict[str, Union[float, str, None]]]
+    voltageLevel: str = "low"
     lengthConstraints: LengthConstraints
     costs: Costs
     usePoles: bool = True
@@ -44,7 +45,7 @@ class SolverRequest(BaseModel):
 class SolverInputParams(BaseModel):
     name: str
     type: Literal["int", "float", "bool", "str", "list"]
-    default: str
+    default: Union[str, float]
     description: str
     min: Optional[float] = None
     max: Optional[float] = None

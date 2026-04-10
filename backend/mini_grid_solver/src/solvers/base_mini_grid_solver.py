@@ -154,6 +154,30 @@ class BaseMiniGridSolver(ABC):
         c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
         return 6371000 * c  # shape (n_candidates, n_buildings)
 
+    def get_min_pole_to_term(self) -> float:
+        if self.request.voltageLevel == 'low':
+            return self.request.lengthConstraints.low.poleToTerminalMinimumLength
+        else:
+            return self.request.lengthConstraints.high.poleToTerminalMinimumLength
+
+    def get_max_pole_to_pole(self) -> float:
+        if self.request.voltageLevel == 'low':
+            return self.request.lengthConstraints.low.poleToPoleLengthConstraint
+        else:
+            return self.request.lengthConstraints.high.poleToPoleLengthConstraint
+
+    def get_max_pole_to_term(self) -> float:
+        if self.request.voltageLevel == 'low':
+            return self.request.lengthConstraints.low.poleToTerminalLengthConstraint
+        else:
+            return self.request.lengthConstraints.high.poleToTerminalLengthConstraint
+
+    def get_cost_per_meter(self) -> float:
+        if self.request.voltageLevel == "low":
+            return self.request.costs.lowVoltageCostPerMeter
+        else:
+            return self.request.costs.highVoltageCostPerMeter
+
     def parse_input(self):
         """
         Parses input data to extract points, their coordinates, and relevant attributes like names and source identification.
@@ -239,7 +263,7 @@ class BaseMiniGridSolver(ABC):
         return
 
     @staticmethod
-    def _plot_current_tree(graph, added_points=None, title="Current tree after candidate addition", filename=None):
+    def _plot_current_graph(graph, added_points=None, title="Current tree after candidate addition", filename=None):
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.set_title(title)
         ax.set_xlabel("Longitude")
@@ -446,7 +470,7 @@ class BaseMiniGridSolver(ABC):
 
         return
 
-    def calc_edge_weight(self, length, voltage="low", to_terminal=False):
+    def calc_edge_weight(self, length, to_terminal=False):
         """
         Cost of wire and pole
         Args:
@@ -458,9 +482,7 @@ class BaseMiniGridSolver(ABC):
         Returns:
 
         """
-        voltage_cost = (self.request.costs.lowVoltageCostPerMeter
-                        if voltage == "low"
-                        else self.request.costs.highVoltageCostPerMeter)
+        voltage_cost = self.get_cost_per_meter()
 
         pole_cost = self.request.costs.poleCost
 
@@ -468,14 +490,10 @@ class BaseMiniGridSolver(ABC):
         weight = length * voltage_cost
 
         # Cost of intermediate support poles for long spans
-        pole_to_pole_constraint = (self.request.lengthConstraints.low.poleToPoleLengthConstraint
-                                   if voltage == "low"
-                                   else self.request.lengthConstraints.high.poleToPoleLengthConstraint)
+        pole_to_pole_constraint = self.get_max_pole_to_pole()
 
         if to_terminal:
-            pole_to_terminal_constraint = (self.request.lengthConstraints.low.poleToTerminalLengthConstraint
-                                           if voltage == "low"
-                                           else self.request.lengthConstraints.high.poleToTerminalLengthConstraint)
+            pole_to_terminal_constraint = self.get_max_pole_to_term()
             length -= pole_to_terminal_constraint
 
         extra_poles = max(0, math.ceil(length / pole_to_pole_constraint) - 1)
@@ -564,37 +582,33 @@ class BaseMiniGridSolver(ABC):
         for p in pole_indices:
             d = dist_matrix[source_idx, p]
             if 0.1 < d:
-                voltage = "low"
-                w = self.calc_edge_weight(d, voltage=voltage)
-                DG.add_edge(source_idx, p, weight=w, length=d, voltage=voltage)
+                w = self.calc_edge_weight(d)
+                DG.add_edge(source_idx, p, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 2: Bidirectional pole ↔ pole (undirected spans)
         for i in range(len(pole_indices)):
             for j in range(i + 1, len(pole_indices)):
                 p1, p2 = pole_indices[i], pole_indices[j]
                 d = dist_matrix[p1, p2]
-                voltage = "low"
-                w = self.calc_edge_weight(d, voltage=voltage)
+                w = self.calc_edge_weight(d)
                 if 0.1 < d:
-                    DG.add_edge(p1, p2, weight=w, length=d, voltage=voltage)
-                    DG.add_edge(p2, p1, weight=w, length=d, voltage=voltage)
+                    DG.add_edge(p1, p2, weight=w, length=d, voltage=self.request.voltageLevel)
+                    DG.add_edge(p2, p1, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 3: poles → terminals (service drops)
         for p in pole_indices:
             for h in terminal_indices:
                 d = dist_matrix[p, h]
                 if 0.1 < d:
-                    voltage = "low"
-                    w = self.calc_edge_weight(d, voltage=voltage, to_terminal=True)
-                    DG.add_edge(p, h, weight=w, length=d, voltage=voltage)
+                    w = self.calc_edge_weight(d, to_terminal=True)
+                    DG.add_edge(p, h, weight=w, length=d, voltage=self.request.voltageLevel)
 
         # 4. Source to Terminals
         for h in terminal_indices:
             d = dist_matrix[source_idx, h]
             if 0.1 < d:
-                voltage = "low"
-                w = self.calc_edge_weight(d, voltage=voltage, to_terminal=True)
-                DG.add_edge(source_idx, h, weight=w, length=d, voltage=voltage)
+                w = self.calc_edge_weight(d, to_terminal=True)
+                DG.add_edge(source_idx, h, weight=w, length=d, voltage=self.request.voltageLevel)
 
         return DG
 
@@ -728,17 +742,11 @@ class BaseMiniGridSolver(ABC):
             v_type = graph.nodes[v].get('type')
 
             if u_type == 'terminal' or v_type == 'terminal':
-                max_len = (self.request.lengthConstraints.low.poleToTerminalLengthConstraint
-                           if voltage == 'low' else
-                           self.request.lengthConstraints.high.poleToTerminalLengthConstraint)
+                max_len = self.get_max_pole_to_term()
             else:
-                max_len = (self.request.lengthConstraints.low.poleToPoleLengthConstraint
-                           if voltage == 'low' else
-                           self.request.lengthConstraints.high.poleToPoleLengthConstraint)
+                max_len = self.get_max_pole_to_pole()
 
-            min_len = (self.request.lengthConstraints.low.poleToTerminalMinimumLength
-                       if voltage == 'low' else
-                       self.request.lengthConstraints.high.poleToTerminalMinimumLength)
+            min_len = self.get_min_pole_to_term()
 
             if (length < min_len + 0.01) or (length > max_len + 0.01):
                 return False
@@ -876,7 +884,7 @@ class BaseMiniGridSolver(ABC):
         if self.request.debug >= 1:
             print("--- Drop Phase Complete ---\n")
 
-            self._plot_current_tree(current_graph, added_points=None, title="After Drop Phase")
+            self._plot_current_graph(current_graph, added_points=None, title="After Drop Phase")
 
         current_graph = self.rename_poles(current_graph)
 
@@ -1004,7 +1012,7 @@ class BaseMiniGridSolver(ABC):
                   f"({'improved' if improved else 'no significant change'})")
 
         if self.request.debug > 0:
-            self._plot_current_tree(graph, [], title="After Local Optimization")
+            self._plot_current_graph(graph, [], title="After Local Optimization")
 
         return graph
 
@@ -1057,19 +1065,10 @@ class BaseMiniGridSolver(ABC):
             length_m = data.get("length", 0.0)
             voltage = data.get("voltage", "unknown")
 
-            # Default max length
-            max_length_m = 30.0
-
             if u_type == "terminal" or v_type == "terminal":
-                if voltage == "low":
-                    max_length_m = self.request.lengthConstraints.low.poleToTerminalLengthConstraint
-                if voltage == "high":
-                    max_length_m = self.request.lengthConstraints.high.poleToTerminalLengthConstraint
+                max_length_m = self.get_max_pole_to_term()
             else:
-                if voltage == "low":
-                    max_length_m = self.request.lengthConstraints.low.poleToPoleLengthConstraint
-                if voltage == "high":
-                    max_length_m = self.request.lengthConstraints.high.poleToPoleLengthConstraint
+                max_length_m = self.get_max_pole_to_pole()
 
             # Skip short edges
             if length_m <= max_length_m + 0.01:  # small floating-point tolerance
@@ -1118,7 +1117,7 @@ class BaseMiniGridSolver(ABC):
                     next_index,
                     length=segment_length,
                     voltage=voltage,
-                    weight=self.calc_edge_weight(segment_length, voltage=voltage),
+                    weight=self.calc_edge_weight(segment_length),
                 )
 
                 prev_idx = next_index
@@ -1130,7 +1129,7 @@ class BaseMiniGridSolver(ABC):
                 v,
                 length=segment_length,
                 voltage=voltage,
-                weight=self.calc_edge_weight(segment_length, voltage=voltage),
+                weight=self.calc_edge_weight(segment_length),
             )
 
         # remove original edges

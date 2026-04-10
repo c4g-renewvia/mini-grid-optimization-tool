@@ -1848,6 +1848,7 @@ export default function MiniGridToolPage() {
           solver: selectedSolverName,
           params: paramValues,
           points: miniGridNodes,
+          voltageLevel: "low",
           lengthConstraints: {
             low: {
               poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
