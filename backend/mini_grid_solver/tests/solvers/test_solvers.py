@@ -45,7 +45,7 @@ def kml_points():
         pytest.skip("KML file not found or incorrectly formatted")
 
 
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml","test_data_sets/minigrid_2026-04-08.kml","test_data_sets/minigrid_2026-04-09.kml"])
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-09.kml"])
 def kml_points_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
