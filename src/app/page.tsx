@@ -175,7 +175,7 @@ export default function MiniGridToolPage() {
 
   const [solvers, setSolvers] = useState<Solvers[]>([]);
   const [selectedSolverName, setSelectedSolverName] = useState<string>(
-    'GreedyIterSteinerSolver'
+    'DiskBasedSteinerSolver'
   );
 
   const selectedSolver = solvers.find((s) => s.name === selectedSolverName);
@@ -1130,7 +1130,7 @@ export default function MiniGridToolPage() {
               },
             ],
           },
-          { name: 'SteinerizedMSTSolver', params: [] },
+          { name: 'DiskBasedSteinerSolver', params: [] },
           { name: 'GreedyIterSteinerSolver', params: [] },
         ]);
       }
