@@ -370,8 +370,30 @@ export default function MiniGridToolPage() {
         miniGridEdges: updatedEdges,
         costBreakdown: current.costBreakdown, // You may want to trigger a cost recalc here
       });
+
+      // Find the point we're about to delete (so we know if it's a pole)
+      const pointToDelete = current.miniGridNodes.find(
+        (n) => n.name === pointName
+      );
+      const isPoleBeingDeleted = pointToDelete?.type === 'pole';
+
+      // ==================== AUTO RE-OPTIMIZE ====================
+      if (isPoleBeingDeleted && updatedNodes.length >= 2) {
+        console.log(
+          `Pole "${pointName}" deleted → auto-reconnecting with SimpleMSTSolver`
+        );
+
+        // Force the solver we want for reconnection
+        setSelectedSolverName('SimpleMSTSolver');
+        setUseExistingPoles(true);
+
+        // Tiny delay so React finishes the state update before running the solver
+        setTimeout(() => {
+          handleRunSolver();
+        }, 5);
+      }
     },
-    [saveState] // Only depend on saveState; internal data comes from stateRef
+    [saveState] // ← important
   );
 
   const handleDeleteEdge = useCallback((clickedEdge: MiniGridEdge) => {
@@ -789,7 +811,7 @@ export default function MiniGridToolPage() {
 
       return marker;
     },
-    [handleRemovePoint] // ← Important: now depends on handleRemovePoint
+    [handleRemovePoint]
   );
 
   const [sidebarWidth, setSidebarWidth] = useState(500); // default width
