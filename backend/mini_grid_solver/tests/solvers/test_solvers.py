@@ -44,8 +44,8 @@ def kml_points():
     except (FileNotFoundError, AttributeError):
         pytest.skip("KML file not found or incorrectly formatted")
 
-
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-09.kml"])
+# add "test_data_sets/minigrid_2026-04-09.kml" for larger test
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml","test_data_sets/minigrid_2026-04-08.kml"])
 def kml_points_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
@@ -145,7 +145,7 @@ def test_all_solvers_with_csv(solver_name, csv_points, default_costs, default_le
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-@pytest.mark.parametrize("solver_name", ["DiskBasedSteinerSolver"])#SOLVER_REGISTRY.keys())
+@pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
 def test_all_solvers_with_kml(kml_points_random_test_set, solver_name, csv_points, default_costs,
                               default_length_constraints):
     """
