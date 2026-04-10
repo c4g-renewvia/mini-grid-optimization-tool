@@ -94,7 +94,7 @@ export default function MiniGridToolPage() {
 
   const [poleCost, setPoleCost] = useState<number>(1000);
   const [lowVoltageCost, setLowVoltageCost] = useState<number>(10);
-  const [highVoltageCost, setHighVoltageCost] = useState<number>(20);
+  const [highVoltageCost, setHighVoltageCost] = useState<number>(0);
 
   const [
     lowVoltagePoleToPoleLengthConstraint,
@@ -113,16 +113,16 @@ export default function MiniGridToolPage() {
   const [
     highVoltagePoleToPoleLengthConstraint,
     setHighVoltagePoleToPoleLengthConstraint,
-  ] = useState<number>(50);
+  ] = useState<number>(0);
   const [
     highVoltagePoleToTerminalLengthConstraint,
     setHighVoltagePoleToTerminalLengthConstraint,
-  ] = useState<number>(20);
+  ] = useState<number>(0);
 
   const [
     highVoltagePoleToTerminalMinimumLength,
     setHighVoltagePoleToTerminalMinimumLength,
-  ] = useState<number>(5);
+  ] = useState<number>(0);
 
   const [costBreakdown, setCostBreakdown] = useState<CostBreakdown>({
     lowVoltageMeters: 0,

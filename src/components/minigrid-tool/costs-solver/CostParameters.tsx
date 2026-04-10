@@ -62,7 +62,7 @@ export default function CostParameters({
   return (
     <div className='flex flex-col rounded-xl border border-zinc-200 bg-white p-7 backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/50'>
       <h3 className='mb-5 text-xl font-semibold text-zinc-900 dark:text-white'>
-        Cost Parameters
+        Cost Parameters (Currently Low Voltage Only)
       </h3>
 
       {/* Cost Inputs */}
@@ -109,6 +109,7 @@ export default function CostParameters({
             onChange={(e) =>
               onHighVoltageCostChange(parseFloat(e.target.value) || 0)
             }
+            disabled={true}
             className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
           />
         </div>
@@ -180,6 +181,7 @@ export default function CostParameters({
                   onChange={(e) =>
                     onHighVoltagePoleToPoleChange(parseFloat(e.target.value) || 50)
                   }
+                  disabled={true}
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
               </div>
@@ -195,6 +197,7 @@ export default function CostParameters({
                   onChange={(e) =>
                     onHighVoltagePoleToTerminalChange(parseFloat(e.target.value) || 20)
                   }
+                  disabled={true}
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
               </div>
@@ -251,6 +254,7 @@ export default function CostParameters({
                   onChange={(e) =>
                     onHighVoltagePoleToTerminalMinimumChange(parseFloat(e.target.value) || 8)
                   }
+                  disabled={true}
                   className='w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white'
                 />
               </div>
