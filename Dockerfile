@@ -23,10 +23,12 @@ WORKDIR /app
 # Declare build arguments for Next.js public variables
 ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ARG NEXTAUTH_URL
+ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 # Set environment variables from build args
 ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
+ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./

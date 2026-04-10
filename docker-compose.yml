@@ -10,7 +10,7 @@ services:
     volumes:
       - template-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,8 +23,9 @@ services:
       args:
         - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
         - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+        - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
     ports:
-      - "${APP_PORT-3001:}3000"
+      - "${APP_PORT:-3000}:3000"
     environment:
       - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PW}@template-db:5432/${DATABASE_NAME}
       - DATABASE_PW=${DATABASE_PW}
@@ -40,9 +41,11 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - AUTH_TRUST_HOST=${AUTH_TRUST_HOST:-true}
+      - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
     depends_on:
       template-migrate:
         condition: service_completed_successfully
+      
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 10s
@@ -51,6 +54,17 @@ services:
       start_period: 30s
     profiles:
       - production
+      - local
+
+  # Fastapi Python backend
+  template-backend-local:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    profiles:
+      - local
 
   # Database migration container (production only)
   template-migrate:
@@ -81,6 +95,7 @@ services:
         condition: service_healthy
     profiles:
       - production
+      - local
 
 volumes:
   template-db-data:
