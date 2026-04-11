@@ -348,15 +348,9 @@ export default function MiniGridToolPage() {
       // We check if both the start and end of an edge still exist in the new points list
       const updatedEdges = current.miniGridEdges.filter((edge) => {
         const startExists = updatedNodes.some(
-          (n) =>
-            Math.abs(n.lat - edge.start.lat) < 1e-9 &&
-            Math.abs(n.lng - edge.start.lng) < 1e-9
+          (n) => n.name === edge.start.name
         );
-        const endExists = updatedNodes.some(
-          (n) =>
-            Math.abs(n.lat - edge.end.lat) < 1e-9 &&
-            Math.abs(n.lng - edge.end.lng) < 1e-9
-        );
+        const endExists = updatedNodes.some((n) => n.name === edge.end.name);
         return startExists && endExists;
       });
 
@@ -412,16 +406,12 @@ export default function MiniGridToolPage() {
     // Remove the edge (handles both forward and reverse direction)
     const updatedEdges = current.miniGridEdges.filter((e) => {
       const sameForward =
-        Math.abs(e.start.lat - clickedEdge.start.lat) < 1e-9 &&
-        Math.abs(e.start.lng - clickedEdge.start.lng) < 1e-9 &&
-        Math.abs(e.end.lat - clickedEdge.end.lat) < 1e-9 &&
-        Math.abs(e.end.lng - clickedEdge.end.lng) < 1e-9;
+        e.start.name === clickedEdge.start.name &&
+        e.end.name === clickedEdge.end.name;
 
       const sameReverse =
-        Math.abs(e.start.lat - clickedEdge.end.lat) < 1e-9 &&
-        Math.abs(e.start.lng - clickedEdge.end.lng) < 1e-9 &&
-        Math.abs(e.end.lat - clickedEdge.start.lat) < 1e-9 &&
-        Math.abs(e.end.lng - clickedEdge.start.lng) < 1e-9;
+        e.start.name === clickedEdge.end.name &&
+        e.end.name === clickedEdge.start.name;
 
       return !(sameForward || sameReverse);
     });
@@ -628,13 +618,14 @@ export default function MiniGridToolPage() {
           const start = path.getAt(0);
           const end = path.getAt(1);
 
+          // NEW: Get the full edge data we attached when creating the polyline
+          // (now contains complete MiniGridNode objects for start and end)
+          const edgeData = line.get('edgeData') as MiniGridEdge | undefined;
+          if (!edgeData) return;
+
           // Identify if this line is attached to the marker we are dragging
-          const isStart =
-            Math.abs(start.lat() - prevLat) < 1e-9 &&
-            Math.abs(start.lng() - prevLng) < 1e-9;
-          const isEnd =
-            Math.abs(end.lat() - prevLat) < 1e-9 &&
-            Math.abs(end.lng() - prevLng) < 1e-9;
+          const isStart = edgeData.start.name === point.name;
+          const isEnd = edgeData.end.name === point.name;
 
           if (isStart || isEnd) {
             const otherNode = isStart ? end : start;
@@ -647,14 +638,9 @@ export default function MiniGridToolPage() {
 
             const isHighVoltage = line.get('strokeColor') === highVoltageColor;
 
+            // Simplified — we can now read the type directly from the full nodes!
             const isPoleToPole =
-              isPole &&
-              miniGridNodes.some(
-                (n) =>
-                  Math.abs(n.lat - otherNode.lat()) < 1e-6 &&
-                  Math.abs(n.lng - otherNode.lng()) < 1e-6 &&
-                  n.type === 'pole'
-              );
+              edgeData.start.type === 'pole' && edgeData.end.type === 'pole';
 
             let maxAllowedMeters: number;
 
@@ -765,30 +751,27 @@ export default function MiniGridToolPage() {
         );
 
         const updatedEdges = current.miniGridEdges.map((edge) => {
-          // Identify if the dragged point was the start or end of this edge
-          const isStart =
-            Math.abs(edge.start.lat - point.lat) < 1e-9 &&
-            Math.abs(edge.start.lng - point.lng) < 1e-9;
-
-          const isEnd =
-            Math.abs(edge.end.lat - point.lat) < 1e-9 &&
-            Math.abs(edge.end.lng - point.lng) < 1e-9;
-
-          if (isStart || isEnd) {
-            const newStart = isStart
-              ? { lat: finalLat, lng: finalLng }
-              : edge.start;
-            const newEnd = isEnd ? { lat: finalLat, lng: finalLng } : edge.end;
-
+          if (edge.start.name === point.name) {
             return {
               ...edge,
-              start: newStart,
-              end: newEnd,
+              start: { ...edge.start, lat: finalLat, lng: finalLng },
               lengthMeters: haversineDistance(
-                newStart.lat,
-                newStart.lng,
-                newEnd.lat,
-                newEnd.lng
+                finalLat,
+                finalLng,
+                edge.end.lat,
+                edge.end.lng
+              ),
+            };
+          }
+          if (edge.end.name === point.name) {
+            return {
+              ...edge,
+              end: { ...edge.end, lat: finalLat, lng: finalLng },
+              lengthMeters: haversineDistance(
+                edge.start.lat,
+                edge.start.lng,
+                finalLat,
+                finalLng
               ),
             };
           }
@@ -1408,11 +1391,18 @@ export default function MiniGridToolPage() {
         const [startLngStr, startLatStr] = coords[0].split(',');
         const [endLngStr, endLatStr] = coords[1].split(',');
 
-        const start = {
-          lat: parseFloat(startLatStr),
-          lng: parseFloat(startLngStr),
-        };
-        const end = { lat: parseFloat(endLatStr), lng: parseFloat(endLngStr) };
+        const findNode = (lat: number, lng: number) =>
+          nodes.find(n =>
+            Math.abs(n.lat - lat) < 1e-9 && Math.abs(n.lng - lng) < 1e-9
+          );
+
+        const start = findNode(parseFloat(startLatStr), parseFloat(startLngStr));
+        const end   = findNode(parseFloat(endLatStr), parseFloat(endLngStr));
+
+        if (!start || !end) {
+          console.warn('Could not match edge to nodes – skipping');
+          return;
+        }
 
         // Voltage from name: "Line X (voltage)"
         let voltage: 'low' | 'high' = 'low';
@@ -1745,7 +1735,7 @@ export default function MiniGridToolPage() {
             ? 'Source 01'
             : `Terminal ${String(newMiniGridNodes.length).padStart(2, '0')}`;
 
-        const index = newMiniGridNodes.length + 1;
+        const index = newMiniGridNodes.length;
 
         newMiniGridNodes.push({ index, name, lat, lng, type });
       }
@@ -1874,6 +1864,9 @@ export default function MiniGridToolPage() {
     const startTime = performance.now();
     const debug = 0;
 
+    console.log("nodes", miniGridNodes);
+    console.log("edges", miniGridEdges);
+
     try {
       const res = await fetch(backendUrl, {
         method: 'POST',
@@ -1881,7 +1874,8 @@ export default function MiniGridToolPage() {
         body: JSON.stringify({
           solver: selectedSolverName,
           params: paramValues,
-          points: miniGridNodes,
+          nodes: miniGridNodes,
+          edges: miniGridEdges,
           voltageLevel: "low",
           lengthConstraints: {
             low: {
@@ -1927,9 +1921,6 @@ export default function MiniGridToolPage() {
 
       if (data.error) throw new Error(data.error);
 
-      // ────────────────────────────────────────────────
-      // Backend now already gives us everything we need
-      // ────────────────────────────────────────────────
       // Use pre-computed values from backend
       const {
         totalLowVoltageMeters = 0,
@@ -1949,8 +1940,8 @@ export default function MiniGridToolPage() {
       // ─────────────────────────────────────────────────────────────
       const newMiniGridNodes = data.nodes || [];
       const newMiniGridEdges = (data.edges || []).map((e: MiniGridEdge) => ({
-        start: e.start,
-        end: e.end,
+        start: e.start as MiniGridNode,
+        end: e.end as MiniGridNode,
         lengthMeters: e.lengthMeters ?? 0,
         voltage: e.voltage ?? 'low',
       }));
@@ -2215,8 +2206,8 @@ export default function MiniGridToolPage() {
     setMiniGridNodes(run.miniGridNodes || []);
     setMiniGridEdges(
       (run.miniGridEdges || []).map((e: MiniGridEdge) => ({
-        start: { lat: Number(e.start?.lat), lng: Number(e.start?.lng) },
-        end: { lat: Number(e.end?.lat), lng: Number(e.end?.lng) },
+        start: e.start, // already a full node after type change
+        end: e.end,
         lengthMeters: Number(e.lengthMeters) || 0,
         voltage: e.voltage || 'low',
       }))

@@ -23,25 +23,6 @@ class Costs(BaseModel):
     highVoltageCostPerMeter: float = 50.0
 
 
-class SolverRequest(BaseModel):
-    """Pydantic model for incoming optimization request from frontend.
-
-    Args:
-        points: List of dicts with 'lat', 'lng', and optional 'name'.
-        costs: Dict with poleCost, lowVoltageCostPerMeter, highVoltageCostPerMeter.
-        lengthConstraints: {'low':
-        debug: Optional flag to enable debug output.
-    """
-    solver: str = "SimpleMSTSolver"
-    params: Dict[str, Any] = {}
-    points: List[Dict[str, Union[float, str, None]]]
-    voltageLevel: str = "low"
-    lengthConstraints: LengthConstraints
-    costs: Costs
-    usePoles: bool = True
-    debug: int = 0
-
-
 class SolverInputParams(BaseModel):
     name: str
     type: Literal["int", "float", "bool", "str", "list"]
@@ -67,29 +48,42 @@ class Node(BaseModel):
     lng: float
     type: Literal["source", "terminal", "pole"]
     name: Optional[str] = None
-    is_candidate: bool = False
-    used: bool = False
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=False,  # we will mutate 'used' and 'name' during processing
-    )
 
     @property
     def coord_tuple(self) -> Tuple[float, float]:
         return self.lat, self.lng
 
 
-class OutputEdge(BaseModel):
-    start: Dict[str, Any]  # will contain lat, lng, name, type
-    end: Dict[str, Any]
-    lengthMeters: float = Field(..., ge=0)
+class Edge(BaseModel):
+    start: Node
+    end: Node
+    lengthMeters: float
     voltage: Literal["low", "high", "unknown"] = "unknown"
 
 
+class SolverRequest(BaseModel):
+    """Pydantic model for incoming optimization request from frontend.
+
+    Args:
+        points: List of dicts with 'lat', 'lng', and optional 'name'.
+        costs: Dict with poleCost, lowVoltageCostPerMeter, highVoltageCostPerMeter.
+        lengthConstraints: {'low':
+        debug: Optional flag to enable debug output.
+    """
+    solver: str = "SimpleMSTSolver"
+    params: Dict[str, Any] = {}
+    nodes: List[Node]
+    edges: List[Edge] = []
+    voltageLevel: str = "low"
+    lengthConstraints: LengthConstraints
+    costs: Costs
+    usePoles: bool = True
+    debug: int = 0
+
+
 class SolverResult(BaseModel):
-    edges: List[OutputEdge]
-    nodes: List[Dict[str, Any]]  # minimal dicts for frontend (lat,lng,name,type,index,...)
+    edges: List[Edge]
+    nodes: List[Node]
     totalLowVoltageMeters: float = 0.0
     totalHighVoltageMeters: float = 0.0
     numPolesUsed: int = 0

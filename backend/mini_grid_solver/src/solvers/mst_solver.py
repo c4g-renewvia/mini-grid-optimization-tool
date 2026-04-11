@@ -45,36 +45,27 @@ class SimpleMSTSolver(BaseMiniGridSolver):
 
     def _solve(self) -> Tuple[nx.DiGraph, List[Node]]:
 
-        n = len(self._coords)
-        if n < 2:
-            raise ValueError("Need at least source + 1 terminal")
-
-        # 3. Compute full distance matrix
         dist_matrix = self.compute_distance_matrix(self._coords)
 
-        pole_indices = [n.index for n in self._nodes if n.type == "pole"]
-
-        if len(pole_indices) > 0:
-
+        if len(self._pole_indices) > 0:
             DG = self.build_directed_graph_for_arborescence(self._nodes)
-
             arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
             mst = self.prune_dead_end_pole_branches(arbo_graph)
 
         else:
-            G = nx.complete_graph(n)
+            n = len(self._nodes)
+            G = nx.Graph()
             for node in self._nodes:
+                G.add_node(node.index)
                 G.nodes[node.index]["name"] = node.name
                 G.nodes[node.index]["type"] = node.type
                 G.nodes[node.index]["lat"] = node.lat
                 G.nodes[node.index]["lng"] = node.lng
-                G.nodes[node.index]["used"] = node.used
-            for i in range(n):
-                for j in range(i + 1, n):
+            for i in G.nodes:
+                for j in G.nodes:
+                    G.add_edge(i, j)
                     d = dist_matrix[i, j]
-                    cost = (self._costs.lowVoltageCostPerMeter
-                            if self.request.voltageLevel
-                            else self._costs.highVoltageCostPerMeter)
+                    cost = self.get_cost_per_meter()
 
                     weight = d * cost
                     G.edges[i, j]["weight"] = weight

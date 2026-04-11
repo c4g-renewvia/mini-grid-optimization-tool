@@ -3,8 +3,8 @@
 // ====================== CORE DATA TYPES ======================
 
 export interface MiniGridEdge {
-  start: { lat: number; lng: number };
-  end: { lat: number; lng: number };
+  start: MiniGridNode;
+  end: MiniGridNode;
   lengthMeters: number;
   voltage: 'low' | 'high';
 }

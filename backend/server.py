@@ -4,8 +4,9 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from mini_grid_solver.src import LocalOptimization
 from mini_grid_solver.src.solvers.registry import SOLVER_REGISTRY  # or wherever
-from mini_grid_solver.src.utils.models import SolverRequest, Solver
+from mini_grid_solver.src.utils.models import SolverRequest, Solver, SolverResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ app.add_middleware(
 )
 
 
-@app.post("/solve")
+@app.post("/solve", response_model=SolverResult)
 async def solve(request: SolverRequest):
     """
     Handles the POST request to solve a problem using a specified solver and data input.
@@ -48,15 +49,30 @@ async def solve(request: SolverRequest):
     Returns:
         dict: The result of the computation from the selected solver.
     """
-    if len(request.points) < 2:
-        raise HTTPException(status_code=400, detail="Need at least 2 points")
+    if len(request.nodes) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 nodes")
 
     try:
+
+        print(request, flush=True)
         solver_class = SOLVER_REGISTRY[request.solver]
 
         logger.info(solver_class)
 
         result = solver_class(request).solve()
+
+        return result
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/local_optimization", response_model=SolverResult)
+def local_optimization(request: SolverRequest):
+    try:
+
+        print(request, flush=True)
+        result = LocalOptimization(request).solve()
 
         return result
     except Exception as e:
@@ -88,6 +104,6 @@ async def get_solvers() -> List[Solver]:
     solvers: List[Solver] = []
     for solver_name, solver_class in SOLVER_REGISTRY.items():
         params = solver_class.get_input_params()
-        solvers.append(Solver(name = str(solver_name), params = params))
+        solvers.append(Solver(name=str(solver_name), params=params))
 
     return solvers

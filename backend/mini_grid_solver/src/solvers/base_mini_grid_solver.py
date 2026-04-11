@@ -31,9 +31,12 @@ class BaseMiniGridSolver(ABC):
 
     def __init__(self, request: SolverRequest):
         self.request = request
+        self._nodes: Optional[List[Node]] = None
+        self._edges: Optional[List[Edge]] = None
         self._coords: Optional[np.ndarray] = None
         self._source_idx: Optional[int] = None
         self._terminal_indices: Optional[List[int]] = None
+        self._pole_indices: Optional[List[int]] = None
         self._names: Optional[List[str]] = None
         self._costs: Optional[Costs] = None
 
@@ -178,89 +181,6 @@ class BaseMiniGridSolver(ABC):
         else:
             return self.request.costs.highVoltageCostPerMeter
 
-    def parse_input(self):
-        """
-        Parses input data to extract points, their coordinates, and relevant attributes like names and source identification.
-
-        This method processes a set of points to determine their geographical coordinates, assigns unique names to each
-        point, and identifies a primary source point based on predefined keywords. The parsed data is retained internally
-        for further processing.
-
-        Parameters:
-            poles (bool): Specifies whether to include points containing the keyword "pole" in their names. Defaults to True.
-            debug (int): Debug level. If set to a non-zero value, additional information will be printed during execution.
-        """
-
-        points = self.request.points
-        costs: Costs = self.request.costs.model_copy()  # defensive copy
-
-        if len(points) < 2:
-            raise ValueError("At least 2 points required")
-
-        coords_list = []
-        names = []
-        source_idx = None
-
-        SOURCE_KEYWORDS = {
-            "power source", "powersource", "source", "substation", "main source",
-            "primary", "generator", "grid tie", "utility"
-        }
-
-        for i, p in enumerate(points):
-            # Name handling
-            raw_name = p.get("name")
-
-            if not self.request.usePoles and "pole" in raw_name.lower():
-                continue
-
-            if raw_name is not None:
-                try:
-                    int(raw_name.split(" ")[-1])
-                    name = raw_name
-                except:
-                    name = f"{str(raw_name).strip()} {i + 1}"
-            else:
-                name = f"Location {i + 1}"
-
-            names.append(name)
-
-            try:
-                lat = float(p["lat"])
-                lng = float(p["lng"])
-            except (KeyError, TypeError, ValueError) as e:
-                raise ValueError(f"Point {i + 1} missing/invalid lat/lng: {p}") from e
-
-            if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
-                raise ValueError(f"Point {i + 1} has invalid coordinates: ({lat}, {lng})")
-
-            coords_list.append([lat, lng])
-
-            # Source detection (case-insensitive, more flexible)
-            name_lower = name.lower()
-            if any(kw in name_lower for kw in SOURCE_KEYWORDS) or "source" in name_lower:
-                if source_idx is not None:
-                    print(f"Warning: Multiple potential sources detected; using first (index {source_idx})")
-                else:
-                    source_idx = i
-                    names[i] = name  # canonical name
-
-        coords = np.array(coords_list, dtype=np.float64)
-
-        if source_idx is None:
-            if self.request.debug > 1:
-                print("No explicit power source found → using first point (index 0)")
-            source_idx = 0
-            names[0] = "Power Source"
-
-        terminal_indices = [i for i in range(len(coords)) if i != source_idx]
-
-        self._coords = coords
-        self._names = names
-        self._source_idx = source_idx
-        self._costs = costs
-        self._terminal_indices = terminal_indices
-
-        return
 
     @staticmethod
     def _plot_current_graph(graph, added_points=None, title="Current tree after candidate addition", filename=None):
@@ -460,13 +380,43 @@ class BaseMiniGridSolver(ABC):
         Raises:
             ValueError: If the input does not contain at least one source and one terminal.
         """
-        self.parse_input()
+        nodes = self.request.nodes
+        costs: Costs = self.request.costs.model_copy()  # defensive copy
+
+        if len(nodes) < 2:
+            raise ValueError("At least 2 nodes required")
+
+        coords = np.array([n.coord_tuple for n in nodes], dtype=np.float64)
+        names = [n.name for n in nodes]
+
+        source_idx = None
+        for i, n in enumerate(nodes):
+            if n.type == "source":
+                if source_idx is not None:
+                    raise ValueError("Only one source allowed")
+                source_idx = i
+
+        if source_idx is None:
+            raise ValueError("No source found")
+        else:
+            source_idx = int(source_idx)
+
+        terminal_indices = [n.index for n in nodes if n.type == "terminal"]
+        pole_indices = [n.index for n in nodes if n.type == "pole"]
+
+        self._nodes = nodes
+        self._edges = self.request.edges
+        self._coords = coords
+        self._names = names
+        self._costs = costs
+
+        self._source_idx = source_idx
+        self._terminal_indices = terminal_indices
+        self._pole_indices = pole_indices
 
         # You can add more validation / normalization here if desired
         if len(self._coords) < 2:
             raise ValueError("Need at least source + 1 terminal")
-
-        self._nodes = self._build_nodes(self._coords, [], self._names)
 
         return
 
@@ -786,12 +736,12 @@ class BaseMiniGridSolver(ABC):
                 print(f"   Previous: {previous_cost:.2f} → Current: {current_cost:.2f} (Δ = {delta:+.2f})")
 
             # Stop conditions
-            if current_cost > previous_cost + 1e-3:          # cost actually increased
+            if current_cost > previous_cost + 1e-3:  # cost actually increased
                 if self.request.debug >= 1:
                     print("   Cost increased → stopping")
                 break
 
-            if abs(delta) < 1e-3:                            # no meaningful improvement
+            if abs(delta) < 1e-3:  # no meaningful improvement
                 if self.request.debug >= 1:
                     print("   No meaningful improvement → stopping")
                 break
@@ -1247,9 +1197,19 @@ class BaseMiniGridSolver(ABC):
         for start_idx, end_idx, edge_data in graph.edges(data=True):
             start = graph.nodes[start_idx]
             end = graph.nodes[end_idx]
-            edges.append(OutputEdge(
-                start={"lat": start['lat'], "lng": start['lng'], "name": start['name'], "type": start['type']},
-                end={"lat": end['lat'], "lng": end['lng'], "name": end['name'], "type": end['type']},
+            edges.append(Edge(
+                start=Node(
+                    index=start_idx,
+                    lat=start['lat'],
+                    lng=start['lng'],
+                    name=start['name'],
+                    type=start['type']),
+                end=Node(
+                    index=end_idx,
+                    lat=end['lat'],
+                    lng=end['lng'],
+                    name=end['name'],
+                    type=end['type']),
                 lengthMeters=round(edge_data['length'], 4),
                 voltage=edge_data["voltage"],
             ))

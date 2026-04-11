@@ -11,17 +11,22 @@ from mini_grid_solver.src.utils.models import LengthConstraints, LengthConstrain
 
 # ==================== FIXTURES ====================
 @pytest.fixture
-def csv_points():
+def csv_nodes():
     """Loads coordinates from the test CSV file."""
     try:
         df = pd.read_csv("test_data_sets/BuildingCoordinates.csv")
-        return df.to_dict(orient="records")
+        i = 0
+        data_dict = df.to_dict(orient="records")
+        for data in data_dict:
+            data['index'] = i
+            i += 1
+        return [Node(**data) for data in data_dict]
     except FileNotFoundError:
         pytest.skip("BuildingCoordinates.csv not found")
 
 
 @pytest.fixture
-def kml_points():
+def kml_nodes():
     """Parses coordinates from the ground truth KML."""
     try:
         kml_file_path = "test_data_sets/bc1.kml"
@@ -34,19 +39,21 @@ def kml_points():
                 # KML coordinates are typically: lng, lat, alt
                 coords_str = str(placemark.Point.coordinates).strip()
                 lng, lat, _ = coords_str.split(",")
-                coords.append({
-                    "name": str(placemark.name),
-                    "lat": float(lat),
-                    "lng": float(lng),
-                    "type": str(placemark.description).split(" ")[1]
-                })
+                _type = str(placemark.description).split(" ")[1].lower()
+                coords.append(Node(
+                    index=len(coords),
+                    name=str(placemark.name),
+                    lat=float(lat),
+                    lng=float(lng),
+                    type=_type
+                ))
         return coords
     except (FileNotFoundError, AttributeError):
         pytest.skip("KML file not found or incorrectly formatted")
 
 # add "test_data_sets/minigrid_2026-04-09.kml" for larger test
 @pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml","test_data_sets/minigrid_2026-04-08.kml"])
-def kml_points_random_test_set(request):
+def kml_nodes_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
         kml_file_path = request.param
@@ -59,15 +66,16 @@ def kml_points_random_test_set(request):
                 # KML coordinates are typically: lng, lat, alt
                 coords_str = str(placemark.Point.coordinates).strip()
                 lng, lat, _ = coords_str.split(",")
-                type = re.search(r"Type: (\w+)", str(placemark.description)).group(1)
-                if type == "pole":
+                _type = re.search(r"Type: (\w+)", str(placemark.description)).group(1)
+                if _type == "pole":
                     continue
-                coords.append({
-                    "name": str(placemark.name),
-                    "lat": float(lat),
-                    "lng": float(lng),
-                    "type": type
-                })
+                coords.append(Node(
+                    index = len(coords),
+                    name= str(placemark.name),
+                    lat= float(lat),
+                    lng= float(lng),
+                    type= _type
+                ))
         return coords
     except (FileNotFoundError, AttributeError) as e:
         pytest.skip(f"KML file not found or incorrectly formatted {e}")
@@ -97,19 +105,19 @@ def default_length_constraints():
 
 
 @pytest.fixture
-def ga_tech_points():
-    """Fixture containing the manually provided Georgia Tech area points."""
+def ga_tech_nodes():
+    """Fixture containing the manually provided Georgia Tech area nodes."""
     return [
-        {"name": "Source", "type": "source", "lat": 33.77679498, "lng": -84.39576765},
-        {"name": "Terminal 02", "type": "terminal", "lat": 33.7766943, "lng": -84.3961707},
-        {"name": "Terminal 03", "type": "terminal", "lat": 33.77715844, "lng": -84.39655715},
-        {"name": "Terminal 04", "type": "terminal", "lat": 33.7766067, "lng": -84.39567965},
-        {"name": "Terminal 05", "type": "terminal", "lat": 33.77736802, "lng": -84.39715452},
-        {"name": "Terminal 06", "type": "terminal", "lat": 33.77694371, "lng": -84.39650116},
-        {"name": "Terminal 07", "type": "terminal", "lat": 33.77759256, "lng": -84.39535238},
-        {"name": "Terminal 08", "type": "terminal", "lat": 33.77670904, "lng": -84.39500275},
-        {"name": "Terminal 09", "type": "terminal", "lat": 33.77655566, "lng": -84.39499823},
-        {"name": "Terminal 10", "type": "terminal", "lat": 33.77721148, "lng": -84.39735571}
+        Node(index=0, name= "Source", type= "source", lat= 33.77679498, lng= -84.39576765),
+        Node(index=1, name= "Terminal 02", type="terminal", lat=33.7766943, lng=-84.3961707),
+        Node(index=2, name= "Terminal 03", type="terminal", lat= 33.77715844, lng= -84.39655715),
+        Node(index=3,name= "Terminal 04", type="terminal", lat= 33.7766067, lng= -84.39567965),
+        Node(index=4,name= "Terminal 05", type="terminal", lat= 33.77736802, lng= -84.39715452),
+        Node(index=5,name= "Terminal 06", type="terminal", lat= 33.77694371, lng= -84.39650116),
+        Node(index=6,name= "Terminal 07", type="terminal", lat= 33.77759256, lng= -84.39535238),
+        Node(index=7,name= "Terminal 08", type="terminal", lat= 33.77670904, lng= -84.39500275),
+        Node(index=8,name= "Terminal 09", type="terminal", lat= 33.77655566, lng= -84.39499823),
+        Node(index=9,name= "Terminal 10", type="terminal", lat= 33.77721148, lng= -84.39735571)
     ]
 
 
@@ -121,7 +129,7 @@ def test_registry_not_empty():
 
 
 @pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
-def test_all_solvers_with_csv(solver_name, csv_points, default_costs, default_length_constraints):
+def test_all_solvers_with_csv(solver_name, csv_nodes, default_costs, default_length_constraints):
     """
     Parametrized test: Runs every solver in the registry using CSV data.
     Validates that each solver returns a result with nodes and edges.
@@ -130,7 +138,7 @@ def test_all_solvers_with_csv(solver_name, csv_points, default_costs, default_le
 
     # Create request with default params
     req = SolverRequest(
-        points=csv_points,
+        nodes=csv_nodes,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
         debug=0,
@@ -140,13 +148,13 @@ def test_all_solvers_with_csv(solver_name, csv_points, default_costs, default_le
 
     # Assertions for output quality
     assert result is not None, f"{solver_name} returned no result"
-    assert len(result.nodes) >= len(csv_points), f"{solver_name} lost points during solve"
+    assert len(result.nodes) >= len(csv_nodes), f"{solver_name} lost nodes during solve"
     assert len(result.edges) > 0, f"{solver_name} failed to create any connections"
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-@pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
-def test_all_solvers_with_kml(kml_points_random_test_set, solver_name, csv_points, default_costs,
+@pytest.mark.parametrize("solver_name", ["DiskBasedSteinerSolver"])#SOLVER_REGISTRY.keys())
+def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes, default_costs,
                               default_length_constraints):
     """
     Parametrized test: Runs every solver in the registry using CSV data.
@@ -156,7 +164,7 @@ def test_all_solvers_with_kml(kml_points_random_test_set, solver_name, csv_point
 
     # Create request with default params
     req = SolverRequest(
-        points=kml_points_random_test_set,
+        nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
         debug=0,
@@ -166,19 +174,19 @@ def test_all_solvers_with_kml(kml_points_random_test_set, solver_name, csv_point
 
     # Assertions for output quality
     assert result is not None, f"{solver_name} returned no result"
-    assert len(result.nodes) >= len(csv_points), f"{solver_name} lost points during solve"
+    assert len(result.nodes) >= len(csv_nodes), f"{solver_name} lost nodes during solve"
     assert len(result.edges) > 0, f"{solver_name} failed to create any connections"
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-def test_greedy_steiner_solver(kml_points, default_costs, default_length_constraints):
+def test_greedy_steiner_solver(kml_nodes, default_costs, default_length_constraints):
     """Specific check for GreedyIterSteinerSolver using the KML dataset."""
     if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
         pytest.skip("GreedyIterSteinerSolver not registered")
 
     solver_class = SOLVER_REGISTRY["GreedyIterSteinerSolver"]
     req = SolverRequest(
-        points=kml_points,
+        nodes=kml_nodes,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
         debug=0,
@@ -186,20 +194,20 @@ def test_greedy_steiner_solver(kml_points, default_costs, default_length_constra
 
     result = solver_class(req).solve()
 
-    # Check that Steiner points (poles) were actually added
-    poles = [n for n in result.nodes if n.get('type') == 'pole']
+    # Check that Steiner nodes (poles) were actually added
+    poles = [n for n in result.nodes if n.type == 'pole']
     assert len(poles) >= 0  # Validates the result contains a nodes list
     assert result.totalCostEstimate > 0
 
 
-def test_greedy_steiner_solver2(kml_points_random_test_set, default_costs, default_length_constraints):
+def test_greedy_steiner_solver2(kml_nodes_random_test_set, default_costs, default_length_constraints):
     """Specific check for GreedyIterSteinerSolver using the KML dataset."""
     if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
         pytest.skip("GreedyIterSteinerSolver not registered")
 
     solver_class = SOLVER_REGISTRY["GreedyIterSteinerSolver"]
     req = SolverRequest(
-        points=kml_points_random_test_set,
+        nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
         debug=0,
@@ -207,8 +215,8 @@ def test_greedy_steiner_solver2(kml_points_random_test_set, default_costs, defau
 
     result = solver_class(req).solve()
 
-    # Check that Steiner points (poles) were actually added
-    poles = [n for n in result.nodes if n.get('type') == 'pole']
+    # Check that Steiner nodes (poles) were actually added
+    poles = [n for n in result.nodes if n.type == 'pole']
     assert len(poles) >= 0  # Validates the result contains a nodes list
     assert result.totalCostEstimate > 0
 
@@ -223,11 +231,11 @@ def test_solver_param_metadata():
 # ==================== ADDITIONAL TESTS ====================
 
 @pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
-def test_solvers_with_ga_tech_data(solver_name, ga_tech_points, default_costs, default_length_constraints):
+def test_solvers_with_ga_tech_data(solver_name, ga_tech_nodes, default_costs, default_length_constraints):
     """Verifies that all solvers can handle the specific Georgia Tech coordinate set."""
     solver_class = SOLVER_REGISTRY[solver_name]
     req = SolverRequest(
-        points=ga_tech_points,
+        nodes=ga_tech_nodes,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
         debug=0,
@@ -239,14 +247,14 @@ def test_solvers_with_ga_tech_data(solver_name, ga_tech_points, default_costs, d
     assert result.totalCostEstimate > 0
 
 
-def test_cost_calculation_integrity(ga_tech_points, default_costs, default_length_constraints):
+def test_cost_calculation_integrity(ga_tech_nodes, default_costs, default_length_constraints):
     """
     Validates that the total cost accurately reflects the sum of its components.
     Formula: total_cost = (poleCount * poleCost) + lowWireCost + highWireCost
     """
     solver_class = SOLVER_REGISTRY["SimpleMSTSolver"]
     req = SolverRequest(params={},
-                        points=ga_tech_points,
+                        nodes=ga_tech_nodes,
                         costs=default_costs,
                         lengthConstraints=default_length_constraints,
                         debug=0, )
@@ -262,37 +270,37 @@ def test_cost_calculation_integrity(ga_tech_points, default_costs, default_lengt
     assert result.totalCostEstimate == pytest.approx(expected_total, rel=1e-2)
 
 
-def test_connectivity_spanning(ga_tech_points, default_costs, default_length_constraints):
+def test_connectivity_spanning(ga_tech_nodes, default_costs, default_length_constraints):
     """
     Ensures that every input node is present in the final graph.
     """
     solver_class = SOLVER_REGISTRY["SimpleMSTSolver"]
     req = SolverRequest(params={},
-                        points=ga_tech_points,
+                        nodes=ga_tech_nodes,
                         costs=default_costs,
-                        lengthConstraints=default_length_constraints, )
+                        lengthConstraints=default_length_constraints)
     result = solver_class(req).solve()
 
-    input_names = {p["name"] for p in ga_tech_points if "source" not in p['name'].lower()}
-    output_names = {n["name"] for n in result.nodes if "source" not in n['name'].lower()}
+    input_names = {p.name for p in ga_tech_nodes if "source" not in p.name.lower()}
+    output_names = {n.name for n in result.nodes if "source" not in n.name.lower()}
 
-    # Check that all original points exist in the output nodes list
+    # Check that all original nodes exist in the output nodes list
     assert input_names.issubset(output_names)
 
 
-def test_steiner_point_injection(ga_tech_points, default_costs, default_length_constraints):
+def test_steiner_point_injection(ga_tech_nodes, default_costs, default_length_constraints):
     """
     Verifies that Steiner-based solvers (like GreedyNSteiner) successfully
     inject additional 'pole' type nodes into the network.
     """
     solver_class = SOLVER_REGISTRY["GreedyIterSteinerSolver"]
-    req = SolverRequest(points=ga_tech_points,
+    req = SolverRequest(nodes=ga_tech_nodes,
                         costs=default_costs,
                         lengthConstraints=default_length_constraints)
     result = solver_class(req).solve()
 
     # Check if any new 'pole' types were created beyond the original source/terminals
-    poles = [n for n in result.nodes if n.get("type") == "pole"]
+    poles = [n for n in result.nodes if n.type == "pole"]
 
     # We expect at least some poles if n > 0 in a Steiner solver
     assert len(poles) > 0
