@@ -53,8 +53,6 @@ async def solve(request: SolverRequest):
         raise HTTPException(status_code=400, detail="Need at least 2 nodes")
 
     try:
-
-        print(request, flush=True)
         solver_class = SOLVER_REGISTRY[request.solver]
 
         logger.info(solver_class)

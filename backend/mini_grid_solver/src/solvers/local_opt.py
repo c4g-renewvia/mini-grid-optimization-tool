@@ -1,18 +1,28 @@
 # src/solvers/simple_mst_solver.py
-from typing import List, Tuple
+from typing import List, Union
 
 import networkx as nx
 
 from .base_mini_grid_solver import BaseMiniGridSolver
-from .registry import register_solver
 from ..utils.models import (
-    Node, SolverInputParams,
-)
+    Node, )
 
 
-# @register_solver
 class LocalOptimization(BaseMiniGridSolver):
-    
-    def _solve(self) -> Tuple[nx.DiGraph, List[Node]]:
+    """
+    Implements a solver for local optimization problems.
 
-        return
+    This class is designed to perform local optimization on a given graph
+    structure. It utilizes specific algorithms to process and manipulate
+    the graph in order to achieve an optimized solution. The primary use
+    case involves complex scenarios where local adjustments to a graph
+    improve the overall solution quality.
+
+    """
+
+    def _solve(self) -> Union[nx.DiGraph, List[Node]]:
+        graph = self._graph
+
+        final_graph = self._post_solver_local_opt(graph)
+
+        return final_graph

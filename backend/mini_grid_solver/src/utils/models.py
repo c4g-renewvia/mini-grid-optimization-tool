@@ -49,10 +49,10 @@ class Node(BaseModel):
     type: Literal["source", "terminal", "pole"]
     name: Optional[str] = None
 
-    @property
-    def coord_tuple(self) -> Tuple[float, float]:
-        return self.lat, self.lng
+    model_config = ConfigDict(frozen=True)
 
+def get_node_coord_tuple(node: Node) -> Tuple[float, float]:
+    return node.lat, node.lng
 
 class Edge(BaseModel):
     start: Node

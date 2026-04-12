@@ -33,6 +33,7 @@ class BaseMiniGridSolver(ABC):
         self.request = request
         self._nodes: Optional[List[Node]] = None
         self._edges: Optional[List[Edge]] = None
+        self._graph: Optional[Union[nx.Graph, nx.DiGraph]] = None
         self._coords: Optional[np.ndarray] = None
         self._source_idx: Optional[int] = None
         self._terminal_indices: Optional[List[int]] = None
@@ -345,8 +346,6 @@ class BaseMiniGridSolver(ABC):
                 lng=float(coords[i, 1]),
                 type=t,
                 name=names[i],
-                is_candidate=False,
-                used=True,  # originals always kept
             ))
 
         offset = n_orig
@@ -356,8 +355,6 @@ class BaseMiniGridSolver(ABC):
                 lat=float(lat),
                 lng=float(lon),
                 type="pole",
-                is_candidate=True,
-                used=False,
             ))
 
         return nodes
@@ -386,7 +383,7 @@ class BaseMiniGridSolver(ABC):
         if len(nodes) < 2:
             raise ValueError("At least 2 nodes required")
 
-        coords = np.array([n.coord_tuple for n in nodes], dtype=np.float64)
+        coords = np.array([get_node_coord_tuple(n) for n in nodes], dtype=np.float64)
         names = [n.name for n in nodes]
 
         source_idx = None
@@ -413,6 +410,9 @@ class BaseMiniGridSolver(ABC):
         self._source_idx = source_idx
         self._terminal_indices = terminal_indices
         self._pole_indices = pole_indices
+
+        # Build a graph of given nodes or edges
+        self.build_graph_from_nodes_or_edges()
 
         # You can add more validation / normalization here if desired
         if len(self._coords) < 2:
@@ -495,6 +495,38 @@ class BaseMiniGridSolver(ABC):
 
         return total + violation_penalty
 
+    def build_graph_from_nodes_or_edges(self):
+
+        G = nx.Graph()
+        for node in self._nodes:
+            G.add_node(node.index)
+            G.nodes[node.index]["name"] = node.name
+            G.nodes[node.index]["type"] = node.type
+            G.nodes[node.index]["lat"] = node.lat
+            G.nodes[node.index]["lng"] = node.lng
+
+        if self._edges is None or len(self._edges) == 0:
+            dist_matrix = self.compute_distance_matrix(self._coords)
+            for i in G.nodes:
+                for j in G.nodes:
+                    G.add_edge(i, j)
+                    d = dist_matrix[i, j]
+                    cost = self.get_cost_per_meter()
+
+                    weight = d * cost
+                    G.edges[i, j]["weight"] = weight
+                    G.edges[i, j]["length"] = d
+                    G.edges[i, j]["voltage"] = self.request.voltageLevel
+        else:
+            for edge in self._edges:
+                start, end = edge.start.index, edge.end.index
+                G.add_edge(start, end)
+                G.edges[start, end]["weight"] = self.calc_edge_weight(edge.lengthMeters, to_terminal=(end in self._terminal_indices))
+                G.edges[start, end]["length"] = edge.lengthMeters
+                G.edges[start, end]["voltage"] = self.request.voltageLevel
+
+        self._graph = G
+
     def build_directed_graph_for_arborescence(self, nodes) -> nx.DiGraph:
         """
         Constructs a directed graph representing an arborescence structure. The graph is built
@@ -518,7 +550,7 @@ class BaseMiniGridSolver(ABC):
         terminal_indices = [n.index for n in nodes if n.type == "terminal"]
         source_idx = nodes[self._source_idx].index
 
-        all_points = np.array([n.coord_tuple for n in nodes])
+        all_points = np.array([get_node_coord_tuple(n) for n in nodes])
 
         if hasattr(self, '_get_distance_matrix'):
             dist_matrix = self._get_distance_matrix(all_points)
@@ -702,7 +734,7 @@ class BaseMiniGridSolver(ABC):
                 return False
         return True
 
-    def _post_solver_local_opt(self, graph):
+    def _post_solver_local_opt(self, graph) -> Union[nx.DiGraph, nx.Graph]:
         """
         Performs post-solver optimization with multiple iterations until no further improvement.
         """

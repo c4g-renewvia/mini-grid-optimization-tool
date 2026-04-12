@@ -1828,6 +1828,107 @@ export default function MiniGridToolPage() {
     }
   };
 
+  const handleLocalOptimization = async () => {
+    if (miniGridNodes.length < 2) {
+      alert('Need at least 2 points to run local optimization.');
+      return;
+    }
+
+    setComputingMiniGrid(true);
+    setCalcError(null);
+
+    const backendUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      'http://localhost:8000/local_optimization';
+
+    try {
+      const res = await fetch(backendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          solver: 'SimpleMSTSolver', // or whatever base you want
+          params: paramValues,
+          nodes: miniGridNodes,
+          edges: miniGridEdges,
+          voltageLevel: 'low',
+          lengthConstraints: {
+            low: {
+              poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
+              poleToTerminalLengthConstraint:
+                lowVoltagePoleToTerminalLengthConstraint,
+              poleToTerminalMinimumLength:
+                lowVoltagePoleToTerminalMinimumLength,
+            },
+            high: {
+              poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
+              poleToTerminalLengthConstraint:
+                highVoltagePoleToTerminalLengthConstraint,
+              poleToTerminalMinimumLength:
+                highVoltagePoleToTerminalMinimumLength,
+            },
+          },
+          costs: {
+            poleCost: poleCost || 0,
+            lowVoltageCostPerMeter: lowVoltageCost || 0,
+            highVoltageCostPerMeter: highVoltageCost || 0,
+          },
+          debug: 0,
+          usePoles: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Local optimization failed');
+      }
+
+      const data = await res.json();
+
+      // Update state with optimized result
+      const newMiniGridNodes = data.nodes || [];
+      const newMiniGridEdges = (data.edges || []).map((e: any) => ({
+        start: e.start as MiniGridNode,
+        end: e.end as MiniGridNode,
+        lengthMeters: e.lengthMeters ?? 0,
+        voltage: e.voltage ?? 'low',
+      }));
+
+      const newCostBreakdown = {
+        lowVoltageMeters: data.totalLowVoltageMeters || 0,
+        highVoltageMeters: data.totalHighVoltageMeters || 0,
+        totalMeters:
+          (data.totalLowVoltageMeters || 0) +
+          (data.totalHighVoltageMeters || 0),
+        lowWireCost: data.lowWireCostEstimate || 0,
+        highWireCost: data.highWireCostEstimate || 0,
+        wireCost: data.totalWireCostEstimate || 0,
+        poleCount: data.numPolesUsed || 0,
+        poleCost: data.poleCostEstimate || 0,
+        pointCount: newMiniGridNodes.length,
+        grandTotal: data.totalCostEstimate || 0,
+      };
+
+      setMiniGridNodes(newMiniGridNodes);
+      setMiniGridEdges(newMiniGridEdges);
+      setCostBreakdown(newCostBreakdown);
+
+      // Save to history
+      saveState({
+        miniGridNodes: newMiniGridNodes,
+        miniGridEdges: newMiniGridEdges,
+        costBreakdown: newCostBreakdown,
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Local optimization failed';
+      setCalcError(message);
+      console.error('Local optimization error:', err);
+      alert(message);
+    } finally {
+      setComputingMiniGrid(false);
+    }
+  };
+
   const handleRunSolver = async () => {
     console.log(
       `[handleRunSolver] Sending ${miniGridNodes.length} points to backend`
@@ -2628,6 +2729,7 @@ export default function MiniGridToolPage() {
         </div>
 
         {/* Floating Action Buttons - Map Controls */}
+        {/* Floating Action Buttons - Map Controls */}
         <MapControls
           canUndo={canUndo}
           canRedo={canRedo}
@@ -2647,8 +2749,10 @@ export default function MiniGridToolPage() {
               setCostBreakdown(s.costBreakdown);
             }
           }}
+          onLocalOptimize={handleLocalOptimization} // ← NEW
           onReset={handleResetMap}
           hasData={miniGridNodes.length > 0}
+          isOptimizing={computingMiniGrid} // ← Optional: shows loading spinner
         />
 
         {/* FOOTER - Minimal */}

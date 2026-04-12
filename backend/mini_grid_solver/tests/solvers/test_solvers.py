@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 from pykml import parser
 
+from mini_grid_solver.src import LocalOptimization
 from mini_grid_solver.src.solvers.registry import SOLVER_REGISTRY
 from mini_grid_solver.src.utils.models import *
 from mini_grid_solver.src.utils.models import LengthConstraints, LengthConstraintsBase
@@ -120,6 +121,85 @@ def ga_tech_nodes():
         Node(index=9,name= "Terminal 10", type="terminal", lat= 33.77721148, lng= -84.39735571)
     ]
 
+
+# ==================== FIXTURE WITH NODES + EDGES FOR LOCAL OPTIMIZATION ====================
+
+@pytest.fixture
+def ga_tech_nodes_with_edges():
+    """Fixture with source, terminals, and some pre-existing poles + edges.
+    This is ideal for testing LocalOptimization, which expects a connected graph."""
+
+    nodes = [
+        Node(index=0, name="Source", type="source", lat=33.77679498, lng=-84.39576765),
+        Node(index=1, name="Terminal 02", type="terminal", lat=33.7766943, lng=-84.3961707),
+        Node(index=2, name="Terminal 03", type="terminal", lat=33.77715844, lng=-84.39655715),
+        Node(index=3, name="Terminal 04", type="terminal", lat=33.7766067, lng=-84.39567965),
+        Node(index=4, name="Terminal 05", type="terminal", lat=33.77736802, lng=-84.39715452),
+        Node(index=5, name="Terminal 06", type="terminal", lat=33.77694371, lng=-84.39650116),
+
+        # Pre-placed poles
+        Node(index=6, name="Pole A", type="pole", lat=33.77685, lng=-84.3960),
+        Node(index=7, name="Pole B", type="pole", lat=33.77710, lng=-84.3964),
+        Node(index=8, name="Pole C", type="pole", lat=33.77670, lng=-84.3958),
+    ]
+
+    # Pre-existing edges (this is what you were missing)
+    edges = [
+        # Source to Pole A (trunk)
+        Edge(
+            start=nodes[0],
+            end=nodes[6],
+            lengthMeters=45.2,
+            voltage="low"
+        ),
+        # Pole A to Pole B
+        Edge(
+            start=nodes[6],
+            end=nodes[7],
+            lengthMeters=38.7,
+            voltage="low"
+        ),
+        # Pole B to Pole C
+        Edge(
+            start=nodes[7],
+            end=nodes[8],
+            lengthMeters=52.1,
+            voltage="low"
+        ),
+        # Service drops from poles to terminals
+        Edge(
+            start=nodes[6],
+            end=nodes[1],
+            lengthMeters=18.3,
+            voltage="low"
+        ),
+        Edge(
+            start=nodes[6],
+            end=nodes[3],
+            lengthMeters=22.5,
+            voltage="low"
+        ),
+        Edge(
+            start=nodes[7],
+            end=nodes[2],
+            lengthMeters=19.8,
+            voltage="low"
+        ),
+        Edge(
+            start=nodes[7],
+            end=nodes[5],
+            lengthMeters=25.4,
+            voltage="low"
+        ),
+        Edge(
+            start=nodes[8],
+            end=nodes[4],
+            lengthMeters=28.9,
+            voltage="low"
+        ),
+    ]
+
+    return nodes, edges
 
 # ==================== TESTS ====================
 
@@ -304,3 +384,53 @@ def test_steiner_point_injection(ga_tech_nodes, default_costs, default_length_co
 
     # We expect at least some poles if n > 0 in a Steiner solver
     assert len(poles) > 0
+
+
+# ==================== NEW TEST FOR LOCAL OPTIMIZATION WITH EDGES ====================
+
+def test_local_optimization_with_edges(ga_tech_nodes_with_edges, default_costs, default_length_constraints):
+    """Test LocalOptimization using a fixture that includes both nodes and edges."""
+
+    nodes, edges = ga_tech_nodes_with_edges
+
+    req = SolverRequest(
+        solver="LocalOptimization",
+        params={},
+        nodes=nodes,
+        edges=edges,  # Pass edges
+        voltageLevel="low",
+        lengthConstraints=default_length_constraints,
+        costs=default_costs,
+        usePoles=True,
+        debug=0,
+    )
+
+    solver_class = LocalOptimization
+
+    print(f"Testing LocalOptimization with {len(nodes)} nodes and {len(edges)} edges")
+
+    result = solver_class(req).solve()
+
+    # Core assertions
+    assert result is not None, "LocalOptimization returned None"
+    assert len(result.nodes) >= len(nodes), f"Lost nodes: {len(result.nodes)} < {len(nodes)}"
+    assert len(result.edges) > 0, "No edges returned"
+
+    poles = [n for n in result.nodes if n.type == "pole"]
+    assert len(poles) >= 3, f"Expected at least 3 poles, got {len(poles)}"
+
+    assert result.totalCostEstimate > 0, "Total cost should be positive"
+    assert result.numPolesUsed > 0, "Should use poles"
+
+    # Print useful summary
+    print(f"✅ LocalOptimization test passed!")
+    print(f"   Nodes: {len(result.nodes)} | Edges: {len(result.edges)}")
+    print(f"   Poles used: {result.numPolesUsed}")
+    print(f"   Total Cost: ${result.totalCostEstimate:,.2f}")
+    print(f"   Low voltage: {result.totalLowVoltageMeters:,.1f} m")
+
+    # Optional: Check that some edges were possibly shortened or refined
+    total_length_before = sum(e.lengthMeters for e in edges)
+    total_length_after = result.totalLowVoltageMeters + result.totalHighVoltageMeters
+
+    print(f"   Total length before: {total_length_before:.1f}m → after: {total_length_after:.1f}m")

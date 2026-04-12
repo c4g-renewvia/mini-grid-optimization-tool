@@ -1,5 +1,5 @@
 # src/solvers/simple_mst_solver.py
-from typing import List, Tuple
+from typing import List, Union
 
 import networkx as nx
 
@@ -43,9 +43,7 @@ class SimpleMSTSolver(BaseMiniGridSolver):
             )
         ]
 
-    def _solve(self) -> Tuple[nx.DiGraph, List[Node]]:
-
-        dist_matrix = self.compute_distance_matrix(self._coords)
+    def _solve(self) -> Union[nx.DiGraph, List[Node]]:
 
         if len(self._pole_indices) > 0:
             DG = self.build_directed_graph_for_arborescence(self._nodes)
@@ -53,25 +51,7 @@ class SimpleMSTSolver(BaseMiniGridSolver):
             mst = self.prune_dead_end_pole_branches(arbo_graph)
 
         else:
-            n = len(self._nodes)
-            G = nx.Graph()
-            for node in self._nodes:
-                G.add_node(node.index)
-                G.nodes[node.index]["name"] = node.name
-                G.nodes[node.index]["type"] = node.type
-                G.nodes[node.index]["lat"] = node.lat
-                G.nodes[node.index]["lng"] = node.lng
-            for i in G.nodes:
-                for j in G.nodes:
-                    G.add_edge(i, j)
-                    d = dist_matrix[i, j]
-                    cost = self.get_cost_per_meter()
-
-                    weight = d * cost
-                    G.edges[i, j]["weight"] = weight
-                    G.edges[i, j]["length"] = d
-                    G.edges[i, j]["voltage"] = self.request.voltageLevel
-            mst = nx.minimum_spanning_tree(G, weight="weight")
+            mst = nx.minimum_spanning_tree(self._graph, weight="weight")
 
         if self.steinerize:
             mst = self.split_long_edges_with_coords(mst)
