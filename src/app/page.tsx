@@ -2611,7 +2611,12 @@ export default function MiniGridToolPage() {
             <hr className='border-zinc-200 dark:border-zinc-700' />
             <br />
             <p className='text-center text-xs text-zinc-500 dark:text-zinc-400'>
-              <a href={'https://forms.gle/Az6j5cjtzJJDEQAEA'} target='_blank'>
+              <a
+                href={
+                  'https://drive.google.com/file/d/1m5vtUijPxrbMqG0B-hNIa4mG5RXADIH5/view?usp=sharing'
+                }
+                target='_blank'
+              >
                 User Manual |
               </a>
               <a href={'https://forms.gle/Az6j5cjtzJJDEQAEA'} target='_blank'>
