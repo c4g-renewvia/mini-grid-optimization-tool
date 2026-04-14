@@ -1979,8 +1979,8 @@ export default function MiniGridToolPage() {
     const startTime = performance.now();
     const debug = 0;
 
-    console.log("nodes", miniGridNodes);
-    console.log("edges", miniGridEdges);
+    // console.log("nodes", miniGridNodes);
+    // console.log("edges", miniGridEdges);
 
     try {
       const res = await fetch(backendUrl, {

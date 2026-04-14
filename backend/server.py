@@ -18,9 +18,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:8000",
-        "https://c4g-renewvia.vercel.app",
         "https://mini-grid-optimization-tool.vercel.app",
-        "https://mini-grid-tool.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -68,8 +66,6 @@ async def solve(request: SolverRequest):
 @app.post("/local_optimization", response_model=SolverResult)
 def local_optimization(request: SolverRequest):
     try:
-
-        print(request, flush=True)
         result = LocalOptimization(request).solve()
 
         return result
