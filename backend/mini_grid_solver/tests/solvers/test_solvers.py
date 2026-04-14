@@ -233,7 +233,7 @@ def test_all_solvers_with_csv(solver_name, csv_nodes, default_costs, default_len
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-@pytest.mark.parametrize("solver_name", ["DiskBasedSteinerSolver"])#SOLVER_REGISTRY.keys())
+@pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
 def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes, default_costs,
                               default_length_constraints):
     """
@@ -247,7 +247,7 @@ def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes,
         nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=2,
+        debug=0,
     )
 
     result = solver_class(req).solve()
