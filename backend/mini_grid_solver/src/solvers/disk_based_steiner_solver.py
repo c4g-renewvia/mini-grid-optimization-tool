@@ -524,11 +524,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         if self.request.debug >= 1:
             print(f"   → Selected {len(filtered_centers)} disk-center poles")
 
-        # ── Step 2: Standard Steiner on source + disk centers ──────────────
-        # We add the disk centers as candidate poles to the original point set.
-        # The base arborescence + prune will automatically:
-        #   • connect terminals to the nearest disk center (service drops)
-        #   • connect the disk centers to the source (with possible extra Steiner poles)
         if len(filtered_centers) == 0:
             raise ValueError("No disk centers found.")
 
@@ -712,6 +707,11 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             self._names + candidate_names
         )
 
+        # ── Step 2: Standard Steiner on source + disk centers ──────────────
+        # We add the disk centers as candidate poles to the original point set.
+        # The base arborescence + prune will automatically:
+        #   • connect terminals to the nearest disk center (service drops)
+        #   • connect the disk centers to the source (with possible extra Steiner poles)
         disk_edges = self._generate_disk_graph_edges(full_nodes)
 
         DG = self.build_graph_from_nodes_or_edges(nodes=full_nodes, edges=disk_edges, directed=True)
