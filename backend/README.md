@@ -1,121 +1,127 @@
-# Mini-Grid Solver Documentation
+# Mini-Grid Optimization Tool - Backend
 
-This library provides a comprehensive framework for designing and optimizing rural power distribution networks. It focuses on minimizing total project solver by balancing wire lengths and pole placements while adhering to strict geographical and physical constraints.
+This project provides a comprehensive framework for designing and optimizing rural power distribution networks. It focuses on minimizing total project costs by balancing wire lengths and pole placements while adhering to strict geographical and physical constraints.
 
----
+## Overview
 
-## Project File Structure
+The Mini-Grid Solver is a Python-based optimization engine that uses various algorithms (from simple MST to advanced Steiner Tree heuristics) to design efficient micro-grid topologies. It provides a REST API built with FastAPI to interact with frontend applications.
 
-Below is the directory structure for the Mini-Grid Optimizer library based on the provided source files:
+## Stack & Technologies
+
+- **Language:** Python >= 3.13
+- **Framework:** [FastAPI](https://fastapi.tiangolo.com/) for the REST API
+- **Data Validation:** [Pydantic](https://docs.pydantic.dev/)
+- **Optimization & Graph Libraries:**
+  - [NumPy](https://numpy.org/) & [SciPy](https://scipy.org/): Vectorized calculations and spatial optimization.
+  - [NetworkX](https://networkx.org/): Graph theory algorithms.
+  - [Shapely](https://shapely.readthedocs.io/): Geometric operations.
+  - [scikit-learn](https://scikit-learn.org/): Clustering and candidate generation.
+- **Visualization:** [Matplotlib](https://matplotlib.org/) (mainly for debugging and local analysis).
+- **Package Manager:** [uv](https://github.com/astral-sh/uv)
+
+## Project Structure
 
 ```text
 backend/
- └──mini_grid_solver/
-    ├── server.py                           # Main entry point for the API
-    ├── src/
-        └── solvers/
-            ├── __init__.py
-            ├── base_mini_grid_solver.py       # Abstract base class for all solvers
-            ├── greedy_iter_steiner_solver.py  # Greedy Iterative refinement solver
-            ├── mst_solver.py                  # Simple MST baseline solver
-            ├── registry.py                    # Solver registration utility
-            ├── steinerized_mst.py             # MST with edge fragmentation
-        │
-        └── utils/
-            ├── __init__.py
-            ├── models.py                   # Pydantic data models
-    └──test/                                # Tests for solver implementations
-        ├── solvers/                        
-            └──test_solvers.py              # Test suite for all solvers
-        └──test_data_sets/                  # Data for testing
+├── mini_grid_solver/
+│   ├── src/
+│   │   ├── solvers/
+│   │   │   ├── base_mini_grid_solver.py    # Abstract base class for all solvers
+│   │   │   ├── candidate_generation.py     # Base for solvers needing pole candidates
+│   │   │   ├── disk_based_steiner_solver.py # Advanced disk-covering Steiner heuristic
+│   │   │   ├── greedy_iter_steiner_solver.py # Iterative Steiner Tree refinement
+│   │   │   ├── local_opt.py                # Local search / Gradient descent optimization
+│   │   │   ├── mst_solver.py               # Simple MST baseline solver
+│   │   │   └── registry.py                 # Solver registration utility
+│   │   └── utils/
+│   │       └── models.py                   # Pydantic data models (Request/Response)
+│   └── tests/                              # Pytest suite
+│       ├── solvers/                        # Unit and integration tests for solvers
+│       └── test_data_sets/                 # KML and CSV data for testing
+├── Dockerfile                              # Multi-stage build using uv
+├── pyproject.toml                          # Project metadata and dependencies
+├── server.py                               # FastAPI entry point
+└── uv.lock                                 # Lockfile for reproducible environments
 ```
 
----
+## Setup & Run
 
-## Core Architecture
+### Prerequisites
 
-### 1. Data Models (`models.py`)
+- [uv](https://github.com/astral-sh/uv) installed on your system.
+- Python 3.13 (uv can manage this for you).
 
-Built on Pydantic, these models ensure type safety and structured communication:
+### Installation
 
-- **`SolverRequest`**: Captures input points (latitude/longitude), cost parameters, and solver-specific parameters.
-- **`Node`**: A unified representation of every point in the network, categorized as a `source`, `terminal`, or `pole`.
-- **`OutputEdge`**: Represents a connection between two nodes, including metadata for length and voltage levels.
-- **`SolverResult`**: The final output containing the network topology, total solver, and optional debug metrics.
-- **`Solvers`**: A registry of available optimization strategies made availiable to the front end.
+```bash
+# Clone the repository and navigate to the backend directory
+cd backend
 
-### 2. Base Solver (`base_mini_grid_solver.py`)
+# Install dependencies and create a virtual environment
+uv sync
+```
 
-The `BaseMiniGridSolver` is an abstract base class that provides essential utilities for all optimization algorithms:
+### Running the Server
 
-- **Geographical Calculations**: Implements the Haversine formula to calculate great-circle distances in meters.
-- **Input Canonicalization**: Automatically identifies power sources via keyword detection (e.g., "substation", "generator") and standardizes point names.
-- **Vectorized Math**: Uses NumPy-based `haversine_vec` to compute distance matrices efficiently.
-- **`_solve` method**: The abstract method that must be implemented by all child classes and does the main computation.
+```bash
+# Using uv to run the server with uvicorn
+uv run uvicorn server:app --reload
+```
 
-### 3. Registry Pattern (`registry.py`)
+The API will be available at `http://localhost:8000`. You can access the interactive documentation at `http://localhost:8000/docs`.
 
-Solvers are decoupled from the main execution logic through a central `SOLVER_REGISTRY`. This allows developers to add new algorithms by simply applying the `@register_solver` decorator.
+### Running with Docker
 
----
+```bash
+docker build -t mini-grid-backend .
+docker run -p 8000:8000 mini-grid-backend
+```
 
-## Available Solvers
+## Scripts
 
-| Solver                        | Strategy                      | Key Features                                                                                                                |
-| :---------------------------- | :---------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
-| **`SimpleMSTSolver`**         | Baseline MST                  | Computes a standard Minimum Spanning Tree using only original points; useful as a lower-bound reference.                    |
-| **`SteinerizedMSTSolver`**    | MST + Fragmentation           | Builds an MST and inserts intermediate poles along any edge exceeding a maximum span (e.g., 30m).                           |
-| **`GreedyIterSteinerSolver`** | Greedy Iteration              | Iteratively adds candidate poles from Voronoi, Fermat, collinear, and projection sets to find the most cost-effective tree. |
+- **`uv run uvicorn server:app`**: Starts the FastAPI development server.
+- **`pytest`**: Runs the test suite.
 
----
+## Environment Variables
 
----
+Currently, the application uses default configurations. TODO: Add documentation for any upcoming environment variables (e.g., `DATABASE_URL`, `CORS_ORIGINS`).
 
-# Future Development
+## API Endpoints
 
-## Voltage Support & Expansion
+- `POST /solve`: Computes a solution using a specified solver.
+- `POST /local_optimization`: Applies local search optimization to an existing layout.
+- `GET /solvers`: Returns a list of available solvers and their parameters.
 
-### Current Low Voltage (LV) Implementation
+## Tests
 
-The library currently prioritizes low-voltage distribution for local micro-grids:
+The project uses `pytest` for testing. Tests include validation against ground truth data from KML files.
 
-- **Default Classification**: All solvers currently default to assigning a `"low"` voltage type to every edge.
-- **Costing**: Financial estimates primarily utilize the `lowVoltageCostPerMeter` parameter provided in the `SolverRequest`.
-- **Physical Constraints**: Edge fragmentation and candidate generation are tuned to typical LV span limits, such as a 30-meter maximum length.
-- **Metric Reporting**: The `totalHighVoltageMeters` field is initialized but generally returns `0.0` in the current iteration of the solvers.
+```bash
+# Run all tests
+uv run pytest
 
-### Expanding to High Voltage (HV) Support
+# Run specific solver tests
+uv run pytest mini_grid_solver/tests/solvers/test_solvers.py
+```
 
-The architecture is designed to be "HV-ready" and can be expanded using the following strategies:
+## Solvers
 
-- **Dual-Voltage Models**: The `OutputEdge` and `SolverResult` models already support a `"high"` voltage literal and separate cost tracking fields.
-- **Trunk vs. Branch Logic**:
-  - You can modify the `_build_edges_and_lengths` method to identify "trunk" lines.
-  - Assign `"high"` voltage to edges directly connected to the source or to nodes serving more than a certain number of downstream terminals.
-- **Distance-Based Upgrading**:
-  - Update `build_directed_graph_for_arborescence` to evaluate both LV and HV weights for the same edge.
-  - Higher voltage solver can be applied to long-distance spans where voltage drop across LV lines would be prohibitive.
-- **Transformer Node Insertion**:
-  - New node types can be added to the `Node` model to represent transformers where the network transitions from high to low voltage.
-  -
+| Solver | Description |
+| :--- | :--- |
+| **`SimpleMSTSolver`** | Computes a standard Minimum Spanning Tree; used as a baseline. |
+| **`GreedyIterSteinerSolver`** | Iteratively adds candidate poles to reduce total cost. |
+| **`DiskBasedSteinerSolver`** | Uses a minimum disk cover approach to group terminals before Steiner optimization. |
+| **`LocalOptimization`** | Refines existing topologies using gradient-descent-like local moves. |
 
-### Expand Scope of Approximate Solvers:
+## License
 
-Potential future improvements include:
-
-- Genetic algorithms for global optimization.
-- Local search techniques
-- Zelikovsky-style relative greedy
-- Concatenation heuristics (Zachariasen & Winter, 1999)
-- Arora's PTAS
-- Mitchell's guillotine subdivisions
-- Ant Colony Optimization / Particle Swarms
-- Neural-guided Steiner tree
+MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-## Getting started
+## Future Development (TODO)
 
-- Create a new class that inherits from `BaseMiniGridSolver`
-- Implement the abstract methods
-- Register your solver using the `@register_solver` decorator
+- [ ] Add High Voltage (HV) distribution support.
+- [ ] Implement Genetic Algorithms for global optimization.
+- [ ] Add support for voltage drop constraints in costing.
+- [ ] Integrate with external GIS data providers.
