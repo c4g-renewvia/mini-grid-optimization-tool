@@ -27,15 +27,15 @@ export default function MapControls({
 }: MapControlsProps) {
   return (
     <div
-      className={`fixed bottom-5 left-4 z-50 flex flex-col gap-3 transition-all duration-300 md:right-40 md:bottom-5 md:left-auto md:flex-row md:items-center ${
-        sidebarOpen ? 'hidden md:flex' : 'flex'
+      className={`fixed bottom-4 left-4 z-50 grid w-[calc(100vw-2rem)] grid-cols-2 gap-2 transition-all duration-300 md:right-40 md:bottom-5 md:left-auto md:w-auto md:grid-cols-none md:flex md:flex-row md:items-center ${
+        sidebarOpen ? 'hidden md:flex' : 'grid md:flex'
       }`}
     >
       {/* Local Optimize Button - Blue (now LEFTMOST) */}
       <button
         onClick={onLocalOptimize}
         disabled={!hasData || isOptimizing}
-        className='flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-6 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-blue-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto'
+        className='flex w-full items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-3 py-2 text-[11px] font-medium text-white shadow-2xl transition-all hover:bg-blue-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:px-6 md:py-3 md:text-sm md:gap-2 md:w-auto'
         title='Run local optimization to fine-tune pole positions'
       >
         {isOptimizing ? (
@@ -92,7 +92,7 @@ export default function MapControls({
       <button
         onClick={onUndo}
         disabled={!canUndo}
-        className='flex w-full items-center justify-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto'
+        className='flex w-full items-center justify-center gap-1.5 rounded-2xl bg-amber-600 px-3 py-2 text-[11px] font-medium text-white shadow-2xl transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:px-5 md:py-3 md:text-sm md:gap-2 md:w-auto'
         title='Undo (Ctrl/Cmd + Z)'
       >
         <svg
@@ -116,7 +116,7 @@ export default function MapControls({
       <button
         onClick={onRedo}
         disabled={!canRedo}
-        className='flex w-full items-center justify-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto'
+        className='flex w-full items-center justify-center gap-1.5 rounded-2xl bg-amber-600 px-3 py-2 text-[11px] font-medium text-white shadow-2xl transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:px-5 md:py-3 md:text-sm md:gap-2 md:w-auto'
         title='Redo (Ctrl/Cmd + Shift + Z)'
       >
         <svg
@@ -140,7 +140,7 @@ export default function MapControls({
       <button
         onClick={onReset}
         disabled={!hasData}
-        className='flex w-full items-center justify-center gap-2 rounded-full bg-red-600 px-6 py-3 text-sm font-medium text-white shadow-2xl transition-all hover:bg-red-500 active:scale-95 disabled:opacity-50 md:w-auto dark:text-white'
+        className='flex w-full items-center justify-center gap-1.5 rounded-2xl bg-red-600 px-3 py-2 text-[11px] font-medium text-white shadow-2xl transition-all hover:bg-red-500 active:scale-95 disabled:opacity-50 md:px-6 md:py-3 md:text-sm md:gap-2 md:w-auto dark:text-white'
         title='Reset everything'
       >
         <svg
