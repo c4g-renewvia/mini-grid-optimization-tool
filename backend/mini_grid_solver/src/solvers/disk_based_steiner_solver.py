@@ -429,24 +429,36 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         selected_centers = []
 
         while np.any(uncovered_mask):
-            coverage_counts = np.sum(covers[:, uncovered_mask], axis=1)
-            max_count = np.max(coverage_counts)
+            # Primary score: number of NEW uncovered terminals covered
+            new_coverage_counts = np.sum(covers[:, uncovered_mask], axis=1)
+            max_new = np.max(new_coverage_counts)
 
-            if max_count <= 0:
+            if max_new <= 0:
                 break
 
-            # Get all candidates that achieve the max count
-            best_candidates_idx = np.where(coverage_counts == max_count)[0]
+            best_candidates_idx = np.where(new_coverage_counts == max_new)[0]
 
             if len(best_candidates_idx) == 1:
                 chosen_idx = best_candidates_idx[0]
             else:
-                # Tie-breaker: prefer the candidate closest to the source
-                dists_to_source = self.haversine_vec(
-                    candidates[best_candidates_idx],
-                    np.array([source_coord])
-                ).flatten()
-                chosen_idx = best_candidates_idx[np.argmin(dists_to_source)]
+                # Secondary tie-breaker: minimize coverage of ALREADY covered terminals
+                already_mask = ~uncovered_mask
+                if np.any(already_mask):
+                    overlap_counts = np.sum(
+                        covers[best_candidates_idx][:, already_mask], axis=1
+                    )
+                    min_overlap = np.min(overlap_counts)
+                    best_candidates_idx = best_candidates_idx[overlap_counts == min_overlap]
+
+                # Tertiary tie-breaker: closest to source
+                if len(best_candidates_idx) > 1:
+                    dists_to_source = self.haversine_vec(
+                        candidates[best_candidates_idx],
+                        np.array([source_coord])
+                    ).flatten()
+                    chosen_idx = best_candidates_idx[np.argmin(dists_to_source)]
+                else:
+                    chosen_idx = best_candidates_idx[0]
 
             best_center = candidates[chosen_idx].copy()
             selected_centers.append(best_center)
@@ -464,7 +476,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                 )
 
             if self.request.debug >= 2:
-                print(f"    Selected center {chosen_idx} → covers {max_count} new terminals "
+                print(f"    Selected center {chosen_idx} → covers {max_new} new terminals "
                       f"({np.sum(uncovered_mask)} remaining)")
 
         selected_centers = np.array(selected_centers)
@@ -702,8 +714,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         disk_edges = self._generate_disk_graph_edges(full_nodes)
 
-        #
-        # DG = self.build_directed_graph_for_arborescence(full_nodes)
         DG = self.build_graph_from_nodes_or_edges(nodes=full_nodes, edges=disk_edges, directed=True)
 
         if self.request.debug >= 1:
