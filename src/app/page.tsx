@@ -214,6 +214,7 @@ export default function MiniGridToolPage() {
       pointCount: 0,
       grandTotal: 0,
     },
+    solverOriginalCost: 0,
   });
 
   // 1. Add this near your other refs
@@ -221,6 +222,7 @@ export default function MiniGridToolPage() {
     miniGridNodes,
     miniGridEdges,
     costBreakdown,
+    solverOriginalCost,
     lowVoltageCost,
     highVoltageCost,
     saveState,
@@ -232,6 +234,7 @@ export default function MiniGridToolPage() {
       miniGridNodes,
       miniGridEdges,
       costBreakdown,
+      solverOriginalCost, // ← NEW
       lowVoltageCost,
       highVoltageCost,
       saveState,
@@ -240,6 +243,7 @@ export default function MiniGridToolPage() {
     miniGridNodes,
     miniGridEdges,
     costBreakdown,
+    solverOriginalCost, // ← NEW
     lowVoltageCost,
     highVoltageCost,
     saveState,
@@ -250,6 +254,7 @@ export default function MiniGridToolPage() {
     miniGridNodes,
     miniGridEdges,
     costBreakdown,
+    solverOriginalCost, // ← NEW
     ...overrides,
   });
 
@@ -276,6 +281,7 @@ export default function MiniGridToolPage() {
               setMiniGridNodes(s.miniGridNodes);
               setMiniGridEdges(s.miniGridEdges);
               setCostBreakdown(s.costBreakdown);
+              setSolverOriginalCost(s.solverOriginalCost ?? 0);
             }
           }
         } else {
@@ -286,6 +292,7 @@ export default function MiniGridToolPage() {
               setMiniGridNodes(s.miniGridNodes);
               setMiniGridEdges(s.miniGridEdges);
               setCostBreakdown(s.costBreakdown);
+              setSolverOriginalCost(s.solverOriginalCost ?? 0);
             }
           }
         }
@@ -363,6 +370,7 @@ export default function MiniGridToolPage() {
         miniGridNodes: updatedNodes,
         miniGridEdges: updatedEdges,
         costBreakdown: current.costBreakdown, // You may want to trigger a cost recalc here
+        solverOriginalCost: current.solverOriginalCost,
       });
 
       // Find the point we're about to delete (so we know if it's a pole)
@@ -445,6 +453,7 @@ export default function MiniGridToolPage() {
       miniGridNodes: current.miniGridNodes,
       miniGridEdges: updatedEdges,
       costBreakdown: newCostBreakdown,
+      solverOriginalCost: current.solverOriginalCost,
     });
   }, []); // no extra deps needed — everything comes from the live ref
 
@@ -787,6 +796,7 @@ export default function MiniGridToolPage() {
           miniGridNodes: updatedNodes,
           miniGridEdges: updatedEdges,
           costBreakdown: current.costBreakdown,
+          solverOriginalCost: current.solverOriginalCost,
         });
 
         markerDragRef.current = null;
@@ -1552,6 +1562,7 @@ export default function MiniGridToolPage() {
             miniGridNodes: validNodes,
             miniGridEdges: parsed.edges,
             costBreakdown: newCostBreakdown,
+            solverOriginalCost: newCostBreakdown.grandTotal,
           });
         } catch (err) {
           setError('Error parsing KML file.');
@@ -1650,6 +1661,7 @@ export default function MiniGridToolPage() {
                   pointCount: 0,
                   grandTotal: 0,
                 },
+                solverOriginalCost: 0,
               });
             }
           } catch (err) {
@@ -1763,6 +1775,7 @@ export default function MiniGridToolPage() {
         pointCount: 0,
         grandTotal: 0,
       },
+      solverOriginalCost: 0,
     };
 
     // Now update the UI
@@ -1917,6 +1930,7 @@ export default function MiniGridToolPage() {
         miniGridNodes: newMiniGridNodes,
         miniGridEdges: newMiniGridEdges,
         costBreakdown: newCostBreakdown,
+        solverOriginalCost: captureState().solverOriginalCost, // keep original cost for comparison
       });
     } catch (err: unknown) {
       const message =
@@ -2067,15 +2081,17 @@ export default function MiniGridToolPage() {
       setMiniGridNodes(newMiniGridNodes);
       setMiniGridEdges(newMiniGridEdges);
       setCostBreakdown(newCostBreakdown);
+      setSolverOriginalCost(totalCostEstimate);
 
       // Save the CORRECT solved state to history
       saveState({
         miniGridNodes: newMiniGridNodes,
         miniGridEdges: newMiniGridEdges,
         costBreakdown: newCostBreakdown,
+        solverOriginalCost: totalCostEstimate,
       });
 
-      setSolverOriginalCost(totalCostEstimate);
+
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to run solver';
@@ -2348,12 +2364,14 @@ export default function MiniGridToolPage() {
       miniGridNodes: run.miniGridNodes || [],
       miniGridEdges: run.miniGridEdges || [],
       costBreakdown: run.costBreakdown,
+      solverOriginalCost: run.costBreakdown?.grandTotal || 0,
     };
 
     // 1. Update React State
     setMiniGridNodes(newState.miniGridNodes);
     setMiniGridEdges(newState.miniGridEdges);
     setCostBreakdown(newState.costBreakdown);
+    setSolverOriginalCost(run.costBreakdown?.grandTotal || 0);
 
     // 2. IMPORTANT: If your useMiniGridHistory hook has a 'reset' or 'clear' method,
     // use it here. Otherwise, pushing a new state via saveState()

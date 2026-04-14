@@ -10,6 +10,7 @@ interface HistoryState {
   miniGridNodes: MiniGridNode[];
   miniGridEdges: MiniGridEdge[];
   costBreakdown: CostBreakdown;
+  solverOriginalCost: number;
 }
 
 export function useMiniGridHistory(
