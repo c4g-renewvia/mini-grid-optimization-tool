@@ -68,13 +68,47 @@ You can start editing the page by modifying `src/app/page.tsx`. The page auto-up
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Manual Updates after cloning the template (by C4G staff)
 
-1. Replace `template` in many files to your project name.
-2. Setup oauth settings in [GCP](https://console.cloud.google.com/apis/credentials?project=c4g-template)
-3. Setup nginx configuration, and re-run SSL cert on [C4G Server](https://c4g.dev).
-4. Generate VAPID keys for PWA setup [Generator](https://vapidkeys.com/)
-5. Generate RESEND key [Resend](https://resend.com/emails)
+## Running the Tool Locally with Docker
+
+### Requirements
+
+- Docker
+- .env file (ask TA for the file)
+
+1. Clone the Mini-Grid Optimization Tool Repository
+
+```bash
+git clone https://github.com/c4g-renewvia/mini-grid-optimization-tool.git
+```
+
+2. Navigate into the directory
+
+```bash
+cd mini-grid-optimization-tool
+```
+
+3. Validate the .env file is setup. The following API Keys must be present:
+
+- [AUTH_GOOGLE_ID](https://console.cloud.google.com/apis/credentials?project=c4g-template)
+- [AUTH_GOOGLE_SECRET](https://console.cloud.google.com/apis/credentials?project=c4g-template)
+- [NEXT_PUBLIC_GOOGLE_MAPS_API_KEY](https://console.cloud.google.com/apis/credentials?project=c4g-template)
+- [NEXT_PUBLIC_VAPID_PUBLIC_KEY](https://knock.app/tools/vapid-key-generator)
+- [VAPID_PRIVATE_KEY](https://knock.app/tools/vapid-key-generator)
+
+3. Docker Compose to start the application locally
+
+```bash
+docker compose --profile local up -d --remove-orphans --build
+```
+
+4. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+**Alternative**: Use the `make` ([Windows](https://gnuwin32.sourceforge.net/packages/make.htm) | [Linux](https://www.gnu.org/software/make/#download)) build tool to validate the .env file is setup and open the necessary web pages to retrieve the required keys if missing. Will also build the Docker images and start the application locally:
+
+```bash
+make
+```
 
 ## Technologies Used
 
@@ -97,4 +131,3 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - [Ag-Grid](https://www.ag-grid.com/) - grid / table component
 - [Resend](https://resend.com) - emails
 
-If you want to contribute to this template for future projects please work with the teaching staff. We welcome any technologies that could benefit the partners and speed to delivery for features.
