@@ -1,12 +1,12 @@
 import math
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib.patches import Ellipse
 
-from utils.models import Edge, Node, get_node_coord_tuple
+from ..utils.models import Edge, Node
 from .candidate_generation import CandidateGeneration
 from .registry import register_solver
 
@@ -362,7 +362,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         return points
 
-    def _minimum_disk_cover(self, term_coords: np.ndarray, R: float) -> tuple[np.ndarray, list]:
+    def _minimum_disk_cover(self, term_coords: np.ndarray, R: float) -> Tuple[np.ndarray, list]:
         """
         Computes a minimum disk cover for a given set of terminal coordinates, based on a specified disk radius.
 
