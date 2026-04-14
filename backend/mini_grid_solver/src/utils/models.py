@@ -74,7 +74,7 @@ class SolverRequest(BaseModel):
     params: Dict[str, Any] = {}
     nodes: List[Node]
     edges: List[Edge] = []
-    voltageLevel: str = "low"
+    voltageLevel: Literal["low", "high"] = "low"
     lengthConstraints: LengthConstraints
     costs: Costs
     usePoles: bool = True

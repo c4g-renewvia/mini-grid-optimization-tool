@@ -247,7 +247,7 @@ def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes,
         nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=0,
+        debug=2,
     )
 
     result = solver_class(req).solve()

@@ -329,6 +329,26 @@ class BaseMiniGridSolver(ABC):
 
     # ─── Helpful common utilities (can be used or overridden) ────────────────
     def _build_nodes(self, coords, candidates, names):
+        """
+        Builds a list of Node objects based on the input coordinates, node names,
+        and candidate poles.
+
+        Args:
+            coords: numpy.ndarray
+                A 2D array containing latitude and longitude coordinates of original
+                nodes. Each row corresponds to a node, where the first column is the
+                latitude and the second is the longitude.
+            candidates: list[tuple[float, float]]
+                A list of tuples, where each tuple contains the latitude and longitude
+                of candidate pole nodes.
+            names: list[str]
+                A list of names corresponding to the original nodes.
+
+        Returns:
+            list[Node]:
+                A list of Node objects created based on the provided input, where each
+                node has its index, coordinates, type, and name assigned.
+        """
         nodes = []
         n_orig = len(coords)
 
@@ -412,7 +432,7 @@ class BaseMiniGridSolver(ABC):
         self._pole_indices = pole_indices
 
         # Build a graph of given nodes or edges
-        self.build_graph_from_nodes_or_edges()
+        self._graph = self.build_graph_from_nodes_or_edges(self._nodes, self._edges)
 
         # You can add more validation / normalization here if desired
         if len(self._coords) < 2:
@@ -495,18 +515,98 @@ class BaseMiniGridSolver(ABC):
 
         return total + violation_penalty
 
-    def build_graph_from_nodes_or_edges(self):
+    def _compute_coords_hash(self, coords: np.ndarray) -> str:
+        """
+        Computes a hash representing the provided coordinates array.
 
-        G = nx.Graph()
-        for node in self._nodes:
+        The method rounds the given coordinates to six decimal places to ensure
+        a meter-level precision and creates a hash from the rounded values. The
+        resulting hash is represented as a string.
+
+        Parameters:
+        coords : np.ndarray
+            A NumPy array containing coordinate values to be hashed.
+
+        Returns:
+        str
+            A hash represented as a string that corresponds to the input
+            coordinates after rounding.
+        """
+        # Round to 6 decimals (meter-level precision) and hash
+        rounded = np.round(coords, decimals=6)
+        return str(rounded.tobytes())
+
+
+    def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """
+        Computes and caches a distance matrix for a set of coordinates.
+
+        This method calculates the pairwise distances between all points in a given
+        set of coordinates using the Haversine formula. The distance matrix is cached
+        to optimize performance, and it is recomputed only if the input coordinates
+        change or if no valid cache is available.
+
+        Parameters:
+        coords (np.ndarray): A 2D numpy array where each row represents the latitude
+        and longitude of a point.
+
+        Returns:
+        np.ndarray: A 2D numpy array containing the pairwise distances between all
+        points in the input coordinates.
+
+        Raises:
+        ValueError: If the input coordinates are invalid or improperly formatted.
+        """
+        if coords is None or len(coords) == 0:
+            return np.zeros((0, 0))
+
+        current_hash = self._compute_coords_hash(coords)
+
+        # Recompute only if cache is missing or points changed
+        if (self._dist_matrix is None or
+                self._cached_coords_hash != current_hash or
+                self._dist_matrix.shape[0] != len(coords)):
+
+            if self.request.debug >= 2:
+                print(f"Recomputing distance matrix for {len(coords)} points")
+
+            self._dist_matrix = self.haversine_vec(coords, coords)  # vectorized, fast
+            self._cached_coords_hash = current_hash
+
+        return self._dist_matrix
+
+    def build_graph_from_nodes_or_edges(self, nodes, edges, directed=False) -> Union[nx.DiGraph, nx.Graph]:
+        """
+        Builds a graph representation from a given set of nodes and edges or calculates
+        edges dynamically based on coordinates and a distance matrix if edges are not
+        provided.
+
+        This method creates a NetworkX graph object. Nodes in the graph are initialized
+        with metadata such as name, type, latitude, and longitude, while edges are
+        either provided explicitly or computed dynamically. When edges are computed,
+        their weights and other attributes are derived from distances and specific
+        cost calculations.
+
+        Args:
+            nodes (list[Node]): List of Node objects representing the graph's nodes.
+                Node objects must have attributes such as `index`, `name`, `type`,
+                `lat`, and `lng`.
+            edges (list[Edge] or None): List of Edge objects representing the graph's
+                edges, or None to compute edges dynamically. Edge objects must have
+                attributes such as `start.index`, `end.index`, and `lengthMeters`.
+        """
+        G = nx.DiGraph() if directed else nx.Graph()
+        for node in nodes:
             G.add_node(node.index)
             G.nodes[node.index]["name"] = node.name
             G.nodes[node.index]["type"] = node.type
             G.nodes[node.index]["lat"] = node.lat
             G.nodes[node.index]["lng"] = node.lng
 
-        if self._edges is None or len(self._edges) == 0:
-            dist_matrix = self.compute_distance_matrix(self._coords)
+        coords = np.array([get_node_coord_tuple(n) for n in nodes])
+
+        if edges is None or len(edges) == 0:
+            dist_matrix = self.compute_distance_matrix(coords)
             for i in G.nodes:
                 for j in G.nodes:
                     G.add_edge(i, j)
@@ -518,14 +618,14 @@ class BaseMiniGridSolver(ABC):
                     G.edges[i, j]["length"] = d
                     G.edges[i, j]["voltage"] = self.request.voltageLevel
         else:
-            for edge in self._edges:
+            for edge in edges:
                 start, end = edge.start.index, edge.end.index
                 G.add_edge(start, end)
                 G.edges[start, end]["weight"] = self.calc_edge_weight(edge.lengthMeters, to_terminal=(end in self._terminal_indices))
                 G.edges[start, end]["length"] = edge.lengthMeters
                 G.edges[start, end]["voltage"] = self.request.voltageLevel
 
-        self._graph = G
+        return G
 
     def build_directed_graph_for_arborescence(self, nodes) -> nx.DiGraph:
         """

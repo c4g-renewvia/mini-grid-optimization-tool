@@ -6,12 +6,13 @@ import networkx as nx
 import numpy as np
 from matplotlib.patches import Ellipse
 
-from .base_mini_grid_solver import BaseMiniGridSolver
+from utils.models import Edge, Node, get_node_coord_tuple
+from .candidate_generation import CandidateGeneration
 from .registry import register_solver
 
 
 @register_solver
-class DiskBasedSteinerSolver(BaseMiniGridSolver):
+class DiskBasedSteinerSolver(CandidateGeneration):
     """
     This algorithm attempts to solve the Steiner problem using a disk-based approach.
 
@@ -361,7 +362,7 @@ class DiskBasedSteinerSolver(BaseMiniGridSolver):
 
         return points
 
-    def _minimum_disk_cover(self, term_coords: np.ndarray, R: float) -> np.ndarray:
+    def _minimum_disk_cover(self, term_coords: np.ndarray, R: float) -> tuple[np.ndarray, list]:
         """
         Computes a minimum disk cover for a given set of terminal coordinates, based on a specified disk radius.
 
@@ -508,7 +509,143 @@ class DiskBasedSteinerSolver(BaseMiniGridSolver):
                 title=f"FINAL Disk Cover (source-biased) – {n_term} terminals → {len(filtered_centers)} disks (R={R:.1f}m)"
             )
 
-        return filtered_centers
+        if self.request.debug >= 1:
+            print(f"   → Selected {len(filtered_centers)} disk-center poles")
+
+        # ── Step 2: Standard Steiner on source + disk centers ──────────────
+        # We add the disk centers as candidate poles to the original point set.
+        # The base arborescence + prune will automatically:
+        #   • connect terminals to the nearest disk center (service drops)
+        #   • connect the disk centers to the source (with possible extra Steiner poles)
+        if len(filtered_centers) == 0:
+            raise ValueError("No disk centers found.")
+
+        disk_center_pole_coords = filtered_centers.tolist()
+        disk_center_names = ["DiskCenterPole {i + 1}" for i in range(len(disk_center_pole_coords))]
+
+        return disk_center_pole_coords, disk_center_names
+
+    def _generate_disk_graph_edges(self, full_nodes: List[Node]) -> List[Edge]:
+        """
+        Builds ALL required edges using the exact Node objects from full_nodes.
+
+        1. Every terminal connects to its CLOSEST pole (disk center or Fermat pole)
+           → directed: pole → terminal
+
+        2. Full bidirectional mesh on the backbone:
+           • source ↔ every pole
+           • every pole ↔ every other pole
+
+        Uses .model_dump() to satisfy Pydantic v2 strict nested-model validation.
+        """
+        edges: List[Edge] = []
+        if not full_nodes:
+            return edges
+
+        source_idx = self._source_idx
+        terminal_indices = self._terminal_indices
+
+        # Poles start after the original source + terminals
+        n_original = len(self._coords)
+        pole_indices = list(range(n_original, len(full_nodes)))
+
+        if not pole_indices:
+            if self.request.debug >= 1:
+                print("Warning: No poles in full_nodes")
+            return edges
+
+        if self.request.debug >= 1:
+            print(f"_generate_disk_graph_edges: {len(terminal_indices)} terminals → closest pole "
+                  f"+ full bidirectional mesh on source + {len(pole_indices)} poles")
+
+        # Pre-compute pole coordinates once
+        pole_coords = np.array([[full_nodes[i].lat, full_nodes[i].lng] for i in pole_indices])
+
+        # ── 1. Terminals → closest pole (service drops) ─────────────────────
+        for t_idx in terminal_indices:
+            term_node = full_nodes[t_idx]
+            term_coord = np.array([[term_node.lat, term_node.lng]])
+
+            dists = self.haversine_vec(pole_coords, term_coord).flatten()
+            nearest_local_idx = int(np.argmin(dists))
+            nearest_pole_idx = pole_indices[nearest_local_idx]
+            dist = float(dists[nearest_local_idx])
+
+            pole_node = full_nodes[nearest_pole_idx]
+
+            edges.append(Edge(
+                start=pole_node.model_dump(),      # ← Pydantic v2 fix
+                end=term_node.model_dump(),        # ← Pydantic v2 fix
+                lengthMeters=dist,
+                voltage=self.request.voltageLevel
+            ))
+
+        # ── 2. Full bidirectional mesh on backbone (source + all poles) ─────
+        backbone_indices = [source_idx] + pole_indices
+
+        for i in range(len(backbone_indices)):
+            for j in range(i + 1, len(backbone_indices)):
+                u_idx = backbone_indices[i]
+                v_idx = backbone_indices[j]
+
+                u_node = full_nodes[u_idx]
+                v_node = full_nodes[v_idx]
+
+                dist = self.haversine_meters(
+                    u_node.lat, u_node.lng,
+                    v_node.lat, v_node.lng
+                )
+
+                if dist > 0.1:
+                    dump_u = u_node.model_dump()
+                    dump_v = v_node.model_dump()
+
+                    edges.append(Edge(
+                        start=dump_u,
+                        end=dump_v,
+                        lengthMeters=dist,
+                        voltage=self.request.voltageLevel
+                    ))
+                    edges.append(Edge(
+                        start=dump_v,
+                        end=dump_u,
+                        lengthMeters=dist,
+                        voltage=self.request.voltageLevel
+                    ))
+
+        if self.request.debug >= 1:
+            n_term_drops = len(terminal_indices)
+            n_backbone_edges = len(edges) - n_term_drops
+            print(f"→ Generated {len(edges)} edges "
+                  f"({n_term_drops} forced service drops + {n_backbone_edges} backbone edges)")
+
+        return edges
+
+
+    def _generate_fermat_poles(self, term_coords: np.ndarray, disk_center_coords: np.ndarray) -> np.ndarray:
+        """Fermat candidates on the backbone only (source + disk centers)."""
+        if len(disk_center_coords) < 2:
+            return np.empty((0, 2), dtype=float)
+
+        source_coord = self._coords[self._source_idx].reshape(1, 2)
+        backbone = np.vstack([source_coord, disk_center_coords])
+
+        if self.request.debug >= 1:
+            print(f"  Generating Fermat candidates on backbone ({len(backbone)} points)")
+
+        fermat_cands = self.generate_proximity_fermat_candidates(
+            backbone,
+            max_distance=100,
+            max_candidates=50
+        )
+
+        # final safety filter
+        if len(fermat_cands) > 0:
+            existing = np.vstack([disk_center_coords, source_coord])
+            min_dists = np.min(self.haversine_vec(fermat_cands, existing), axis=1)
+            fermat_cands = fermat_cands[min_dists >= 5.0]
+
+        return fermat_cands
 
     def _solve(self) -> nx.DiGraph:
         """
@@ -547,21 +684,15 @@ class DiskBasedSteinerSolver(BaseMiniGridSolver):
         if self.request.debug >= 1:
             print(f"Step 1: Disk cover with R={R:.1f}m for {len(term_coords)} terminals")
 
-        disk_centers = self._minimum_disk_cover(term_coords, R=R)  # returns (k, 2) array
+        # get candidate poles from disk cover algorithm
+        disk_center_pole_coords, disk_center_names = self._minimum_disk_cover(term_coords, R=R)  # returns (k, 2) array
 
-        if self.request.debug >= 1:
-            print(f"   → Selected {len(disk_centers)} disk-center poles")
+        # generate fermat candidates
+        fermat_pole_coords = self._generate_fermat_poles(term_coords, disk_center_pole_coords)
+        fermat_pole_names = [f"FermatPole {i + 1}" for i in range(len(fermat_pole_coords))]
 
-        # ── Step 2: Standard Steiner on source + disk centers ──────────────
-        # We add the disk centers as candidate poles to the original point set.
-        # The base arborescence + prune will automatically:
-        #   • connect terminals to the nearest disk center (service drops)
-        #   • connect the disk centers to the source (with possible extra Steiner poles)
-        if len(disk_centers) == 0:
-            raise ValueError("No disk centers found.")
-
-        candidate_poles = disk_centers.tolist()
-        candidate_names = [f"DiskCenterPole {i + 1}" for i in range(len(candidate_poles))]
+        candidate_poles = np.vstack([disk_center_pole_coords, fermat_pole_coords])
+        candidate_names = disk_center_names + fermat_pole_names
 
         full_nodes = self._build_nodes(
             coords,  # original source + terminals
@@ -569,7 +700,12 @@ class DiskBasedSteinerSolver(BaseMiniGridSolver):
             self._names + candidate_names
         )
 
-        DG = self.build_directed_graph_for_arborescence(full_nodes)
+        disk_edges = self._generate_disk_graph_edges(full_nodes)
+
+        #
+        # DG = self.build_directed_graph_for_arborescence(full_nodes)
+        DG = self.build_graph_from_nodes_or_edges(nodes=full_nodes, edges=disk_edges, directed=True)
+
         if self.request.debug >= 1:
             self._plot_current_graph(DG, added_points=None, title="DG")
         arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
@@ -582,7 +718,7 @@ class DiskBasedSteinerSolver(BaseMiniGridSolver):
         if self.request.debug >= 1:
             self._plot_current_graph(steinerized_graph, added_points=None, title="steinerized_graph")
 
-        # ── Step 3: Post-solve gradient descent + cleanup
+        # ── Step 4: Post-solve gradient descent + cleanup
         final_graph = self._post_solver_local_opt(steinerized_graph)
 
         if self.request.debug >= 1:
