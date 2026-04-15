@@ -1941,7 +1941,7 @@ export default function MiniGridToolPage() {
     setCalcError(null);
 
     const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_LOCAL_OPT_URL ||
       'http://localhost:8000/local_optimization';
 
     try {
