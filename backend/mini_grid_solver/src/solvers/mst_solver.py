@@ -46,7 +46,7 @@ class SimpleMSTSolver(BaseMiniGridSolver):
     def _solve(self) -> Union[nx.DiGraph, List[Node]]:
 
         if len(self._pole_indices) > 0:
-            DG = self.build_graph_from_nodes_or_edges(self._nodes, directed=True)
+            DG = self.build_graph_from_nodes(self._nodes, directed=True)
             arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
             mst = self.prune_dead_end_pole_branches(arbo_graph)
 

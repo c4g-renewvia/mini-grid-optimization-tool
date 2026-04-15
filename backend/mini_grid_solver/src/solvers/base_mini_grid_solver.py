@@ -182,7 +182,6 @@ class BaseMiniGridSolver(ABC):
         else:
             return self.request.costs.highVoltageCostPerMeter
 
-
     @staticmethod
     def _plot_current_graph(graph, added_points=None, title="Current tree after candidate addition", filename=None):
         fig, ax = plt.subplots(figsize=(10, 8))
@@ -328,6 +327,19 @@ class BaseMiniGridSolver(ABC):
         return self.build_solver_result(graph)
 
     # ─── Helpful common utilities (can be used or overridden) ────────────────
+    def reindex_nodes(self, nodes):
+        new_nodes = []
+        for i, node in enumerate(nodes):
+            new_nodes.append(Node(
+                index=i,
+                lat=node.lat,
+                lng=node.lng,
+                name=node.name,
+                type=node.type,
+            ))
+
+        return new_nodes
+
     def _build_nodes(self, coords, candidates, names):
         """
         Builds a list of Node objects based on the input coordinates, node names,
@@ -432,7 +444,7 @@ class BaseMiniGridSolver(ABC):
         self._pole_indices = pole_indices
 
         # Build a graph of given nodes or edges
-        self._graph = self.build_graph_from_nodes_or_edges(self._nodes, self._edges)
+        self._graph = self.build_graph_from_nodes(self._nodes)
 
         # You can add more validation / normalization here if desired
         if len(self._coords) < 2:
@@ -536,7 +548,6 @@ class BaseMiniGridSolver(ABC):
         rounded = np.round(coords, decimals=6)
         return str(rounded.tobytes())
 
-
     def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
         """
         Computes and caches a distance matrix for a set of coordinates.
@@ -575,7 +586,7 @@ class BaseMiniGridSolver(ABC):
 
         return self._dist_matrix
 
-    def build_graph_from_nodes_or_edges(self, nodes, edges=None, directed=False) -> Union[nx.DiGraph, nx.Graph]:
+    def build_graph_from_nodes(self, nodes, edges=None, directed=False) -> Union[nx.DiGraph, nx.Graph]:
         """
         Builds a graph representation from a given set of nodes and edges or calculates
         edges dynamically based on coordinates and a distance matrix if edges are not
@@ -591,11 +602,9 @@ class BaseMiniGridSolver(ABC):
             nodes (list[Node]): List of Node objects representing the graph's nodes.
                 Node objects must have attributes such as `index`, `name`, `type`,
                 `lat`, and `lng`.
-            edges (list[Edge] or None): List of Edge objects representing the graph's
-                edges, or None to compute edges dynamically. Edge objects must have
-                attributes such as `start.index`, `end.index`, and `lengthMeters`.
         """
         G = nx.DiGraph() if directed else nx.Graph()
+        nodes = self.reindex_nodes(nodes)
         for node in nodes:
             G.add_node(node.index)
             G.nodes[node.index]["name"] = node.name
@@ -605,23 +614,34 @@ class BaseMiniGridSolver(ABC):
 
         coords = np.array([get_node_coord_tuple(n) for n in nodes])
 
-        if edges is None or len(edges) == 0:
-            dist_matrix = self.compute_distance_matrix(coords)
+        dist_matrix = self.compute_distance_matrix(coords)
+        if edges is None:
             for i in G.nodes:
+                i_type = G.nodes[i]["type"]
                 for j in G.nodes:
-                    G.add_edge(i, j)
-                    d = dist_matrix[i, j]
-                    weight = self.calc_edge_weight(d, to_terminal=(j in self._terminal_indices))
-                    G.edges[i, j]["weight"] = weight
-                    G.edges[i, j]["length"] = d
-                    G.edges[i, j]["voltage"] = self.request.voltageLevel
+                    if i == j:
+                        continue
+                    j_type = G.nodes[j]["type"]
+
+                    if ((i_type == "source" and j_type == "pole") or
+                            (i_type == "pole" and j_type == "pole") or
+                            (i_type == "pole" and j_type == "terminal")):
+                        G.add_edge(i, j)
+                        d = dist_matrix[i, j]
+                        weight = self.calc_edge_weight(d, to_terminal=(j in self._terminal_indices))
+                        G.edges[i, j]["weight"] = weight
+                        G.edges[i, j]["length"] = d
+                        G.edges[i, j]["voltage"] = self.request.voltageLevel
+
         else:
             for edge in edges:
-                start, end = edge.start.index, edge.end.index
-                G.add_edge(start, end)
-                G.edges[start, end]["weight"] = self.calc_edge_weight(edge.lengthMeters, to_terminal=(end in self._terminal_indices))
-                G.edges[start, end]["length"] = edge.lengthMeters
-                G.edges[start, end]["voltage"] = self.request.voltageLevel
+                start, end = edge.start, edge.end
+                i, j = start.index, end.index
+                G.add_edge(i, j)
+                G.edges[i, j]["weight"] = self.calc_edge_weight(edge.lengthMeters, to_terminal=(j in self._terminal_indices))
+                G.edges[i, j]["length"] = edge.lengthMeters
+                G.edges[i, j]["voltage"] = self.request.voltageLevel
+
 
         return G
 
@@ -842,7 +862,7 @@ class BaseMiniGridSolver(ABC):
             min_len = self.get_min_pole_to_term()
             max_len = self.get_max_pole_to_term()
         else:
-            min_len = 1.0          # pole-pole almost never has a meaningful min
+            min_len = 1.0  # pole-pole almost never has a meaningful min
             max_len = self.get_max_pole_to_pole()
 
         penalty = 0.0
@@ -850,12 +870,12 @@ class BaseMiniGridSolver(ABC):
         # Too short
         if length < min_len - 0.01:
             violation = min_len - length
-            penalty += 500 * violation ** 2          # quadratic, grows quickly
+            penalty += 500 * violation ** 2  # quadratic, grows quickly
 
         # Too long
         if length > max_len + 0.01:
             violation = length - max_len
-            penalty += 2000 * violation ** 2         # stronger penalty for safety
+            penalty += 2000 * violation ** 2  # stronger penalty for safety
 
         return penalty
 
@@ -1080,9 +1100,9 @@ class BaseMiniGridSolver(ABC):
         graph = graph.copy()
 
         one_meter_deg = 1.0 / 111111.0
-        max_step_meters = 8.0          # increased a bit for more exploration
+        max_step_meters = 8.0  # increased a bit for more exploration
         max_iterations = 30
-        grad_eps_m = 0.8               # slightly larger finite-difference step
+        grad_eps_m = 0.8  # slightly larger finite-difference step
         eps_deg = grad_eps_m * one_meter_deg
 
         if self.request.debug >= 1:
@@ -1114,7 +1134,8 @@ class BaseMiniGridSolver(ABC):
                     # Add soft penalty for any constraint violations on incident edges
                     penalty = 0.0
                     if isinstance(graph, nx.DiGraph):
-                        incident = list(graph.in_edges(node_idx, data=True)) + list(graph.out_edges(node_idx, data=True))
+                        incident = list(graph.in_edges(node_idx, data=True)) + list(
+                            graph.out_edges(node_idx, data=True))
                     else:
                         incident = list(graph.edges(node_idx, data=True))
 

@@ -17,6 +17,8 @@ import AddPointDialog from '@/components/minigrid-tool/define-markers/AddPointDi
 import DefineMarkersSection from '@/components/minigrid-tool/define-markers/DefineMarkersSection';
 
 import CostsAndSolverSection from '@/components/minigrid-tool/costs-solver/CostsAndSolverSection';
+import CostsSection from '@/components/minigrid-tool/costs-solver/CostsSection';
+import SolverSection from '@/components/minigrid-tool/costs-solver/SolverSection';
 
 import ExportAndSummarySection from '@/components/minigrid-tool/export-summary/ExportAndSummarySection';
 
@@ -151,10 +153,19 @@ export default function MiniGridToolPage() {
     Record<string, boolean>
   >({
     markers: false,
-    solver_cost: false,
+    costs: false,           // ← default open
+    solver: false,         // ← new
     export: false,
     savedGrids: false,
   });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
 
   const [isAddPointDialogOpen, setIsAddPointDialogOpen] = useState(false);
   const [pendingPoint, setPendingPoint] = useState<{
@@ -166,12 +177,6 @@ export default function MiniGridToolPage() {
     type: 'terminal' as 'source' | 'terminal' | 'pole',
   });
 
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
 
   const [solvers, setSolvers] = useState<Solvers[]>([]);
   const [selectedSolverName, setSelectedSolverName] = useState<string>(
@@ -346,6 +351,10 @@ export default function MiniGridToolPage() {
       // 1. Get the latest state from the Ref to avoid stale closures
       const current = stateRef.current;
 
+
+      console.log("number of nodes before deletion", miniGridNodes.length)
+      console.log("number of edges before deletion", miniGridEdges.length)
+
       // 2. Filter out the point and its node
       const updatedNodes = current.miniGridNodes.filter(
         (n) => n.name !== pointName
@@ -365,6 +374,11 @@ export default function MiniGridToolPage() {
       setMiniGridNodes(updatedNodes);
       setMiniGridEdges(updatedEdges);
 
+      console.log("number of nodes before deletion", updatedNodes.length)
+      console.log("number of edges before deletion", updatedEdges.length)
+
+
+
       // 5. Push to History
       current.saveState({
         miniGridNodes: updatedNodes,
@@ -379,21 +393,6 @@ export default function MiniGridToolPage() {
       );
       const isPoleBeingDeleted = pointToDelete?.type === 'pole';
 
-      // ==================== AUTO RE-OPTIMIZE ====================
-      if (isPoleBeingDeleted && updatedNodes.length >= 2) {
-        console.log(
-          `Pole "${pointName}" deleted → auto-reconnecting with SimpleMSTSolver`
-        );
-
-        // Force the solver we want for reconnection
-        setSelectedSolverName('SimpleMSTSolver');
-        setUseExistingPoles(true);
-
-        // Tiny delay so React finishes the state update before running the solver
-        setTimeout(() => {
-          handleRunSolver();
-        }, 5);
-      }
     },
     [saveState] // ← important
   );
@@ -1841,6 +1840,97 @@ export default function MiniGridToolPage() {
     }
   };
 
+  const handleReconnectGraph = async () => {
+    if (miniGridNodes.length < 2) {
+      alert('Need at least 2 points to reconnect the graph.');
+      return;
+    }
+
+    setComputingMiniGrid(true);
+    setCalcError(null);
+
+    const backendUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/solve';
+
+    try {
+      const res = await fetch(backendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          solver: 'SimpleMSTSolver',
+          params: { steinerize: true },
+          nodes: miniGridNodes,
+          edges: [],
+          voltageLevel: 'low',
+          lengthConstraints: {
+            low: {
+              poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
+              poleToTerminalLengthConstraint: lowVoltagePoleToTerminalLengthConstraint,
+            },
+            high: {
+              poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
+              poleToTerminalLengthConstraint: highVoltagePoleToTerminalLengthConstraint,
+            },
+          },
+          costs: {
+            poleCost: poleCost || 0,
+            lowVoltageCostPerMeter: lowVoltageCost || 0,
+            highVoltageCostPerMeter: highVoltageCost || 0,
+          },
+          debug: 0,
+          usePoles: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Reconnect failed');
+      }
+
+      const data = await res.json();
+
+      // Same parsing logic as handleRunSolver
+      const newMiniGridNodes = data.nodes || [];
+      const newMiniGridEdges = (data.edges || []).map((e: MiniGridEdge) => ({
+        start: e.start as MiniGridNode,
+        end: e.end as MiniGridNode,
+        lengthMeters: e.lengthMeters ?? 0,
+        voltage: e.voltage ?? 'low',
+      }));
+
+      const newCostBreakdown = {
+        lowVoltageMeters: data.totalLowVoltageMeters || 0,
+        highVoltageMeters: data.totalHighVoltageMeters || 0,
+        totalMeters: (data.totalLowVoltageMeters || 0) + (data.totalHighVoltageMeters || 0),
+        lowWireCost: data.lowWireCostEstimate || 0,
+        highWireCost: data.highWireCostEstimate || 0,
+        wireCost: data.totalWireCostEstimate || 0,
+        poleCount: data.numPolesUsed || 0,
+        poleCost: data.poleCostEstimate || 0,
+        pointCount: newMiniGridNodes.length,
+        grandTotal: data.totalCostEstimate || 0,
+      };
+
+      setMiniGridNodes(newMiniGridNodes);
+      setMiniGridEdges(newMiniGridEdges);
+      setCostBreakdown(newCostBreakdown);
+      // Save to history
+      saveState({
+        miniGridNodes: newMiniGridNodes,
+        miniGridEdges: newMiniGridEdges,
+        costBreakdown: newCostBreakdown,
+        solverOriginalCost: solverOriginalCost,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Reconnect graph failed';
+      setCalcError(message);
+      console.error('Reconnect error:', err);
+      alert(message);
+    } finally {
+      setComputingMiniGrid(false);
+    }
+  };
+
   const handleLocalOptimization = async () => {
     if (miniGridNodes.length < 2) {
       alert('Need at least 2 points to run local optimization.');
@@ -1990,7 +2080,7 @@ export default function MiniGridToolPage() {
           solver: selectedSolverName,
           params: paramValues,
           nodes: miniGridNodes,
-          edges: miniGridEdges,
+          edges: [], // always send edges as empty for the main solve (only use nodes); the backend will decide how to use existing poles if applicable
           voltageLevel: "low",
           lengthConstraints: {
             low: {
@@ -2632,10 +2722,10 @@ export default function MiniGridToolPage() {
 
               {/* 2. Costs & Solver Section - (your existing code) */}
               {/* ==================== COSTS & SOLVER SECTION ==================== */}
-              <CostsAndSolverSection
-                isExpanded={expandedSections.solver_cost}
-                onToggle={() => toggleSection('solver_cost')}
-                // Cost Parameters
+              {/* 2. Costs Section */}
+              <CostsSection
+                isExpanded={expandedSections.costs}
+                onToggle={() => toggleSection('costs')}
                 poleCost={poleCost}
                 lowVoltageCost={lowVoltageCost}
                 highVoltageCost={highVoltageCost}
@@ -2643,43 +2733,24 @@ export default function MiniGridToolPage() {
                 onLowVoltageCostChange={setLowVoltageCost}
                 onHighVoltageCostChange={setHighVoltageCost}
                 onRandomCosts={generateRandomCosts}
-                lowVoltagePoleToPoleLengthConstraint={
-                  lowVoltagePoleToPoleLengthConstraint
-                }
-                lowVoltagePoleToTerminalLengthConstraint={
-                  lowVoltagePoleToTerminalLengthConstraint
-                }
-                lowVoltagePoleToTerminalMinimumLength={
-                  lowVoltagePoleToTerminalMinimumLength
-                }
-                highVoltagePoleToPoleLengthConstraint={
-                  highVoltagePoleToPoleLengthConstraint
-                }
-                highVoltagePoleToTerminalLengthConstraint={
-                  highVoltagePoleToTerminalLengthConstraint
-                }
-                highVoltagePoleToTerminalMinimumLength={
-                  highVoltagePoleToTerminalMinimumLength
-                }
-                onLowVoltagePoleToPoleChange={
-                  setLowVoltagePoleToPoleLengthConstraint
-                }
-                onLowVoltagePoleToTerminalChange={
-                  setLowVoltagePoleToTerminalLengthConstraint
-                }
-                onLowVoltagePoleToTerminalMinimumChange={
-                  setLowVoltagePoleToTerminalMinimumLength
-                }
-                onHighVoltagePoleToPoleChange={
-                  setHighVoltagePoleToPoleLengthConstraint
-                }
-                onHighVoltagePoleToTerminalChange={
-                  setHighVoltagePoleToTerminalLengthConstraint
-                }
-                onHighVoltagePoleToTerminalMinimumChange={
-                  setHighVoltagePoleToTerminalMinimumLength
-                }
-                // Solver Configuration
+                lowVoltagePoleToPoleLengthConstraint={lowVoltagePoleToPoleLengthConstraint}
+                lowVoltagePoleToTerminalLengthConstraint={lowVoltagePoleToTerminalLengthConstraint}
+                lowVoltagePoleToTerminalMinimumLength={lowVoltagePoleToTerminalMinimumLength}
+                highVoltagePoleToPoleLengthConstraint={highVoltagePoleToPoleLengthConstraint}
+                highVoltagePoleToTerminalLengthConstraint={highVoltagePoleToTerminalLengthConstraint}
+                highVoltagePoleToTerminalMinimumLength={highVoltagePoleToTerminalMinimumLength}
+                onLowVoltagePoleToPoleChange={setLowVoltagePoleToPoleLengthConstraint}
+                onLowVoltagePoleToTerminalChange={setLowVoltagePoleToTerminalLengthConstraint}
+                onLowVoltagePoleToTerminalMinimumChange={setLowVoltagePoleToTerminalMinimumLength}
+                onHighVoltagePoleToPoleChange={setHighVoltagePoleToPoleLengthConstraint}
+                onHighVoltagePoleToTerminalChange={setHighVoltagePoleToTerminalLengthConstraint}
+                onHighVoltagePoleToTerminalMinimumChange={setHighVoltagePoleToTerminalMinimumLength}
+              />
+
+              {/* 3. Solver Section */}
+              <SolverSection
+                isExpanded={expandedSections.solver}
+                onToggle={() => toggleSection('solver')}
                 solvers={solvers}
                 selectedSolverName={selectedSolverName}
                 onSolverChange={setSelectedSolverName}
@@ -2687,9 +2758,7 @@ export default function MiniGridToolPage() {
                 onParamChange={updateParam}
                 useExistingPoles={useExistingPoles}
                 onUseExistingPolesChange={setUseExistingPoles}
-                poleCount={
-                  miniGridNodes.filter((n) => n.type === 'pole').length
-                }
+                poleCount={miniGridNodes.filter((n) => n.type === 'pole').length}
                 onRunSolver={handleRunSolver}
                 computing={computingMiniGrid}
                 calcError={calcError}
@@ -2747,7 +2816,6 @@ export default function MiniGridToolPage() {
         </div>
 
         {/* Floating Action Buttons - Map Controls */}
-        {/* Floating Action Buttons - Map Controls */}
         <MapControls
           canUndo={canUndo}
           canRedo={canRedo}
@@ -2767,10 +2835,11 @@ export default function MiniGridToolPage() {
               setCostBreakdown(s.costBreakdown);
             }
           }}
-          onLocalOptimize={handleLocalOptimization} // ← NEW
+          onLocalOptimize={handleLocalOptimization}
+          onReconnectGraph={handleReconnectGraph}
           onReset={handleResetMap}
           hasData={miniGridNodes.length > 0}
-          isOptimizing={computingMiniGrid} // ← Optional: shows loading spinner
+          isOptimizing={computingMiniGrid}
         />
 
         {/* FOOTER - Minimal */}

@@ -714,7 +714,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         #   • connect the disk centers to the source (with possible extra Steiner poles)
         disk_edges = self._generate_disk_graph_edges(full_nodes)
 
-        DG = self.build_graph_from_nodes_or_edges(nodes=full_nodes, edges=disk_edges, directed=True)
+        DG = self.build_graph_from_nodes(nodes=full_nodes, directed=True)
 
         if self.request.debug >= 1:
             self._plot_current_graph(DG, added_points=None, title="DG")
