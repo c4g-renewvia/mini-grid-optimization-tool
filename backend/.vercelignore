@@ -1,1 +1,6 @@
-pyproject.toml
+uv.lock
+__pycache__/
+.pytest_cache/
+tests/
+test_data_sets/
+*.pyc
