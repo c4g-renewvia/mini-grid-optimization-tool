@@ -4,9 +4,9 @@ import pandas as pd
 import pytest
 from pykml import parser
 
-from mini_grid_solver.src.solvers.local_opt import LocalOptimization
-from mini_grid_solver.src.utils.models import *
-from mini_grid_solver.src.utils.registry import SOLVER_REGISTRY
+from mini_grid_solver.solvers.local_opt import LocalOptimization
+from mini_grid_solver.utils.models import *
+from mini_grid_solver.utils.registry import SOLVER_REGISTRY
 
 
 # ==================== FIXTURES ====================
@@ -53,7 +53,7 @@ def kml_nodes():
 
 
 # add "test_data_sets/minigrid_2026-04-09.kml" for larger test
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-16 (1).kml"])  # ,"test_data_sets/minigrid_2026-04-08.kml"])
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml" ,"test_data_sets/minigrid_2026-04-08.kml"])
 def kml_nodes_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
@@ -234,7 +234,7 @@ def test_all_solvers_with_csv(solver_name, csv_nodes, default_costs, default_len
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-@pytest.mark.parametrize("solver_name", ['DiskBasedSteinerSolver']) #SOLVER_REGISTRY.keys())
+@pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
 def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes, default_costs,
                               default_length_constraints):
     """
@@ -248,7 +248,7 @@ def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes,
         nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=2,
+        debug=0,
     )
 
     result = solver_class(req).solve()

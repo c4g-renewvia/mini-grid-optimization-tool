@@ -38,9 +38,28 @@ backend/
 │   ├── tests/                              # Pytest suite
 │       ├── solvers/                        # Unit and integration tests for solvers
 │       └── test_data_sets/                 # KML and CSV data for testing
-    └── pyproject.toml                          # Project metadata and dependencies
-├── Dockerfile                              # Multi-stage build using uv
+│── pyproject.toml                          # Project metadata and dependencies
+├── Dockerfile                              # Multi-stage build using uv# Mini-Grid Optimization Tool - Backend
 
+A Python backend for optimizing mini-grid / rural power distribution layouts. It exposes a FastAPI API for solving network layouts, estimating cost, and running local optimization on existing designs.
+
+## Overview
+
+This project provides a set of graph- and geometry-based solvers for building efficient power distribution networks. It supports multiple solver strategies, including MST-based baselines and Steiner-style heuristics, along with a local optimization step for refining results.
+
+## Tech Stack
+
+- **Python** 3.13+
+- **FastAPI** for the REST API
+- **Pydantic** for request/response models
+- **NetworkX** for graph algorithms
+- **NumPy / SciPy** for numerical and spatial operations
+- **Shapely** for geometry handling
+- **scikit-learn** for clustering and candidate generation
+- **Matplotlib** for debugging and analysis
+- **uv** for dependency management and local execution
+
+## Project Structure
 ├── server.py                               # FastAPI entry point
 └── uv.lock                                 # Lockfile for reproducible environments
 ```

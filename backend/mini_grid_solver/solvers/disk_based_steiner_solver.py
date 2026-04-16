@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib.patches import Ellipse
-from mini_grid_solver.src.utils.models import *
 
+from ..utils.models import *
 from .candidate_generation import CandidateGeneration
 from ..utils.registry import register_solver
 

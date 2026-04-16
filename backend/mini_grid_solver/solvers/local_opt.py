@@ -3,7 +3,7 @@ from typing import List, Union
 
 import networkx as nx
 
-from mini_grid_solver.src.utils.models import Node
+from ..utils.models import Node
 from .base_mini_grid_solver import BaseMiniGridSolver
 
 

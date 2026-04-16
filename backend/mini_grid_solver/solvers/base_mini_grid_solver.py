@@ -5,9 +5,10 @@ import networkx as nx
 import numpy as np
 from abc import ABC, abstractmethod
 from matplotlib import collections as mc
-from mini_grid_solver.src.utils.models import *
 from scipy.optimize import minimize
 from typing import Tuple
+
+from ..utils.models import *
 
 MAX_EDGE_DIST_PENALTY = 10000
 
@@ -606,7 +607,8 @@ class BaseMiniGridSolver(ABC):
 
         return self._dist_matrix
 
-    def build_graph_from_nodes(self, nodes, edges=None, include_terminals=False, directed=False) -> Union[nx.DiGraph, nx.Graph]:
+    def build_graph_from_nodes(self, nodes, edges=None, include_terminals=False, directed=False) -> Union[
+        nx.DiGraph, nx.Graph]:
         """
         Builds a graph representation from a given set of nodes and edges or calculates
         edges dynamically based on coordinates and a distance matrix if edges are not

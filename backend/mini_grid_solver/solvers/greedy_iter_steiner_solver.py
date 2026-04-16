@@ -7,8 +7,9 @@ from joblib import Parallel, delayed
 from matplotlib import pyplot as plt
 from scipy.sparse.csgraph import minimum_spanning_tree
 
-from mini_grid_solver.src.utils.models import *
+
 from .candidate_generation import CandidateGeneration
+from ..utils.models import *
 from ..utils.registry import register_solver
 
 

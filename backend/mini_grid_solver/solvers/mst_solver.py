@@ -1,12 +1,9 @@
 # src/solvers/simple_mst_solver.py
 from typing import List, Union
-
 import networkx as nx
 
 from .base_mini_grid_solver import BaseMiniGridSolver
-from ..utils.models import (
-    Node, SolverInputParams,
-)
+from ..utils.models import (Node, SolverInputParams, )
 from ..utils.registry import register_solver
 
 
