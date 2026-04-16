@@ -3,9 +3,8 @@ from typing import List, Union
 
 import networkx as nx
 
+from mini_grid_solver.src.utils.models import Node
 from .base_mini_grid_solver import BaseMiniGridSolver
-from ..utils.models import (
-    Node, )
 
 
 class LocalOptimization(BaseMiniGridSolver):
@@ -21,7 +20,6 @@ class LocalOptimization(BaseMiniGridSolver):
     """
 
     def _solve(self) -> Union[nx.DiGraph, List[Node]]:
-
         graph = self.build_graph_from_nodes(self._nodes, self._edges, directed=True)
 
         final_graph = self._post_solver_local_opt(graph)

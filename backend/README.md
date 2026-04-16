@@ -35,11 +35,12 @@ backend/
 │   │   │   └── registry.py                 # Solver registration utility
 │   │   └── utils/
 │   │       └── models.py                   # Pydantic data models (Request/Response)
-│   └── tests/                              # Pytest suite
+│   ├── tests/                              # Pytest suite
 │       ├── solvers/                        # Unit and integration tests for solvers
 │       └── test_data_sets/                 # KML and CSV data for testing
+    └── pyproject.toml                          # Project metadata and dependencies
 ├── Dockerfile                              # Multi-stage build using uv
-├── pyproject.toml                          # Project metadata and dependencies
+
 ├── server.py                               # FastAPI entry point
 └── uv.lock                                 # Lockfile for reproducible environments
 ```

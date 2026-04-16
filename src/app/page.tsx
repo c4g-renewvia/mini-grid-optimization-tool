@@ -95,7 +95,7 @@ export default function MiniGridToolPage() {
   const [computingMiniGrid, setComputingMiniGrid] = useState(false);
 
   const [poleCost, setPoleCost] = useState<number>(1000);
-  const [lowVoltageCost, setLowVoltageCost] = useState<number>(10);
+  const [lowVoltageCost, setLowVoltageCost] = useState<number>(20);
   const [highVoltageCost, setHighVoltageCost] = useState<number>(0);
 
   const [
@@ -1092,11 +1092,10 @@ export default function MiniGridToolPage() {
     });
 
     // Auto-fit when appropriate
-    if (hasValidPoints && pointsToShow.length <= 20) {
-      setTimeout(() => {
-        map.fitBounds(bounds, { bottom: 80, left: 200, right: 80, top: 80 });
-      }, 100);
-    }
+    setTimeout(() => {
+      map.fitBounds(bounds, { bottom: 80, left: 250, right: 0, top: 80 });
+    }, 100);
+
   }, [map, miniGridNodes, createMarker]);
 
   // ==================== FETCH SOLVERS ====================
@@ -1471,6 +1470,8 @@ export default function MiniGridToolPage() {
     setOriginalFileName(file.name);
     setLoading(true);
 
+    setSolverOriginalCost(0);
+
     const lowerName = file.name.toLowerCase();
 
     if (lowerName.endsWith('.kml')) {
@@ -1530,12 +1531,12 @@ export default function MiniGridToolPage() {
           if (parsed.costBreakdown) {
             const cb = parsed.costBreakdown;
             setPoleCost(
-              cb.usedPoleCost || cb.poleCost / Math.max(cb.poleCount, 1) || 100
+              cb.usedPoleCost || cb.poleCost / Math.max(cb.poleCount, 1) || poleCost
             );
             const lowM = cb.lowVoltageMeters || 0;
-            setLowVoltageCost(lowM > 0 ? cb.lowWireCost / lowM : 10);
+            setLowVoltageCost(lowM > 0 ? cb.lowWireCost / lowM : lowVoltageCost);
             const highM = cb.highVoltageMeters || 0;
-            setHighVoltageCost(highM > 0 ? cb.highWireCost / highM : 20);
+            setHighVoltageCost(highM > 0 ? cb.highWireCost / highM : highVoltageCost);
           }
 
           // Auto-fit map
@@ -1545,12 +1546,7 @@ export default function MiniGridToolPage() {
               validNodes.forEach((n) =>
                 bounds.extend({ lat: n.lat, lng: n.lng })
               );
-              map.fitBounds(bounds, {
-                bottom: 80,
-                left: 80,
-                right: 80,
-                top: 80,
-              });
+              map.fitBounds(bounds, { bottom: 80, left: 250, right: 0, top: 80 });
             }
           }, 300);
 
@@ -2439,7 +2435,7 @@ export default function MiniGridToolPage() {
         run.miniGridNodes.forEach((p: MiniGridNode) =>
           bounds.extend({ lat: Number(p.lat), lng: Number(p.lng) })
         );
-        map.fitBounds(bounds, { bottom: 80, left: 80, right: 80, top: 80 });
+        map.fitBounds(bounds, { bottom: 80, left: 250, right: 0, top: 80 });
       }
     }, 300);
 

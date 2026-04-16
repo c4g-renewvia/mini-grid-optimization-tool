@@ -4,10 +4,10 @@ from typing import List, Union
 import networkx as nx
 
 from .base_mini_grid_solver import BaseMiniGridSolver
-from .registry import register_solver
 from ..utils.models import (
     Node, SolverInputParams,
 )
+from ..utils.registry import register_solver
 
 
 @register_solver
@@ -51,7 +51,8 @@ class SimpleMSTSolver(BaseMiniGridSolver):
             mst = self.prune_dead_end_pole_branches(arbo_graph)
 
         else:
-            mst = nx.minimum_spanning_tree(self._graph, weight="weight")
+            graph = self.build_graph_from_nodes(self._nodes, include_terminals=True, directed=False)
+            mst = nx.minimum_spanning_tree(graph, weight="weight")
 
         if self.steinerize:
             mst = self.split_long_edges_with_coords(mst)

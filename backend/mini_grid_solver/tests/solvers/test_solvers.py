@@ -4,10 +4,9 @@ import pandas as pd
 import pytest
 from pykml import parser
 
-from mini_grid_solver.src import LocalOptimization
-from mini_grid_solver.src.solvers.registry import SOLVER_REGISTRY
+from mini_grid_solver.src.solvers.local_opt import LocalOptimization
 from mini_grid_solver.src.utils.models import *
-from mini_grid_solver.src.utils.models import LengthConstraints, LengthConstraintsBase
+from mini_grid_solver.src.utils.registry import SOLVER_REGISTRY
 
 
 # ==================== FIXTURES ====================
@@ -52,8 +51,9 @@ def kml_nodes():
     except (FileNotFoundError, AttributeError):
         pytest.skip("KML file not found or incorrectly formatted")
 
+
 # add "test_data_sets/minigrid_2026-04-09.kml" for larger test
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml","test_data_sets/minigrid_2026-04-08.kml"])
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-16 (1).kml"])  # ,"test_data_sets/minigrid_2026-04-08.kml"])
 def kml_nodes_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
@@ -71,11 +71,11 @@ def kml_nodes_random_test_set(request):
                 if _type == "pole":
                     continue
                 coords.append(Node(
-                    index = len(coords),
-                    name= str(placemark.name),
-                    lat= float(lat),
-                    lng= float(lng),
-                    type= _type
+                    index=len(coords),
+                    name=str(placemark.name),
+                    lat=float(lat),
+                    lng=float(lng),
+                    type=_type
                 ))
         return coords
     except (FileNotFoundError, AttributeError) as e:
@@ -109,16 +109,16 @@ def default_length_constraints():
 def ga_tech_nodes():
     """Fixture containing the manually provided Georgia Tech area nodes."""
     return [
-        Node(index=0, name= "Source", type= "source", lat= 33.77679498, lng= -84.39576765),
-        Node(index=1, name= "Terminal 02", type="terminal", lat=33.7766943, lng=-84.3961707),
-        Node(index=2, name= "Terminal 03", type="terminal", lat= 33.77715844, lng= -84.39655715),
-        Node(index=3,name= "Terminal 04", type="terminal", lat= 33.7766067, lng= -84.39567965),
-        Node(index=4,name= "Terminal 05", type="terminal", lat= 33.77736802, lng= -84.39715452),
-        Node(index=5,name= "Terminal 06", type="terminal", lat= 33.77694371, lng= -84.39650116),
-        Node(index=6,name= "Terminal 07", type="terminal", lat= 33.77759256, lng= -84.39535238),
-        Node(index=7,name= "Terminal 08", type="terminal", lat= 33.77670904, lng= -84.39500275),
-        Node(index=8,name= "Terminal 09", type="terminal", lat= 33.77655566, lng= -84.39499823),
-        Node(index=9,name= "Terminal 10", type="terminal", lat= 33.77721148, lng= -84.39735571)
+        Node(index=0, name="Source", type="source", lat=33.77679498, lng=-84.39576765),
+        Node(index=1, name="Terminal 02", type="terminal", lat=33.7766943, lng=-84.3961707),
+        Node(index=2, name="Terminal 03", type="terminal", lat=33.77715844, lng=-84.39655715),
+        Node(index=3, name="Terminal 04", type="terminal", lat=33.7766067, lng=-84.39567965),
+        Node(index=4, name="Terminal 05", type="terminal", lat=33.77736802, lng=-84.39715452),
+        Node(index=5, name="Terminal 06", type="terminal", lat=33.77694371, lng=-84.39650116),
+        Node(index=6, name="Terminal 07", type="terminal", lat=33.77759256, lng=-84.39535238),
+        Node(index=7, name="Terminal 08", type="terminal", lat=33.77670904, lng=-84.39500275),
+        Node(index=8, name="Terminal 09", type="terminal", lat=33.77655566, lng=-84.39499823),
+        Node(index=9, name="Terminal 10", type="terminal", lat=33.77721148, lng=-84.39735571)
     ]
 
 
@@ -201,6 +201,7 @@ def ga_tech_nodes_with_edges():
 
     return nodes, edges
 
+
 # ==================== TESTS ====================
 
 def test_registry_not_empty():
@@ -233,7 +234,7 @@ def test_all_solvers_with_csv(solver_name, csv_nodes, default_costs, default_len
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-@pytest.mark.parametrize("solver_name", ["DiskBasedSteinerSolver"])#SOLVER_REGISTRY.keys())
+@pytest.mark.parametrize("solver_name", ['DiskBasedSteinerSolver']) #SOLVER_REGISTRY.keys())
 def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes, default_costs,
                               default_length_constraints):
     """
@@ -247,7 +248,7 @@ def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes,
         nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=0,
+        debug=2,
     )
 
     result = solver_class(req).solve()

@@ -1,30 +1,34 @@
 import math
-from typing import List, Optional, Tuple
-
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib.patches import Ellipse
+from mini_grid_solver.src.utils.models import *
 
-from ..utils.models import Edge, Node
 from .candidate_generation import CandidateGeneration
-from .registry import register_solver
+from ..utils.registry import register_solver
 
 
 @register_solver
 class DiskBasedSteinerSolver(CandidateGeneration):
     """
-    This algorithm attempts to solve the Steiner problem using a disk-based approach.
+    Represents a solver to compute approximate Steiner tree solutions using a disk-based heuristic approach.
 
-    Step 1: Identify the disk centers by covering the terminal nodes with the least number of disks possible
-    Step 2: Run a standard Steiner solver on the remaining points
-    Step 3: Post solve gradient decent optimization
-
-    Args:
+    This class extends the CandidateGeneration class to integrate disk-covering algorithms for network
+    optimization problems, particularly for problems involving terminals and their coverage with minimal
+    resources. It employs techniques such as bounding-box checks, exclusion of redundant or infeasible
+    candidates, and optimized disk center selection via tie-breaking mechanisms. The primary purpose of
+    the class is to enable efficient determination of disk-based Steiner points for constructing approximate
+    solutions to minimum Steiner tree problems in geometric networks.
     """
 
-    def __init__(self, request):
+    def __init__(self, request: SolverRequest):
         super().__init__(request)
+        # Caches from GreedyIterSteinerSolver for KDTree / Delaunay reuse
+        self._delaunay_cache = None
+        self._cached_coords = None
+        self._kdtree_cache = None
+        self._cached_kd_coords = None
 
     @staticmethod
     def get_input_params():
@@ -38,21 +42,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                          title: str = "Minimum Disk Cover"):
         """
         Plots a visual representation of the minimum disk cover for a given set of points on a 2D plane.
-
-        This function generates a plot displaying terminals, selected disk centers, and optional candidate centers,
-        alongside their respective coverage areas. It utilizes matplotlib for visualization and requires coordinates
-        and other input data formatted as NumPy arrays. The function is intended for debug purposes and will not
-        execute if the debug level of the request object is below the specified threshold.
-
-        Parameters:
-            term_coords (np.ndarray): A 2D array of terminal coordinates given as [latitude, longitude].
-            disk_centers (np.ndarray): A 2D array of the coordinates of selected disk centers as [latitude, longitude].
-            R (float): The radius of the disks in meters.
-            candidates (Optional[np.ndarray]): Optional 2D array of candidate coordinates as [latitude, longitude].
-            title (str): The title to display at the top of the plot. Default is "Minimum Disk Cover".
-
-        Raises:
-            None
+        (Exactly as in original DiskBasedSteinerSolver – all plotting calls restored)
         """
         fig, ax = plt.subplots(figsize=(11, 9))
         ax.set_title(title)
@@ -119,33 +109,23 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             terminal_indices: List[int]
     ) -> np.ndarray:
         """
-        Filters a list of candidate coordinates based on specific constraints such as
-        bounding box, minimum distances, and duplication checks.
-
-        This method processes a list of candidate geographic coordinates and determines
-        which candidates should be retained based on several filtering criteria, including
-        proximity to terminals, poles, and previously added candidates. The filtering is
-        performed step-by-step in the following order: bounding box constraints, minimum
-        pole-to-terminal and pole-to-pole distances, removal of already-added candidates,
-        and final deduplication.
+        Filters candidate coordinates based on bounding-box constraints, pole-to-terminal and pole-to-pole
+        minimum distance conditions, removal of already added candidates, and deduplication.
 
         Parameters:
-            candidates: np.ndarray
-                A 2D array of candidate coordinates where each row represents a latitude-longitude
-                pair (lat, lng).
-            current_coords: np.ndarray
-                A 2D array of current coordinates of existing elements, such as terminals and poles.
-            added_candidates: np.ndarray
-                A 2D array of already-added candidate coordinates to ensure no duplicate inclusion.
-            pole_indices: List[int]
-                A list of indices referencing poles within current_coords.
-            terminal_indices: List[int]
-                A list of indices referencing terminals within current_coords.
+            candidates (np.ndarray): A 2D array of candidate coordinates, where each row represents a
+                coordinate pair (latitude, longitude).
+            current_coords (np.ndarray): A 2D array containing current coordinates of relevant entities
+                (e.g., terminals, poles).
+            added_candidates (np.ndarray): A 2D array of already added candidate coordinates, which should
+                be excluded from the result.
+            pole_indices (List[int]): A list of indices specifying the positions of poles within
+                current_coords.
+            terminal_indices (List[int]): A list of indices specifying the positions of terminal points
+                within current_coords.
 
         Returns:
-            np.ndarray
-                A 2D array of filtered candidate coordinates (latitude-longitude pairs) that passed
-                all filtering stages.
+            np.ndarray: A filtered 2D array of candidate coordinates that satisfy all constraints.
         """
         if len(candidates) == 0:
             return np.empty((0, 2), dtype=float)
@@ -202,184 +182,45 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         return candidates
 
-    def _generate_circumference_candidates(self,
-                                           center: np.ndarray,
-                                           R: float,
-                                           n_points: int = 6) -> np.ndarray:
-        """
-        Generates candidate points on the circumference of a circle specified by a center and a radius.
-
-        This method calculates a set of evenly distributed points on the circle's circumference based on a given
-        center and radius. The circumference is approximated using the input number of points, with adjustments
-        handled to ensure a minimum number of points. The calculation considers the geographic scaling of latitude
-        and longitude in meters to determine offsets and converts them back to degree coordinates.
-
-        Parameters:
-        center : np.ndarray
-            A 2-element array representing the center of the circle in latitude and longitude coordinates.
-        R : float
-            Radius of the circle in meters.
-        n_points : int, optional
-            Number of points to generate along the circle's circumference. Defaults to 6. Minimum value is clamped to 3.
-
-        Returns:
-        np.ndarray
-            A 2D array where each row represents a point's latitude and longitude on the circle's
-            circumference. The number of rows corresponds to `n_points`.
-        """
-        if n_points < 3:
-            n_points = 6
-
-        angles = np.linspace(0, 2 * np.pi, n_points, endpoint=False)
-
-        # Local scaling at this latitude
-        METERS_PER_DEG_LAT = 111111.0
-        METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(center[0]))
-
-        # Offsets in meters
-        dx_m = R * np.cos(angles)  # longitude direction
-        dy_m = R * np.sin(angles)  # latitude direction
-
-        # Convert back to degrees
-        dlat = dy_m / METERS_PER_DEG_LAT
-        dlon = dx_m / METERS_PER_DEG_LON
-
-        points = np.column_stack([center[0] + dlat, center[1] + dlon])
-        return points
-
-    def _two_circle_centers(self, p1: np.ndarray, p2: np.ndarray, R: float) -> List[np.ndarray]:
-        """
-        Determines the two possible centers of two intersecting circles based on their radii and positions.
-
-        This function calculates the two possible centers of overlap for two circles
-        on a spherical surface determined by the given radius and positions of their centers.
-        The calculation is based on the haversine distance between the two points and resolves
-        the geometric relations required to locate the intersection points. If the circles
-        do not intersect or are too close to each other within a threshold, the function
-        returns an empty list.
-
-        Parameters:
-            p1 (np.ndarray): The latitude and longitude coordinates of the first circle, given as a numpy array.
-            p2 (np.ndarray): The latitude and longitude coordinates of the second circle, given as a numpy array.
-            R (float): The radius of the circles in meters.
-
-        Returns:
-            List[np.ndarray]: A list containing two numpy arrays, each representing the latitude
-                              and longitude coordinates of the two possible centers of the intersecting circles.
-                              Returns an empty list if the circles do not intersect or are degenerate.
-        """
-        p1 = np.asarray(p1, dtype=float)
-        p2 = np.asarray(p2, dtype=float)
-
-        d_meters = self.haversine_meters(p1[0], p1[1], p2[0], p2[1])
-
-        if d_meters > 2 * R or d_meters < 0.1:
-            return []
-
-        mid_lat = (p1[0] + p2[0]) / 2.0
-        METERS_PER_DEG_LAT = 111111.0
-        METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(mid_lat))
-
-        dlat_m = (p2[0] - p1[0]) * METERS_PER_DEG_LAT
-        dlon_m = (p2[1] - p1[1]) * METERS_PER_DEG_LON
-
-        a = d_meters / 2.0
-        hh = R * R - a * a
-        if hh < 0:
-            return []
-
-        h = math.sqrt(hh)
-
-        dir_vec = np.array([dlon_m, dlat_m])
-        dir_unit = dir_vec / d_meters
-        perp_unit = np.array([-dir_unit[1], dir_unit[0]])
-
-        mid_m = np.array([dlon_m / 2, dlat_m / 2])
-
-        c1_m = mid_m + h * perp_unit
-        c2_m = mid_m - h * perp_unit
-
-        c1 = np.array([
-            p1[0] + c1_m[1] / METERS_PER_DEG_LAT,
-            p1[1] + c1_m[0] / METERS_PER_DEG_LON
-        ])
-        c2 = np.array([
-            p1[0] + c2_m[1] / METERS_PER_DEG_LAT,
-            p1[1] + c2_m[0] / METERS_PER_DEG_LON
-        ])
-
-        return [c1, c2]
-
-    def _generate_biased_circumference_point(self,
-                                             terminal: np.ndarray,
-                                             bias_point: np.ndarray,
-                                             R: float) -> List[np.ndarray]:
-        """
-        Generates points on the circumference of a circle, biased towards the source.
-
-        This function calculates points on the circumference of a circle centered at the
-        terminal point, with a given radius, that are biased in the direction of the source
-        point. The computation takes into account the curvature of the Earth by using
-        latitude and longitude coordinates and converting these into meter-space for more
-        precise calculations.
-
-        Parameters:
-        terminal (np.ndarray): The center of the circle in latitude and longitude
-                                [lat, lon].
-        bias_point (np.ndarray): The point in latitude and longitude [lat, lon] towards
-                             which the circle is biased.
-        R (float): The radius of the circle in meters.
-
-        Returns:
-        List[np.ndarray]: A list of points on the circle's circumference in the format
-                          [lat, lon].
-        """
-        points = []
-        vec = bias_point - terminal
-        dist = np.linalg.norm(vec)
-
-        R *= .99  # A bit of tolerance
-
-        if dist < 1e-6:
-            # fallback – two arbitrary points
-            METERS_PER_DEG_LAT = 111111.0
-            points.append(np.array([terminal[0] + R / METERS_PER_DEG_LAT, terminal[1]]))
-            points.append(np.array([terminal[0] - R / METERS_PER_DEG_LAT, terminal[1]]))
-            return points
-
-        METERS_PER_DEG_LAT = 111111.0
-        METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(terminal[0]))
-
-        # Vector toward source (meter space)
-        vec_m = np.array([vec[1] * METERS_PER_DEG_LON, vec[0] * METERS_PER_DEG_LAT])
-        unit_m = vec_m / np.linalg.norm(vec_m)
-
-        # Point 1: toward source
-        offset_m = unit_m * R
-        dlat = offset_m[1] / METERS_PER_DEG_LAT
-        dlon = offset_m[0] / METERS_PER_DEG_LON
-        points.append(np.array([terminal[0] + dlat, terminal[1] + dlon]))
-
-        return points
-
     def _minimum_disk_cover(self, term_coords: np.ndarray, R: float) -> Tuple[np.ndarray, list]:
         """
-        Computes a minimum disk cover for a given set of terminal coordinates, based on a specified disk radius.
+        Determines an optimal set of disk centers that covers all specified terminal coordinates
+        within a given radius, using a greedy set-cover algorithm with tie-breaking for optimality.
 
-        This method identifies disk centers that collectively cover all given terminal points, iteratively selecting points
-        to minimize the number of disks required. Tie-breaking logic is applied to favor disks closer to the source coordinate.
+        The algorithm identifies candidate disk centers using pairwise intersections of disks, as well as
+        source-biased circumference points for each terminal. Each candidate center is evaluated based on
+        how many uncovered terminals it can cover, with tie-breaking based on minimizing overlap with already
+        covered terminals or proximity to a source coordinate. This ensures an efficient coverage while
+        remaining computationally feasible even for larger datasets.
 
-        Parameters:
-            term_coords (np.ndarray): A 2D array of shape (n, 2), where each row represents the (latitude, longitude)
-                                      coordinates of a terminal. Must not be empty.
-            R (float): Radius of the disks in the same units as the coordinates.
+        Debugging plots and logs are generated if debug levels are set higher than 1 in the request object,
+        providing intermediate states like candidate generation, coverage matrix, and final selected centers.
+
+        Examples of debug output include:
+        - Candidate generation: pairwise intersections and source-biased points.
+        - Building a coverage matrix using vectorized operations.
+        - Coverage optimization with greedy set-cover and tie-breaking for optimal selection.
+
+        Args:
+        term_coords : np.ndarray
+            A 2D array representing the terminal coordinates, where each row contains the latitude
+            and longitude of a terminal.
+        R : float
+            The radius of the disk, in units consistent with the coordinates (e.g., meters for geospatial
+            data using Haversine distance).
 
         Returns:
-            np.ndarray: A 2D array of coordinates representing the selected disk centers. Each row specifies the
-                        (latitude, longitude) of a disk center.
+            Tuple[np.ndarray, list]
+                A tuple containing two elements:
+                - A 2D array of shape (m, 2), where `m` is the number of selected disk centers, and each row
+                  represents the latitude and longitude of a disk center.
+                - A list of descriptive names for each disk center, indicating its identifier (e.g.,
+                  "DiskCenterPole 1", "DiskCenterPole 2").
 
         Raises:
-            None
+            ValueError
+                If no candidate centers are found or no disk centers can be determined to cover the terminals.
+
         """
         if len(term_coords) == 0:
             return np.empty((0, 2), dtype=float)
@@ -481,7 +322,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         selected_centers = np.array(selected_centers)
 
-        # Debug plots (exactly as you had them)
+        # Debug plots – exactly as in original
         if self.request.debug >= 2:
             self._plot_disk_cover(
                 term_coords=term_coords,
@@ -491,196 +332,617 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                 title=f"Before filtered disk Cover – {n_term} terminals → {len(selected_centers)} disks (R={R:.1f}m)"
             )
 
-        filtered_centers = self.filter_candidates(
-            candidates=selected_centers,
-            current_coords=term_coords,
-            added_candidates=np.empty((0, 2)),
-            pole_indices=[],
-            terminal_indices=list(range(n_term))
-        )
+        if self.request.debug >= 2:
+            self._plot_disk_cover(
+                term_coords=term_coords,
+                disk_centers=selected_centers,
+                R=R,
+                candidates=candidates,
+                title=f"Filtered disk Cover – {n_term} terminals → {len(selected_centers)} disks (R={R:.1f}m)"
+            )
 
         if self.request.debug >= 2:
             self._plot_disk_cover(
                 term_coords=term_coords,
-                disk_centers=filtered_centers,
+                disk_centers=selected_centers,
                 R=R,
                 candidates=candidates,
-                title=f"Filtered disk Cover – {n_term} terminals → {len(filtered_centers)} disks (R={R:.1f}m)"
+                title=f"FINAL Disk Cover (source-biased) – {n_term} terminals → {len(selected_centers)} disks (R={R:.1f}m)"
             )
 
         if self.request.debug >= 1:
-            print(f"  Disk cover complete: {len(filtered_centers)} disks cover "
+            print(f"  Disk cover complete: {len(selected_centers)} disks cover "
                   f"{n_term} terminals (R = {R:.1f} m)")
 
-        if self.request.debug >= 2:
-            self._plot_disk_cover(
-                term_coords=term_coords,
-                disk_centers=filtered_centers,
-                R=R,
-                candidates=candidates,
-                title=f"FINAL Disk Cover (source-biased) – {n_term} terminals → {len(filtered_centers)} disks (R={R:.1f}m)"
-            )
-
         if self.request.debug >= 1:
-            print(f"   → Selected {len(filtered_centers)} disk-center poles")
+            print(f"   → Selected {len(selected_centers)} disk-center poles")
 
-        if len(filtered_centers) == 0:
+        if len(selected_centers) == 0:
             raise ValueError("No disk centers found.")
 
-        disk_center_pole_coords = filtered_centers.tolist()
-        disk_center_names = ["DiskCenterPole {i + 1}" for i in range(len(disk_center_pole_coords))]
+        disk_center_pole_coords = selected_centers.tolist()
+        disk_center_names = [f"DiskCenterPole {i + 1}" for i in range(len(disk_center_pole_coords))]
 
         return disk_center_pole_coords, disk_center_names
 
-    def _generate_disk_graph_edges(self, full_nodes: List[Node]) -> List[Edge]:
+    def _two_circle_centers(self, p1: np.ndarray, p2: np.ndarray, R: float) -> List[np.ndarray]:
         """
-        Builds ALL required edges using the exact Node objects from full_nodes.
+        Computes the centers of two possible circles that have a given radius and pass
+        through two points on the Earth's surface. The calculation assumes a spherical
+        Earth and uses the Haversine formula to measure distances.
 
-        1. Every terminal connects to its CLOSEST pole (disk center or Fermat pole)
-           → directed: pole → terminal
+        Args:
+            p1 (np.ndarray): A 2D point (latitude, longitude) on the Earth's surface.
+            p2 (np.ndarray): A 2D point (latitude, longitude) on the Earth's surface.
+            R (float): The radius of the circle in meters.
 
-        2. Full bidirectional mesh on the backbone:
-           • source ↔ every pole
-           • every pole ↔ every other pole
+        Returns:
+            List[np.ndarray]: A list of two 2D points (latitude, longitude) representing
+            the centers of the possible circles. If the two points cannot define two
+            intersection circles with the given radius, an empty list is returned.
 
-        Uses .model_dump() to satisfy Pydantic v2 strict nested-model validation.
+        Raises:
+            ValueError: If the input points are invalid.
         """
-        edges: List[Edge] = []
-        if not full_nodes:
-            return edges
+        p1 = np.asarray(p1, dtype=float)
+        p2 = np.asarray(p2, dtype=float)
 
-        source_idx = self._source_idx
-        terminal_indices = self._terminal_indices
+        d_meters = self.haversine_meters(p1[0], p1[1], p2[0], p2[1])
 
-        # Poles start after the original source + terminals
-        n_original = len(self._coords)
-        pole_indices = list(range(n_original, len(full_nodes)))
+        if d_meters > 2 * R or d_meters < 0.1:
+            return []
 
-        if not pole_indices:
-            if self.request.debug >= 1:
-                print("Warning: No poles in full_nodes")
-            return edges
+        mid_lat = (p1[0] + p2[0]) / 2.0
+        METERS_PER_DEG_LAT = 111111.0
+        METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(mid_lat))
 
-        if self.request.debug >= 1:
-            print(f"_generate_disk_graph_edges: {len(terminal_indices)} terminals → closest pole "
-                  f"+ full bidirectional mesh on source + {len(pole_indices)} poles")
+        dlat_m = (p2[0] - p1[0]) * METERS_PER_DEG_LAT
+        dlon_m = (p2[1] - p1[1]) * METERS_PER_DEG_LON
 
-        # Pre-compute pole coordinates once
-        pole_coords = np.array([[full_nodes[i].lat, full_nodes[i].lng] for i in pole_indices])
+        a = d_meters / 2.0
+        hh = R * R - a * a
+        if hh < 0:
+            return []
 
-        # ── 1. Terminals → closest pole (service drops) ─────────────────────
-        for t_idx in terminal_indices:
-            term_node = full_nodes[t_idx]
-            term_coord = np.array([[term_node.lat, term_node.lng]])
+        h = math.sqrt(hh)
 
-            dists = self.haversine_vec(pole_coords, term_coord).flatten()
-            nearest_local_idx = int(np.argmin(dists))
-            nearest_pole_idx = pole_indices[nearest_local_idx]
-            dist = float(dists[nearest_local_idx])
+        dir_vec = np.array([dlon_m, dlat_m])
+        dir_unit = dir_vec / d_meters
+        perp_unit = np.array([-dir_unit[1], dir_unit[0]])
 
-            pole_node = full_nodes[nearest_pole_idx]
+        mid_m = np.array([dlon_m / 2, dlat_m / 2])
 
-            edges.append(Edge(
-                start=pole_node.model_dump(),      # ← Pydantic v2 fix
-                end=term_node.model_dump(),        # ← Pydantic v2 fix
-                lengthMeters=dist,
-                voltage=self.request.voltageLevel
-            ))
+        c1_m = mid_m + h * perp_unit
+        c2_m = mid_m - h * perp_unit
 
-        # ── 2. Full bidirectional mesh on backbone (source + all poles) ─────
-        backbone_indices = [source_idx] + pole_indices
+        c1 = np.array([
+            p1[0] + c1_m[1] / METERS_PER_DEG_LAT,
+            p1[1] + c1_m[0] / METERS_PER_DEG_LON
+        ])
+        c2 = np.array([
+            p1[0] + c2_m[1] / METERS_PER_DEG_LAT,
+            p1[1] + c2_m[0] / METERS_PER_DEG_LON
+        ])
 
-        for i in range(len(backbone_indices)):
-            for j in range(i + 1, len(backbone_indices)):
-                u_idx = backbone_indices[i]
-                v_idx = backbone_indices[j]
+        return [c1, c2]
 
-                u_node = full_nodes[u_idx]
-                v_node = full_nodes[v_idx]
+    def _generate_biased_circumference_point(self,
+                                             terminal: np.ndarray,
+                                             bias_point: np.ndarray,
+                                             R: float) -> List[np.ndarray]:
+        """
+        Generates a list of points biased toward a specific direction on a circle's
+        circumference in geographic space.
 
-                dist = self.haversine_meters(
-                    u_node.lat, u_node.lng,
-                    v_node.lat, v_node.lng
-                )
+        This function calculates a set of points located on a circle's circumference,
+        biased in the direction of a specified point. The terminal and bias points are
+        expected to be in latitude-longitude coordinates. The function computes distances
+        in meter space using a latitude-to-meter and longitude-to-meter conversion.
 
-                if dist > 0.1:
-                    dump_u = u_node.model_dump()
-                    dump_v = v_node.model_dump()
+        Args:
+            terminal (np.ndarray): A 2D array containing the latitude and longitude
+                of the circle's center in degrees.
+            bias_point (np.ndarray): A 2D array containing the latitude and longitude
+                of the bias point in degrees.
+            R (float): The radius of the circle in meters.
 
-                    edges.append(Edge(
-                        start=dump_u,
-                        end=dump_v,
-                        lengthMeters=dist,
-                        voltage=self.request.voltageLevel
-                    ))
-                    edges.append(Edge(
-                        start=dump_v,
-                        end=dump_u,
-                        lengthMeters=dist,
-                        voltage=self.request.voltageLevel
-                    ))
+        Returns:
+            List[np.ndarray]: A list of 2D arrays where each array contains the latitude
+                and longitude of a biased point on the circle's circumference.
+        """
+        points = []
+        vec = bias_point - terminal
+        dist = np.linalg.norm(vec)
 
-        if self.request.debug >= 1:
-            n_term_drops = len(terminal_indices)
-            n_backbone_edges = len(edges) - n_term_drops
-            print(f"→ Generated {len(edges)} edges "
-                  f"({n_term_drops} forced service drops + {n_backbone_edges} backbone edges)")
+        R *= .99  # A bit of tolerance
 
-        return edges
+        if dist < 1e-6:
+            # fallback – two arbitrary points
+            METERS_PER_DEG_LAT = 111111.0
+            points.append(np.array([terminal[0] + R / METERS_PER_DEG_LAT, terminal[1]]))
+            points.append(np.array([terminal[0] - R / METERS_PER_DEG_LAT, terminal[1]]))
+            return points
 
+        METERS_PER_DEG_LAT = 111111.0
+        METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(terminal[0]))
 
-    def _generate_fermat_poles(self, term_coords: np.ndarray, disk_center_coords: np.ndarray) -> np.ndarray:
-        """Fermat candidates on the backbone only (source + disk centers)."""
-        if len(disk_center_coords) < 2:
-            return np.empty((0, 2), dtype=float)
+        # Vector toward source (meter space)
+        vec_m = np.array([vec[1] * METERS_PER_DEG_LON, vec[0] * METERS_PER_DEG_LAT])
+        unit_m = vec_m / np.linalg.norm(vec_m)
 
-        source_coord = self._coords[self._source_idx].reshape(1, 2)
-        backbone = np.vstack([source_coord, disk_center_coords])
+        # Point 1: toward source
+        offset_m = unit_m * R
+        dlat = offset_m[1] / METERS_PER_DEG_LAT
+        dlon = offset_m[0] / METERS_PER_DEG_LON
+        points.append(np.array([terminal[0] + dlat, terminal[1] + dlon]))
 
-        if self.request.debug >= 1:
-            print(f"  Generating Fermat candidates on backbone ({len(backbone)} points)")
+        return points
 
-        fermat_cands = self.generate_proximity_fermat_candidates(
-            backbone,
-            max_distance=100,
-            max_candidates=50
+    def generate_candidates(self,
+                            coords,
+                            cur_edges,
+                            fermat_candidates,
+                            terminal_cluster_centers,
+                            added_candidates,
+                            num_per_edge=2):
+        """
+        Generates a pool of candidate points based on provided coordinates, current edges, and
+        several predefined candidate types.
+
+        This method aims to build a composite pool of potential candidates by combining different
+        sets of candidate points (e.g., Fermat points, adaptive Fermat points, cluster centers).
+        The combined pool is then filtered based on specific constraints to ensure only valid
+        candidate points are included. Optionally, a debug visualization of the generated
+        candidate points can be displayed when debug mode is enabled.
+
+        Args:
+            coords (list): A list of coordinates representing the current points in the graph.
+            cur_edges (object): The current set of edges in the graph.
+            fermat_candidates (ndarray): An array of Fermat points to consider as candidates.
+            terminal_cluster_centers (ndarray): An array of cluster centers to consider as candidates.
+            added_candidates (ndarray): An array of coordinates corresponding to the previously
+                added candidates.
+            num_per_edge (int, optional): The number of intermediate candidates to generate per
+                edge. Default is 2.
+
+        Returns:
+            ndarray: A filtered array of candidate coordinates, suitable for further processing
+            or selection.
+
+        Raises:
+            None explicitly raised but downstream exceptions may occur depending on the validity
+            of the input data.
+
+        """
+
+        n_terminals = len(self._terminal_indices) + 1  # +1 for source
+        pole_indices = list(range(n_terminals, len(coords)))
+        terminal_indices = list(range(n_terminals))
+
+        adaptive_fermat = self.generate_adaptive_fermat_candidates(
+            np.array(coords),
+            terminal_indices,
+            pole_indices
         )
 
-        # final safety filter
-        if len(fermat_cands) > 0:
-            existing = np.vstack([disk_center_coords, source_coord])
-            min_dists = np.min(self.haversine_vec(fermat_cands, existing), axis=1)
-            fermat_cands = fermat_cands[min_dists >= 5.0]
+        # === 2. Store ALL candidates in a dictionary (raw, before any masking) ===
+        candidate_dict = {
+            'Fermat Candidates': fermat_candidates,
+            'Adaptive Fermat Candidates': adaptive_fermat,
+            'Cluster Candidates': terminal_cluster_centers,
+        }
 
-        return fermat_cands
+        # === 4. Build final candidate pool by concatenating only the sets we actually use ===
+        to_concat = [
+            candidate_dict['Fermat Candidates'],
+            candidate_dict['Adaptive Fermat Candidates'],
+            candidate_dict['Cluster Candidates'],
+        ]
+
+        if any(len(arr) > 0 for arr in to_concat):
+            candidates = np.concatenate([arr for arr in to_concat if len(arr) > 0])
+        else:
+            candidates = np.empty((0, 2), dtype=float)
+
+        # -------------- FILTER CANDIDATES --------------
+        n_terminals = len(self._terminal_indices) + 1  # +1 for source
+        pole_indices = list(range(n_terminals, len(coords)))
+        terminal_indices_for_filter = self._terminal_indices  # real homes only
+
+        candidates = self.filter_candidates(
+            candidates=candidates,
+            current_coords=np.array(coords),
+            added_candidates=np.array(added_candidates),
+            pole_indices=pole_indices,
+            terminal_indices=terminal_indices_for_filter
+        )
+
+        # === 5. Debug plot using the dictionary (loop instead of 5 separate scatters) ===
+        if self.request.debug >= 1 and len(candidates) > 0:
+            fig, ax = plt.subplots(figsize=(10, 8))
+            ax.set_title("Generated Candidates")
+            ax.set_xlabel("Longitude")
+            ax.set_ylabel("Latitude")
+            ax.set_aspect('equal')
+
+            # Loop through the dictionary — one scatter per candidate type
+            for label, cands in candidate_dict.items():  # using raw (pre-mask) just like original
+                if len(cands) > 0:
+                    ax.scatter(cands[:, 1], cands[:, 0], s=100, marker='o', label=label)
+
+            ax.scatter(coords[:, 1], coords[:, 0], c='black', s=100, marker='o', label='Existing Points')
+            ax.legend(fontsize=9)
+            ax.grid(True, alpha=0.3)
+            plt.show()
+
+        return candidates
+
+    def _distances_from_new_point(self, current_coords: np.ndarray, new_point: np.ndarray) -> np.ndarray:
+        """
+        Haversine distances from a new point (kept for completeness).
+        """
+        new_point = np.array(new_point).reshape(1, 2)
+        return self.haversine_vec(new_point, current_coords).flatten()
+
+    def _build_directed_graph_with_new_point(
+            self,
+            nodes,
+            base_dist_matrix: np.ndarray,
+            cand_dists: np.ndarray,
+            new_point_idx: int
+    ) -> nx.DiGraph:
+        """
+        Builds a directed graph by incorporating a new point into the network and updating connections between source, poles,
+        and terminals based on distance matrices and certain conditions. The graph represents a network for utility or
+        infrastructure systems.
+
+        Args:
+            nodes (list): A list of node objects, where each node object must have the attributes index, name, type, lat,
+                and lng. The type attribute determines whether a node is a "pole" or "terminal".
+            base_dist_matrix (np.ndarray): A 2D square numpy array representing the base distance matrix between all points
+                before considering the new point.
+            cand_dists (np.ndarray): A 1D numpy array containing the distances from the new point to existing points in the
+                network, including the source.
+            new_point_idx (int): The index representing the new point being added to the network.
+
+        Returns:
+            nx.DiGraph: A directed graph where nodes and directed edges represent the network structure. Each edge has
+                attributes such as weight, length, and voltage level based on the distances and network conditions.
+
+        Raises:
+            AttributeError: If input nodes lack required attributes like index, name, type, lat, or lng.
+            ValueError: If the provided distance matrices or new point index have invalid dimensions or values.
+        """
+        DG = nx.DiGraph()
+
+        source_idx = self._source_idx
+
+        for node in nodes:
+            DG.add_node(node.index,
+                        name=node.name,
+                        type=node.type,
+                        lat=node.lat,
+                        lng=node.lng)
+
+        pole_indices = [i for i, node in enumerate(nodes) if node.type == "pole"]
+        terminal_indices = [i for i, node in enumerate(nodes) if node.type == "terminal"]
+
+        # 1. Source → all poles
+        for p in pole_indices:
+            if p == new_point_idx:
+                d = cand_dists[source_idx]
+            else:
+                d = base_dist_matrix[source_idx, p]
+
+            if 0.1 < d < 1e6:
+                w = self.calc_edge_weight(d)
+                DG.add_edge(source_idx, p, weight=w, length=d, voltage=self.request.voltageLevel)
+
+        # 2. Pole ↔ Pole
+        for i in range(len(pole_indices)):
+            for j in range(i + 1, len(pole_indices)):
+                p1 = pole_indices[i]
+                p2 = pole_indices[j]
+
+                if p1 == new_point_idx:
+                    d = cand_dists[p2]
+                elif p2 == new_point_idx:
+                    d = cand_dists[p1]
+                else:
+                    d = base_dist_matrix[p1, p2]
+
+                if 0.1 < d < 1e6:
+                    w = self.calc_edge_weight(d)
+                    DG.add_edge(p1, p2, weight=w, length=d, voltage=self.request.voltageLevel)
+                    DG.add_edge(p2, p1, weight=w, length=d, voltage=self.request.voltageLevel)
+
+        # 3. Poles → Terminals
+        for p in pole_indices:
+            for h in terminal_indices:
+                if p == new_point_idx:
+                    d = cand_dists[h]
+                else:
+                    d = base_dist_matrix[p, h]
+
+                if 0.1 < d < 1e6:
+                    w = self.calc_edge_weight(d, to_terminal=True)
+                    DG.add_edge(p, h, weight=w, length=d, voltage=self.request.voltageLevel)
+
+        # 4. Source → Terminals
+        for h in terminal_indices:
+            d = base_dist_matrix[source_idx, h]
+            if 0.1 < d < 1e6:
+                w = self.calc_edge_weight(d, to_terminal=True)
+                DG.add_edge(source_idx, h, weight=w, length=d, voltage=self.request.voltageLevel)
+
+        return DG
+
+    def greedy_steiner(self, disk_center_pole_coords, disk_center_names):
+        """
+        Optimize disk-center pole placement using a greedy iterative approach.
+
+        This method performs iterative optimization to connect disk-center poles
+        to an existing source node while minimizing the total cost. It follows a
+        greedy strategy to find and incorporate new candidates that improve the
+        current cost. The optimization stops when no further improvements can be
+        made or when the maximum iteration limit is reached.
+
+        Args:
+            disk_center_pole_coords (list[tuple[float, float]]): Coordinates of the central poles within disks, specified as a list of (x, y) tuples.
+            disk_center_names (list[str]): Names corresponding to the disk-center poles.
+
+        Returns:
+            tuple:
+                - current_mst (networkx.Graph): The resulting minimum spanning tree connecting the source and optimized poles.
+                - current_coords (numpy.ndarray): Coordinates of the source and resulting poles.
+                - current_names (list[str]): Names corresponding to the source and resulting poles.
+        """
+        if self.request.debug >= 1:
+            print("Step 2: Greedy iterative optimization over disk centers "
+                  f"(initialized with {len(disk_center_pole_coords)} disk-center poles)")
+
+        # === Backbone only (source + disk centers) ===
+        source_only = self._coords[[self._source_idx]]
+        disk_array = np.array(disk_center_pole_coords) if len(disk_center_pole_coords) > 0 else np.empty((0, 2))
+
+        current_coords = np.vstack([source_only, disk_array]) if len(disk_array) > 0 else source_only.copy()
+        current_names = [self._names[self._source_idx]] + disk_center_names
+        added_candidates = disk_array.copy()
+
+        # Save terminals for later restoration
+        original_terminal_indices = self._terminal_indices[:]
+        self._terminal_indices = []  # ← terminals removed during greedy backbone opt
+
+        # Initial MST on backbone
+        backbone_nodes = self._build_nodes(current_coords, np.empty((0, 2)), current_names)
+        G = self.build_graph_from_nodes(backbone_nodes)  # undirected complete graph
+        current_mst = nx.minimum_spanning_tree(G, weight='weight')
+        current_cost = self._compute_total_cost_poles_only(current_mst)
+
+        if self.request.debug >= 1:
+            print(f"  Initial backbone MST cost: {current_cost:.2f} €")
+            self._plot_current_graph(current_mst, title="Initial MST – source + disk centers")
+
+        # Greedy iteration constants
+        MAX_ITERS = 12
+        IMPROVEMENT_THRESHOLD = 0.5  # Minimum cost improvement to accept a candidate
+
+        for it in range(MAX_ITERS):
+            if self.request.debug >= 1:
+                print(f"\n  Greedy iter {it + 1}/{MAX_ITERS} – current poles: {len(current_coords) - 1}")
+
+            # Generate candidates on current backbone only
+            fermat_cands = self.generate_proximity_fermat_candidates(
+                current_coords, max_distance=120.0, max_candidates=80
+            )
+            adaptive_cands = self.generate_adaptive_fermat_candidates(
+                current_coords, list(range(len(current_coords))), [], max_distance=100.0
+            )
+            cluster_cands = self.dbscan_generate_cluster_center_candidates(
+                current_coords, eps_meters=50, min_samples=2
+            )
+
+            all_cands_list = [fermat_cands, adaptive_cands, cluster_cands]
+            all_cands = np.vstack([c for c in all_cands_list if len(c) > 0]) if any(
+                len(c) > 0 for c in all_cands_list) else np.empty((0, 2))
+
+            # Filter duplicates / bounds
+            all_cands = self.filter_candidates(
+                candidates=all_cands,
+                current_coords=current_coords,
+                added_candidates=added_candidates,
+                pole_indices=list(range(1, len(current_coords))),  # all except source
+                terminal_indices=[]  # no terminals during backbone phase
+            )
+
+            if len(all_cands) == 0:
+                if self.request.debug >= 1:
+                    print("  No new candidates – stopping")
+                break
+
+            if self.request.debug >= 1:
+                print(f"  Generated {len(all_cands)} candidate points this iteration")
+
+            # === Test every candidate with a fresh MST ===
+            best_cand = None
+            best_cost = current_cost
+            best_idx = -1
+
+            for idx, cand in enumerate(all_cands):
+                trial_coords = np.vstack([current_coords, cand])
+                trial_names = current_names + [f"SteinerPole_{len(current_names)}"]
+                trial_nodes = self._build_nodes(trial_coords, np.empty((0, 2)), trial_names)
+
+                trial_DG = self.build_graph_from_nodes(trial_nodes)
+                trial_mst = nx.minimum_spanning_tree(trial_DG, weight='weight')
+                trial_cost = self._compute_total_cost_poles_only(trial_mst)
+
+                if trial_cost < best_cost - IMPROVEMENT_THRESHOLD:
+                    best_cost = trial_cost
+                    best_cand = cand
+                    best_idx = idx
+
+                if self.request.debug >= 3:
+                    self._plot_current_graph(trial_mst, added_points=[cand],
+                                             title=f"Trial candidate {idx} – cost {trial_cost:.2f} €")
+
+            # Accept best candidate if any improvement
+            if best_cand is not None:
+                added_candidates = np.vstack([added_candidates, best_cand])
+                current_coords = np.vstack([current_coords, best_cand])
+                current_names = current_names + [f"SteinerPole_{len(current_names)}"]
+
+                # Rebuild MST with the new point
+                backbone_nodes = self._build_nodes(current_coords, np.empty((0, 2)), current_names)
+                DG = self.build_graph_from_nodes(backbone_nodes)
+                current_mst = nx.minimum_spanning_tree(DG, weight='weight')
+                current_cost = best_cost
+
+                if self.request.debug >= 1:
+                    print(f"    → BEST candidate accepted (index {best_idx}) – cost ↓ {current_cost:.2f} €")
+
+                if self.request.debug >= 2:
+                    self._plot_current_graph(current_mst, added_points=None,
+                                             title=f"Backbone after iter {it + 1} – cost {current_cost:.2f} €")
+            else:
+                if self.request.debug >= 1:
+                    print("  No improving candidate found – backbone converged")
+                break
+
+        # Restore original terminal indices for the caller
+        self._terminal_indices = original_terminal_indices
+
+        if self.request.debug >= 1:
+            print(f"Greedy backbone converged – {len(current_coords) - 1} poles, final cost {current_cost:.2f} €")
+            self._plot_current_graph(current_mst, title="Final Greedy Backbone MST")
+
+        return current_mst, current_coords, current_names  # ← now returns coords + names too
+
+    def attach_terminals(self, backbone_coords, backbone_names):
+        """
+        Attaches terminal nodes to the closest backbone nodes in the graph.
+
+        The method enhances an existing graph representing a backbone network
+        by connecting terminal points to it. It involves several sequential steps:
+        1. Builds an initial directed graph for arborescence generation.
+        2. Modifies the graph by splitting long backbone edges.
+        3. Updates backbone node coordinates after graph modifications.
+        4. Attaches terminal nodes to the closest available backbone nodes
+           using updated coordinates.
+
+        Args:
+            backbone_coords: numpy.ndarray
+                A 2D array containing coordinates of the backbone nodes in the format
+                [[latitude, longitude], ...].
+            backbone_names: list[str]
+                A list of names corresponding to the backbone nodes.
+
+        Returns:
+            networkx.DiGraph
+                A directed graph with the terminal nodes attached to the backbone network.
+        """
+        if self.request.debug >= 1:
+            print(f"Attaching {len(self._terminal_indices)} terminals to closest backbone poles...")
+
+        # ── Step A: Build proper arborescence (one-way edges from source) ──
+        backbone_nodes = self._build_nodes(
+            backbone_coords,
+            np.empty((0, 2)),
+            backbone_names
+        )
+
+        temp_DG = self.build_directed_graph_for_arborescence(backbone_nodes)
+        best_graph = self._minimum_spanning_arborescence_w_attrs(temp_DG)
+
+        # ── Step B: Split long backbone edges FIRST ────────────────────────
+        if self.request.debug >= 1:
+            print("   Splitting long backbone edges first...")
+        best_graph = self.split_long_edges_with_coords(best_graph)
+
+        if self.request.debug >= 2:
+            self._plot_current_graph(best_graph, title="Backbone after splitting long edges (before attaching terminals)")
+
+        # ── IMPORTANT: Update backbone_coords to include the new split poles ──
+        # Extract current coordinates of ALL backbone nodes (source + poles)
+        backbone_coords_updated = []
+        for node_id, data in best_graph.nodes(data=True):
+            if data['type'] in ('source', 'pole'):
+                backbone_coords_updated.append([data['lat'], data['lng']])
+        backbone_coords_updated = np.array(backbone_coords_updated, dtype=float)
+
+        if self.request.debug >= 1:
+            print(f"   Backbone now has {len(backbone_coords_updated)} nodes after splitting "
+                  f"({len(backbone_coords_updated) - len(backbone_coords)} new intermediate poles)")
+
+        # ── Step C: Attach terminals using the UPDATED coordinates ─────────
+        for i, term_idx in enumerate(self._terminal_indices):
+            term_coord = self._coords[term_idx]
+            term_name = self._names[term_idx]
+
+            # New terminal gets the next available index
+            term_node_id = max(best_graph.nodes) + 1
+
+            best_graph.add_node(
+                term_node_id,
+                name=term_name,
+                type='terminal',
+                lat=float(term_coord[0]),
+                lng=float(term_coord[1])
+            )
+
+            # Find closest backbone node using the UPDATED coordinates
+            dists = self.haversine_vec(
+                np.array([term_coord]),
+                backbone_coords_updated
+            ).flatten()
+            closest_idx = int(np.argmin(dists))
+            dist = float(dists[closest_idx])
+
+            weight = self.calc_edge_weight(dist, to_terminal=True)
+            best_graph.add_edge(
+                closest_idx,
+                term_node_id,
+                weight=weight,
+                length=dist,
+                voltage=self.request.voltageLevel
+            )
+
+            if self.request.debug >= 2:
+                print(f"  Terminal {term_name} attached to node {closest_idx} "
+                      f"(dist {dist:.1f}m)")
+
+        if self.request.debug >= 1:
+            print(f"   → Added {len(self._terminal_indices)} service-drop edges. "
+                  f"Final graph has {best_graph.number_of_nodes()} nodes.")
+
+            self._plot_current_graph(best_graph,
+                                     added_points=self._coords[self._terminal_indices],
+                                     title="Backbone (split) + Terminals Attached")
+
+        return best_graph
 
     def _solve(self) -> nx.DiGraph:
         """
-        Solves the Disk-Based Steiner problem by computing a directed graph that satisfies
-        length constraints and connectivity requirements for the given set of input coordinates.
+        Computes and returns the Steiner tree solution based on the given input data.
 
-        The algorithm follows several steps:
-        1. Finds a minimal disk cover for the terminal coordinates within the given constraints.
-        2. Computes a Steiner tree considering the source and disk centers as candidates for poles.
-        3. Performs post-solving optimizations such as pruning non-essential branches and applying
-           local optimization to refine the final graph.
+        This method implements a three-step process to solve the Steiner tree problem:
+        1. Computes a minimum disk cover for a given set of terminal coordinates to
+           reduce the problem complexity.
+        2. Applies a greedy Steiner tree algorithm to construct an initial approximation
+           of the tree structure.
+        3. Performs post-solve gradient descent optimization to improve the resulting
+           tree's configuration.
 
-        Raises
-        ------
-        ValueError
-            If no terminal coordinates are provided in the input dataset.
+        Raises:
+            ValueError: If no terminals were provided in the input coordinates.
 
-        Returns
-        -------
-        nx.DiGraph
-            A directed graph representing the optimal solution, where nodes correspond to poles
-            (including potential Steiner poles and disk center poles), and directed edges represent
-            the connections under the specified constraints.
+        Returns:
+            nx.DiGraph: A directed graph object representing the optimized Steiner tree
+            with information such as edge lengths and node types.
         """
-
         coords = self._coords
         term_indices = self._terminal_indices
-        R = self.get_max_pole_to_pole()
+        R = self.get_max_pole_to_term()
 
         term_coords = coords[term_indices]
 
@@ -691,50 +953,24 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         if self.request.debug >= 1:
             print(f"Step 1: Disk cover with R={R:.1f}m for {len(term_coords)} terminals")
 
-        # get candidate poles from disk cover algorithm
-        disk_center_pole_coords, disk_center_names = self._minimum_disk_cover(term_coords, R=R)  # returns (k, 2) array
+        disk_center_pole_coords, disk_center_names = self._minimum_disk_cover(term_coords, R=R)
 
-        # generate fermat candidates
-        fermat_pole_coords = self._generate_fermat_poles(term_coords, disk_center_pole_coords)
-        fermat_pole_names = [f"FermatPole {i + 1}" for i in range(len(fermat_pole_coords))]
-
-        candidate_poles = np.vstack([disk_center_pole_coords, fermat_pole_coords])
-        candidate_names = disk_center_names + fermat_pole_names
-
-        full_nodes = self._build_nodes(
-            coords,  # original source + terminals
-            candidate_poles,  # new poles from disks
-            self._names + candidate_names
+        final_mst, backbone_coords, backbone_names = self.greedy_steiner(
+            disk_center_pole_coords, disk_center_names
         )
 
-        # ── Step 2: Standard Steiner on source + disk centers ──────────────
-        # We add the disk centers as candidate poles to the original point set.
-        # The base arborescence + prune will automatically:
-        #   • connect terminals to the nearest disk center (service drops)
-        #   • connect the disk centers to the source (with possible extra Steiner poles)
-        disk_edges = self._generate_disk_graph_edges(full_nodes)
+        # ── Attach terminals to closest poles (FIXED node indexing) ────────
+        best_graph = self.attach_terminals(backbone_coords, backbone_names)
 
-        DG = self.build_graph_from_nodes(nodes=full_nodes, directed=True)
-
+        # ── Step 3: Post-solve gradient descent optimization ────────────────
         if self.request.debug >= 1:
-            self._plot_current_graph(DG, added_points=None, title="DG")
-        arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
-        if self.request.debug >= 1:
-            self._plot_current_graph(arbo_graph, added_points=None, title="arbo_graph")
-        pruned_graph = self.prune_dead_end_pole_branches(arbo_graph)
-        if self.request.debug >= 1:
-            self._plot_current_graph(pruned_graph, added_points=None, title="pruned_graph")
-        steinerized_graph = self.split_long_edges_with_coords(pruned_graph)
-        if self.request.debug >= 1:
-            self._plot_current_graph(steinerized_graph, added_points=None, title="steinerized_graph")
-
-        # ── Step 4: Post-solve gradient descent + cleanup
-        final_graph = self._post_solver_local_opt(steinerized_graph)
+            print("Step 3: Post-solve gradient descent optimization")
+        final_graph = self._post_solver_local_opt(best_graph)
 
         if self.request.debug >= 1:
             n_poles = sum(1 for _, d in final_graph.nodes(data=True) if d['type'] == 'pole')
-            print(f"DiskBasedSteinerSolver finished – final poles: {n_poles}")
-
+            print(f"NewDiskBasedSteinerSolver finished – final poles: {n_poles}")
+            print("Longest edge:", max([e[2]['length'] for e in final_graph.edges(data=True)]))
             self._plot_current_graph(final_graph, added_points=None, title="final_graph")
 
         return final_graph

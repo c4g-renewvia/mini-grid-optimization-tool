@@ -4,8 +4,8 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from mini_grid_solver.src import LocalOptimization
-from mini_grid_solver.src.solvers.registry import SOLVER_REGISTRY  # or wherever
+from mini_grid_solver.src.solvers.local_opt import LocalOptimization
+from mini_grid_solver.src.utils.registry import SOLVER_REGISTRY
 from mini_grid_solver.src.utils.models import SolverRequest, Solver, SolverResult
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-from .base_mini_grid_solver import BaseMiniGridSolver
+from ..solvers.base_mini_grid_solver import BaseMiniGridSolver
 from typing import Dict, Type
 SOLVER_REGISTRY: Dict[str, Type["BaseMiniGridSolver"]] = {}
 

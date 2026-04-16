@@ -7,9 +7,9 @@ from joblib import Parallel, delayed
 from matplotlib import pyplot as plt
 from scipy.sparse.csgraph import minimum_spanning_tree
 
+from mini_grid_solver.src.utils.models import *
 from .candidate_generation import CandidateGeneration
-from .registry import register_solver
-from ..utils.models import SolverRequest, Node
+from ..utils.registry import register_solver
 
 
 @register_solver
@@ -375,7 +375,6 @@ class GreedyIterSteinerSolver(CandidateGeneration):
         DG = nx.DiGraph()
 
         source_idx = self._source_idx
-        n = len(nodes)
 
         # Add all nodes with attributes
         for node in nodes:
@@ -541,10 +540,12 @@ class GreedyIterSteinerSolver(CandidateGeneration):
             if self.request.debug >= 1:
                 print(f"\n--- Iteration {iteration} (Stagnation: {stagnation_counter}/{MAX_STAGNATION}) ---")
 
-            # 2. Generate candidates (including Adaptive Fermat and Projections)
+            # 2. Generate candidates
             candidates = self.generate_candidates(
-                current_coords, cur_edges,
-                fermat_candidates, terminal_cluster_centers,
+                current_coords,
+                cur_edges,
+                fermat_candidates,
+                terminal_cluster_centers,
                 added_candidates,
                 num_per_edge=3
             )

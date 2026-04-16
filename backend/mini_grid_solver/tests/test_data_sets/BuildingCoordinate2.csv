@@ -1,4 +1,5 @@
 name,latitude,longitude,type
+Power Source,3.777454,34.738832,source
 Building,3.780613,34.740852,terminal
 Building,3.780575,34.740927,terminal
 Building,3.780478,34.74111,terminal
@@ -86,4 +87,3 @@ Building,3.777749,34.738539,terminal
 Building,3.7777,34.738603,terminal
 Building,3.777656,34.738661,terminal
 Building,3.777584,34.738747,terminal
-Power Source,3.777454,34.738832,source
