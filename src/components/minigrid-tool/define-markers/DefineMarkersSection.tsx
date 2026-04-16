@@ -106,7 +106,7 @@ export default function DefineMarkersSection({
                 <span className='mt-1 text-emerald-500'>•</span>
                 <span>
                   <strong>Drag markers</strong> to adjust their placement. Edges
-                  cannot exceed <strong>30 meters</strong>.
+                  cannot exceed constraints set in the Parameters Section.
                 </span>
               </li>
               <li className='flex items-start gap-3'>

@@ -62,7 +62,7 @@ export default function CostsSection({
         className='mb-6 flex w-full items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 transition-all hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30'
       >
         <h2 className='text-xl font-bold text-emerald-700 dark:text-emerald-300'>
-          2. Parameters
+          2. Constraints & Parameters
         </h2>
         <svg
           className={`h-5 w-5 text-emerald-600 transition-transform dark:text-emerald-400 ${
