@@ -411,7 +411,7 @@ wheels = [
 [[package]]
 name = "mini-grid-solver"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "annotated-doc" },
     { name = "annotated-types" },
@@ -547,7 +547,7 @@ dev = [
     { name = "kiwisolver", specifier = "==1.5.0" },
     { name = "lxml", specifier = "==6.0.2" },
     { name = "matplotlib", specifier = "==3.10.8" },
-    { name = "mini-grid-solver", virtual = "." },
+    { name = "mini-grid-solver" },
     { name = "networkx", specifier = "==3.6.1" },
     { name = "numpy", specifier = "==2.4.4" },
     { name = "packaging", specifier = "==26.0" },
