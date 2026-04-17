@@ -32,10 +32,12 @@ Before you begin, ensure you have the following installed:
    ```
 
 2. Create a `.env` file in the root directory. You can use `example.env` as a template. You will need the following API keys:
-   - `AUTH_GOOGLE_ID` & `AUTH_GOOGLE_SECRET`: From [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-   - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: From Google Cloud Console
-   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` & `VAPID_PRIVATE_KEY`: For push notifications
-
+   - `AUTH_GOOGLE_ID`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - `AUTH_GOOGLE_SECRET`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`: [VAPID Key Generator](https://knock.app/tools/vapid-key-generator)
+   - `VAPID_PRIVATE_KEY`: [VAPID Key Generator](https://knock.app/tools/vapid-key-generator)
+   - 
 ### Local Development
 
 #### 1. Frontend & Database
@@ -65,13 +67,7 @@ uvicorn server:app --reload --port 8000
 
 Install and run Docker Compose (Desktop). [Docker Compose](https://docs.docker.com/compose/install) is required for local development.
 
-For a fully containerized environment, ensure your `.env` file is properly configured with the following required variables:
-
-- `AUTH_GOOGLE_ID`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-- `AUTH_GOOGLE_SECRET`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`: [VAPID Key Generator](https://knock.app/tools/vapid-key-generator)
-- `VAPID_PRIVATE_KEY`: [VAPID Key Generator](https://knock.app/tools/vapid-key-generator)
+Ensure the `.env` file in the root directory.
 
 ```bash
 # Using Make
