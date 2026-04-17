@@ -63,7 +63,13 @@ uvicorn server:app --reload --port 8000
 
 ## Running with Docker
 
-For a fully containerized environment:
+For a fully containerized environment, ensure your `.env` file is properly configured with the following required variables:
+
+- `AUTH_GOOGLE_ID`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+- `AUTH_GOOGLE_SECRET`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`: [VAPID Key Generator](https://knock.app/tools/vapid-key-generator)
+- `VAPID_PRIVATE_KEY`: [VAPID Key Generator](https://knock.app/tools/vapid-key-generator)
 
 ```bash
 # Using Make
@@ -97,7 +103,7 @@ The tool includes several pluggable solvers located in `backend/mini_grid_solver
 - **Authentication**: NextAuth.js (Google OAuth)
 - **Optimization**: NetworkX, SciPy, Shapely, Scikit-learn
 
-For more details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+For more details, see [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [architecture.png](docs/architecture.png).
 
 ---
 
