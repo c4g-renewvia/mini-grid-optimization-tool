@@ -63,6 +63,8 @@ uvicorn server:app --reload --port 8000
 
 ## Running with Docker
 
+Install and run Docker Compose (Desktop). [Docker Compose](https://docs.docker.com/compose/install) is required for local development.
+
 For a fully containerized environment, ensure your `.env` file is properly configured with the following required variables:
 
 - `AUTH_GOOGLE_ID`: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
