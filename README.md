@@ -1,133 +1,119 @@
-# Georgia Tech C4G - Renewvia Project
+# Mini-Grid Optimization Tool
 
-## Spring 2026
-Team Members: 
+The **Mini-Grid Optimization Tool** is a full-stack web application designed to help engineers and planners optimize mini-grid network designs. It provides a geographical interface to define nodes (consumers, generation sites) and uses advanced optimization algorithms to find the most cost-effective network topology.
+
+## Key Features
+
+- **Interactive Map Interface**: Place and manage nodes directly on Google Maps.
+- **Advanced Optimization Solvers**: Multiple algorithms including MST, Steiner Tree approximations, and Local Optimization.
+- **Cost Analysis**: Real-time cost breakdown based on poles, low-voltage lines, and high-voltage lines.
+- **Data Management**: Import/Export node data via CSV and KML; save and revisit previous optimization runs.
+- **Progressive Web App (PWA)**: Installable on mobile and desktop with offline support and push notifications.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+Before you begin, ensure you have the following installed:
+- [Node.js](https://nodejs.org/) (v24 or higher)
+- [pnpm](https://pnpm.io/) (v10 or higher)
+- [Python](https://www.python.org/) (v3.13 or higher)
+- [Docker](https://www.docker.com/) (for database and local containerized execution)
+- [Make](https://www.gnu.org/software/make/) (optional, for simplified setup)
+
+### Environment Setup
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/c4g-renewvia/mini-grid-optimization-tool.git
+   cd mini-grid-optimization-tool
+   ```
+
+2. Create a `.env` file in the root directory. You can use `example.env` as a template. You will need the following API keys:
+   - `AUTH_GOOGLE_ID` & `AUTH_GOOGLE_SECRET`: From [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: From Google Cloud Console
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` & `VAPID_PRIVATE_KEY`: For push notifications
+
+### Local Development
+
+#### 1. Frontend & Database
+Install Node dependencies and initialize the database:
+```bash
+pnpm install
+pnpm run init # Starts Docker, applies Prisma migrations, and seeds the DB
+```
+
+Start the development server:
+```bash
+pnpm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the app.
+
+#### 2. Backend (Optimization Solver)
+The backend is a FastAPI server located in the `/backend` directory.
+```bash
+cd backend
+pip install -e .
+uvicorn server:app --reload --port 8000
+```
+
+---
+
+## Running with Docker
+
+For a fully containerized environment:
+
+```bash
+# Using Make
+make
+
+# OR Using Docker Compose directly
+docker compose --profile local up -d --build
+```
+
+Access the tool at [http://localhost:3000](http://localhost:3000).
+
+---
+
+## Optimization Solvers
+
+The tool includes several pluggable solvers located in `backend/mini_grid_solver/solvers/`:
+
+- **MST Solver**: Uses Minimum Spanning Tree to connect all nodes with minimal total length.
+- **Greedy Iterative Steiner Solver**: An iterative approach to finding Steiner points to reduce network cost.
+- **Disk-Based Steiner Solver**: Optimizes network topology based on disk geometry constraints.
+- **Biniaz Disk Steiner Solver**: Advanced variant for enhanced accuracy in Steiner tree construction.
+- **Local Optimization**: A post-processing step that refines existing solutions to further minimize costs.
+
+---
+
+## Project Architecture
+
+- **Frontend**: Next.js 16 (React 19, TypeScript, Tailwind CSS, Shadcn UI)
+- **Backend API**: FastAPI (Python 3.13)
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: NextAuth.js (Google OAuth)
+- **Optimization**: NetworkX, SciPy, Shapely, Scikit-learn
+
+For more details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+---
+
+## Technologies Used
+
+- **Frameworks**: [Next.js](https://nextjs.org/), [FastAPI](https://fastapi.tiangolo.com/)
+- **UI/UX**: [Tailwind CSS](https://tailwindcss.com/), [Shadcn UI](https://ui.shadcn.com/), [Lucide Icons](https://lucide.dev/), [AG-Grid](https://www.ag-grid.com/)
+- **Database**: [PostgreSQL](https://www.postgresql.org/), [Prisma](https://www.prisma.io/)
+- **State & Auth**: [NextAuth.js](https://authjs.dev/), [React Context](https://react.dev/learn/passing-data-deeply-with-context)
+- **DevOps**: [Docker](https://www.docker.com/), [GitHub Actions](https://github.com/features/actions), [Nginx](https://nginx.org/)
+- **Libraries**: [NetworkX](https://networkx.org/), [Shapely](https://shapely.readthedocs.io/), [SciPy](https://scipy.org/), [Pandas](https://pandas.pydata.org/)
+
+## Team Members - Georgia Tech C4G (Spring 2026)
 - Cody Kesler
 - Harry Li
 - Haden Sangree
 - Emily Thomas
 - Mlen-Too Wesley
-
-
-## Getting Started
-
-1. Make sure you have the following setup and configured on your computer:
-   - [git](https://docs.github.com/en/get-started/getting-started-with-git/set-up-git) or [Github Desktop](https://desktop.github.com/download/)
-   - [NodeJS](https://nodejs.org/en/download) - version 24 or higher
-   - [pnpm](https://pnpm.io/installation) - Fast, disk space efficient package manager
-   - [Docker](https://www.docker.com/get-started/)
-2. Clone the repo using either SSH, HTTPS, or Github Desktop
-
-- SSH
-
-```bash
-git clone git@github.gatech.edu:cs-6150-computing-for-good/template.git
-```
-
-- HTTPS
-
-```bash
-git clone https://github.gatech.edu/cs-6150-computing-for-good/template.git
-```
-
-3. Get the `.env` file from Microsoft teams or ask a TA for the file. This file will be specific to your project once this repo is cloned and must be created by a TA as we have to setup the github action secrets.
-4. Install all of the node dependencies with the following command
-
-```bash
-pnpm install
-```
-
-5. Make sure you have docker running and run the following command to initialize the database, apply all database schema, and seed some test users:
-
-```bash
-pnpm run init
-```
-
-6. If all is well up to this point your terminal should look like this:
-   ![Initialization Successful](/documentation/init_success.png?raw=true 'Initialization Successful')
-7. Next, run the development server
-
-```bash
-pnpm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-8. Login with a gmail account
-
-
-9. To access the database you can run the following command in a new terminal:
-
-```bash
-pnpm exec prisma studio
-```
-
-It should open the browser automatically or you can open [http://localhost:5555/](http://localhost:5555/) to see the database tables.
-
-You can start editing the page by modifying `src/app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-
-## Running the Tool Locally with Docker
-
-### Requirements
-
-- Docker
-- .env file (ask TA for the file)
-
-1. Clone the Mini-Grid Optimization Tool Repository
-
-```bash
-git clone https://github.com/c4g-renewvia/mini-grid-optimization-tool.git
-```
-
-2. Navigate into the directory
-
-```bash
-cd mini-grid-optimization-tool
-```
-
-3. Validate the .env file is setup. The following API Keys must be present:
-
-- [AUTH_GOOGLE_ID](https://console.cloud.google.com/apis/credentials?project=c4g-template)
-- [AUTH_GOOGLE_SECRET](https://console.cloud.google.com/apis/credentials?project=c4g-template)
-- [NEXT_PUBLIC_GOOGLE_MAPS_API_KEY](https://console.cloud.google.com/apis/credentials?project=c4g-template)
-- [NEXT_PUBLIC_VAPID_PUBLIC_KEY](https://knock.app/tools/vapid-key-generator)
-- [VAPID_PRIVATE_KEY](https://knock.app/tools/vapid-key-generator)
-
-3. Docker Compose to start the application locally
-
-```bash
-docker compose --profile local up -d --remove-orphans --build
-```
-
-4. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-**Alternative**: Use the `make` ([Windows](https://gnuwin32.sourceforge.net/packages/make.htm) | [Linux](https://www.gnu.org/software/make/#download)) build tool to validate the .env file is setup and open the necessary web pages to retrieve the required keys if missing. Will also build the Docker images and start the application locally:
-
-```bash
-make
-```
-
-## Technologies Used
-
-- [Nextjs](https://nextjs.org/) - framework
-- [Typescript](https://www.typescriptlang.org/)
-- [Tailwind](https://tailwindcss.com/) - css atomic classes
-- [Prisma](https://www.prisma.io/) - db type ORM system
-- [Prettier](https://prettier.io/) - formatter
-- [ESLint](https://eslint.org/) - enforce rules / policies for maintable code
-- [Husky](https://typicode.github.io/husky/) - allows for code changes during local commit
-- [Lint-Staged](https://github.com/lint-staged/lint-staged) - lints code on only staged files with auto-fix
-- [Docker](https://www.docker.com/) - containers
-- [Postgres](https://www.postgresql.org/) - database
-- [Github Actions](https://github.com/features/actions) - ci/cd process
-- [Nginx](https://nginx.org/) - server hosting configuration / routing
-- [Shadcn](https://ui.shadcn.com/) - UI component library
-- [RadixUI](https://www.radix-ui.com/) - UI component library
-- [Lucide-React](https://lucide.dev/guide/packages/lucide-react) - UI icons
-- [Next-Auth](https://authjs.dev/) - authentication with google
-- [Ag-Grid](https://www.ag-grid.com/) - grid / table component
-- [Resend](https://resend.com) - emails
 
