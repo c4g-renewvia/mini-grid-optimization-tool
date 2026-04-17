@@ -6,7 +6,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from matplotlib import collections as mc
 from scipy.optimize import minimize
-from typing import Tuple
+from typing import Tuple, Union
 
 from ..utils.models import *
 
@@ -826,8 +826,19 @@ class BaseMiniGridSolver(ABC):
         return graph
 
     def _recompute_edges_for_node(self, graph: Union[nx.DiGraph, nx.Graph], node_idx: int):
-        """Recompute length and weight for ALL incident edges (in + out)
-        after moving a pole. Required because the graph is a DiGraph."""
+        """
+        Recomputes the edge attributes for all edges connected to a specific node in
+        the graph. The method updates the 'length' and 'weight' attributes of each
+        edge based on the Haversine distance between the nodes and the edge's
+        associated voltage level.
+
+        Args:
+            graph (Union[nx.DiGraph, nx.Graph]): The graph object representing the
+                network. It can be either a directed or undirected graph and must
+                contain 'lat' and 'lng' attributes for its nodes.
+            node_idx (int): The index of the node for which the edges need to be
+                recomputed.
+        """
         # Get ALL edges touching this node (incoming + outgoing)
         if isinstance(graph, nx.DiGraph):
             incident_edges = list(graph.in_edges(node_idx, data=True)) + \
@@ -849,7 +860,21 @@ class BaseMiniGridSolver(ABC):
             )
 
     def _all_edges_valid(self, graph, node_idx: int) -> bool:
-        """Check that ALL incident edges (in + out) respect lengthConstraints."""
+        """
+        Validates edges of a graph based on length constraints and node type requirements.
+
+        This method checks whether all the edges incident to a specific node in a graph meet the specified
+        criteria for length and other node-dependent conditions. It accommodates both directed and undirected
+        graphs and differentiates between terminal-to-pole and pole-to-pole node types to enforce appropriate
+        constraints.
+
+        Args:
+            graph (nx.Graph or nx.DiGraph): Input graph, which can either be a directed or undirected networkx graph.
+            node_idx (int): Index of the node to validate within the graph.
+
+        Returns:
+            bool: True if all edges incident to the specified node satisfy the constraints, False otherwise.
+        """
         if isinstance(graph, nx.DiGraph):
             incident_edges = list(graph.in_edges(node_idx, data=True)) + \
                              list(graph.out_edges(node_idx, data=True))
@@ -877,7 +902,21 @@ class BaseMiniGridSolver(ABC):
 
     def _post_solver_local_opt(self, graph) -> Union[nx.DiGraph, nx.Graph]:
         """
-        Performs post-solver optimization with multiple iterations until no further improvement.
+        Performs a local optimization on the given graph to reduce the total cost by
+        iteratively applying optimization techniques. This process includes splitting
+        long edges, renaming poles, and optimizing pole positions. The function
+        terminates when no significant improvement is observed or when a predefined
+        maximum number of iterations is reached.
+
+        Args:
+            graph (Union[nx.DiGraph, nx.Graph]): The input graph representing the
+                structure to be optimized. The graph may be directed or undirected
+                and should conform to the assumptions made by the optimization
+                algorithms.
+
+        Returns:
+            Union[nx.DiGraph, nx.Graph]: The optimized graph after local adjustments
+            to minimize the total cost.
         """
         # Initial cleanup
         graph = self.split_long_edges_with_coords(graph=graph)
@@ -930,8 +969,21 @@ class BaseMiniGridSolver(ABC):
 
     def _fast_total_cost_for_coords(self, coords: np.ndarray) -> float:
         """
-        Lightning-fast SciPy-based cost estimator used only for quick drop decisions.
-        Does NOT build any NetworkX graph — purely numeric for speed.
+        Calculates the total cost for a given set of coordinates considering wire costs, pole
+        costs, trunk and terminal drops, and ensures compliance with maximum allowable distances.
+
+        The method determines the cost of setting up a network infrastructure given a set of
+        geographic coordinates. It handles different components of the cost, including trunk
+        and terminal wire costs, pole costs, penalties for exceeding maximum distances, and
+        pruning of unnecessary poles using a minimum spanning tree.
+
+        Args:
+            coords (np.ndarray): A 2D array of coordinates, where each row represents a point
+                in geographic space. The length of coords must be at least 2.
+
+        Returns:
+            float: The total calculated cost, including the wire cost and the cost of active
+            poles after pruning.
         """
         if len(coords) < 2:
             return 1e9
@@ -1015,10 +1067,17 @@ class BaseMiniGridSolver(ABC):
 
     def _drop_redundant_poles(self, pruned_graph: nx.DiGraph) -> nx.DiGraph:
         """
-        Fast + correct version.
-        - Uses _fast_total_cost_for_coords for quick decisions.
-        - When a drop is accepted, we FULLY rebuild the arborescence on the reduced set
-          so that lost connections are properly re-established.
+        Removes redundant pole nodes from the graph that do not contribute to connecting
+        terminals. A pole is considered redundant if its removal does not disconnect any
+        terminal from the source, and doing so reduces the total cost.
+
+        Args:
+            pruned_graph (nx.DiGraph): The directed graph representing the current network
+                structure, with nodes containing 'type' and positional attributes.
+
+        Returns:
+            nx.DiGraph: A new directed graph with redundant poles removed and poles renamed.
+
         """
         if self.request.debug >= 1:
             print("\n--- Starting Fast Drop Phase (with proper reconnection) ---")
@@ -1089,7 +1148,18 @@ class BaseMiniGridSolver(ABC):
 
     def _pole_gradient_optimizer(self, graph: Union[nx.Graph, nx.DiGraph]):
         """
+        Optimizes the positions of pole nodes in a graph to reduce overall cost by adjusting their
+        latitude and longitude values. This optimization is performed over multiple passes,
+        taking into account specified movement constraints for each pole.
 
+        Args:
+            graph: A networkx graph or digraph in which nodes contain positional attributes
+            ('lat' for latitude and 'lng' for longitude) and a 'type' attribute that designates
+            if a node is a pole. The graph will be updated with optimized pole positions.
+
+        Returns:
+            A modified copy of the input graph with updated positions for pole nodes,
+            resulting in a lower total cost according to the optimization criteria.
         """
         pole_indices = [idx for idx, data in graph.nodes(data=True)
                         if data.get('type') == 'pole']
@@ -1170,6 +1240,29 @@ class BaseMiniGridSolver(ABC):
 
     @staticmethod
     def _get_num_poles_and_wire_length(graph: Union[nx.Graph, nx.DiGraph]):
+        """
+        Calculates the number of poles in the graph and the total wire length for
+        different voltage types.
+
+        This function iterates over the edges and nodes of the graph to compute
+        the total wire length categorized by voltage type ("low" and "high") and
+        count the total number of poles. It assumes that the edges in the graph
+        have an attribute `length` for wire length and `voltage` for the type of
+        voltage. Nodes in the graph are expected to have a `type` attribute to
+        identify poles.
+
+        Args:
+            graph (Union[nx.Graph, nx.DiGraph]): A NetworkX graph representing the
+                network of wires and poles. The graph's edges should contain the
+                attributes `length` (float) and `voltage` (str), and its nodes
+                should have a `type` attribute.
+
+        Returns:
+            Tuple[int, float, float]: A tuple containing:
+                - The number of poles (int) in the graph.
+                - The total wire length (float) for "low" voltage.
+                - The total wire length (float) for "high" voltage.
+        """
         low_m = high_m = 0.0
 
         for u, v, d in graph.edges(data=True):
@@ -1322,14 +1415,14 @@ class BaseMiniGridSolver(ABC):
         total_wire_cost = low_wire_cost + high_wire_cost
         total_cost = total_wire_cost + num_poles * pole_cost
 
-        node_dicts = [
-            {
-                "index": idx,
-                "lat": n['lat'],
-                "lng": n['lng'],
-                "name": n['name'] or f"{n['type']} {idx}",
-                "type": n['type'],
-            }
+        nodes = [
+            Node(
+                index= idx,
+                lat= n['lat'],
+                lng= n['lng'],
+                name= n['name'] or f"{n['type']} {idx}",
+                type= n['type'],
+            )
             for idx, n in graph.nodes(data=True)
         ]
 
@@ -1357,7 +1450,7 @@ class BaseMiniGridSolver(ABC):
 
         return SolverResult(
             edges=edges,
-            nodes=node_dicts,
+            nodes=nodes,
             totalLowVoltageMeters=round(total_low_m, 2),
             totalHighVoltageMeters=round(total_high_m, 2),
             numPolesUsed=num_poles,
