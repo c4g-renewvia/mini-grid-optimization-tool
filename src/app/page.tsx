@@ -1048,6 +1048,8 @@ export default function MiniGridToolPage() {
   }, [session?.user?.id]);
 
   // ==================== MARKER RENDERING ====================
+  const shouldAutoFit = useRef(true);
+
   useEffect(() => {
     if (!map) return;
 
@@ -1092,9 +1094,13 @@ export default function MiniGridToolPage() {
     });
 
     // Auto-fit when appropriate
-    setTimeout(() => {
-      map.fitBounds(bounds, { bottom: 80, left: 250, right: 0, top: 80 });
-    }, 100);
+    if (hasValidPoints && shouldAutoFit.current) {   // ← add a ref
+      setTimeout(() => {
+        map.fitBounds(bounds, { bottom: 80, left: 250, right: 20, top: 80 });
+      }, 50);
+    }
+
+    shouldAutoFit.current = false;
 
   }, [map, miniGridNodes, createMarker]);
 
@@ -1539,17 +1545,7 @@ export default function MiniGridToolPage() {
             setHighVoltageCost(highM > 0 ? cb.highWireCost / highM : highVoltageCost);
           }
 
-          // Auto-fit map
-          setTimeout(() => {
-            if (map && validNodes.length > 0) {
-              const bounds = new google.maps.LatLngBounds();
-              validNodes.forEach((n) =>
-                bounds.extend({ lat: n.lat, lng: n.lng })
-              );
-              map.fitBounds(bounds, { bottom: 80, left: 250, right: 0, top: 80 });
-            }
-          }, 300);
-
+          shouldAutoFit.current = true;
           // ─────────────────────────────────────────────────────
           // SAVE THE CORRECT NEW STATE TO HISTORY (this fixes redo)
           // ─────────────────────────────────────────────────────
@@ -1637,6 +1633,7 @@ export default function MiniGridToolPage() {
               // ─────────────────────────────────────────────────────
               setOriginalMiniGridNodes(parsedPoints);
               setMiniGridNodes(parsedPoints);
+              shouldAutoFit.current = true;
 
               // ─────────────────────────────────────────────────────
               // SAVE THE CORRECT NEW STATE TO HISTORY (this fixes redo)
@@ -1825,15 +1822,7 @@ export default function MiniGridToolPage() {
     setFileName(originalFileName);
     setComputingMiniGrid(false);
 
-    // Optional: reset map view to a default area
-    if (map) {
-      map.setCenter({ lat: 39.8283, lng: -98.5795 }); // US center
-      map.setZoom(4);
-
-      // Or reset to your test data area, e.g.:
-      // map.setCenter({ lat: 33.777, lng: -84.396 });
-      // map.setZoom(14);
-    }
+    shouldAutoFit.current = true;
   };
 
   const handleReconnectGraph = async () => {
@@ -2177,6 +2166,8 @@ export default function MiniGridToolPage() {
         solverOriginalCost: totalCostEstimate,
       });
 
+      shouldAutoFit.current = true;
+
 
     } catch (err: unknown) {
       const message =
@@ -2428,16 +2419,6 @@ export default function MiniGridToolPage() {
     // Restore file name / metadata
     setFileName(run.fileName || null);
 
-    // Optional: recenter map on loaded nodes
-    setTimeout(() => {
-      if (map && run.miniGridNodes?.length > 0) {
-        const bounds = new google.maps.LatLngBounds();
-        run.miniGridNodes.forEach((p: MiniGridNode) =>
-          bounds.extend({ lat: Number(p.lat), lng: Number(p.lng) })
-        );
-        map.fitBounds(bounds, { bottom: 80, left: 250, right: 0, top: 80 });
-      }
-    }, 300);
 
     setExpandedSections({
       markers: false,
@@ -2445,6 +2426,8 @@ export default function MiniGridToolPage() {
       export: true,
       savedGrids: false,
     });
+
+    shouldAutoFit.current = true;
 
     const newState = {
       miniGridNodes: run.miniGridNodes || [],
