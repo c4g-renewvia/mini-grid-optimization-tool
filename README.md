@@ -121,3 +121,6 @@ For more details, see [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [architecture.
 - Emily Thomas
 - Mlen-Too Wesley
 
+## License
+
+GPL License. See [LICENSE](LICENSE) for details.
