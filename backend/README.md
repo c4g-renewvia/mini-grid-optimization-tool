@@ -133,10 +133,6 @@ uv run pytest mini_grid_solver/tests/solvers/test_solvers.py
 | **`DiskBasedSteinerSolver`** | Uses a minimum disk cover approach to group terminals before Steiner optimization. |
 | **`LocalOptimization`** | Refines existing topologies using gradient-descent-like local moves. |
 
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
-
 ---
 
 ## Future Development (TODO)
