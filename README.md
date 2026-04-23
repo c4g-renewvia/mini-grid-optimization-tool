@@ -21,6 +21,7 @@ Before you begin, ensure you have the following installed:
 - [pnpm](https://pnpm.io/) (v10 or higher)
 - [Python](https://www.python.org/) (v3.13 or higher)
 - [Docker](https://www.docker.com/) (for database and local containerized execution)
+- 
 - [Make](https://www.gnu.org/software/make/) (optional, for simplified setup)
 
 ### Environment Setup
@@ -65,7 +66,7 @@ uvicorn server:app --reload --port 8000
 
 ## Running with Docker
 
-Install and run Docker Compose (Desktop). [Docker Compose](https://docs.docker.com/compose/install) is required for local development.
+Install and run Docker Compose (V2.X+) (Desktop). [Docker Compose](https://docs.docker.com/compose/install) is required for local development.
 
 Ensure the `.env` file in the root directory.
 
