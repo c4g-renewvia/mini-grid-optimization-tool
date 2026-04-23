@@ -1264,6 +1264,9 @@ export default function MiniGridToolPage() {
   };
 
   // Enhanced parseKml to handle solved KMLs
+  // ====================== FIXED parseKml FUNCTION ======================
+// Replace your entire existing parseKml function (around lines 520-650) with this version:
+
   const parseKml = (
     text: string
   ): {
@@ -1298,6 +1301,26 @@ export default function MiniGridToolPage() {
     const nodes: MiniGridNode[] = [];
     const edges: MiniGridEdge[] = [];
 
+    // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+    // CRITICAL FIX: Declare costBreakdown BEFORE the loop
+    // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+    let costBreakdown: CostBreakdown = {
+      lowVoltageMeters: 0,
+      highVoltageMeters: 0,
+      totalMeters: 0,
+      lowWireCost: 0,
+      highWireCost: 0,
+      wireCost: 0,
+      poleCount: 0,
+      poleCost: 0,
+      pointCount: 0,
+      grandTotal: 0,
+      // Optional fields we'll populate from the summary
+      usedPoleCost: undefined,
+      usedLowCostPerMeter: undefined,
+      usedHighCostPerMeter: undefined,
+    };
+
     placemarks.forEach((pm) => {
       const nameEl = pm.getElementsByTagName('name')[0];
       const name = nameEl?.textContent?.trim() || '';
@@ -1305,11 +1328,11 @@ export default function MiniGridToolPage() {
       const descEl = pm.getElementsByTagName('description')[0];
       let descText = descEl?.textContent?.trim() || '';
 
-      // Clean descText: remove tags, replace nbsp, bullet
+      // Clean description text
       descText = descText
-        .replace(/<[^>]+>/g, '') // remove HTML tags
-        .replace(/\xa0/g, ' ') // nbsp to space
-        .replace(/• /g, '') // remove bullet
+        .replace(/<[^>]+>/g, '')
+        .replace(/\xa0/g, ' ')
+        .replace(/• /g, '')
         .trim();
 
       const pointEl = pm.getElementsByTagName('Point')[0];
@@ -1317,8 +1340,7 @@ export default function MiniGridToolPage() {
 
       if (pointEl) {
         const coordsText =
-          pointEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() ||
-          '';
+          pointEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() || '';
         if (!coordsText) return;
 
         const [lngStr, latStr] = coordsText.split(',');
@@ -1326,9 +1348,8 @@ export default function MiniGridToolPage() {
         const lat = parseFloat(latStr);
         if (isNaN(lat) || isNaN(lng)) return;
 
-        // Skip summary point at (0,0)
+        // ==================== SUMMARY PLACEMARK (COST DATA) ====================
         if (lat === 0 && lng === 0 && name === 'Mini-Grid Cost Summary') {
-          // Parse cost summary
           const lines = descText
             .split(/\n+/)
             .map((l) => l.trim())
@@ -1338,67 +1359,86 @@ export default function MiniGridToolPage() {
             if (line.startsWith('Grand Total:')) {
               costBreakdown.grandTotal = parseFloat(
                 line.split(':')[1].replace(/[^0-9.]/g, '')
-              );
+              ) || 0;
             } else if (line.startsWith('Wire:')) {
               costBreakdown.wireCost = parseFloat(
                 line.split(':')[1].replace(/[^0-9.]/g, '')
-              );
+              ) || 0;
             } else if (line.startsWith('Low:')) {
-              const parts = line.split(':')[1].split(' → ');
-              costBreakdown.lowVoltageMeters = parseFloat(
-                parts[0].replace(/[^0-9.]/g, '')
-              );
-              costBreakdown.lowWireCost = parseFloat(
-                parts[1].replace(/[^0-9.]/g, '')
-              );
+              const parts = line.split('→');
+              if (parts[0]) {
+                costBreakdown.lowVoltageMeters = parseFloat(
+                  parts[0].replace(/[^0-9.]/g, '')
+                ) || 0;
+              }
+              if (parts[1]) {
+                costBreakdown.lowWireCost = parseFloat(
+                  parts[1].replace(/[^0-9.]/g, '')
+                ) || 0;
+              }
             } else if (line.startsWith('High:')) {
-              const parts = line.split(':')[1].split(' → ');
-              costBreakdown.highVoltageMeters = parseFloat(
-                parts[0].replace(/[^0-9.]/g, '')
-              );
-              costBreakdown.highWireCost = parseFloat(
-                parts[1].replace(/[^0-9.]/g, '')
-              );
+              const parts = line.split('→');
+              if (parts[0]) {
+                costBreakdown.highVoltageMeters = parseFloat(
+                  parts[0].replace(/[^0-9.]/g, '')
+                ) || 0;
+              }
+              if (parts[1]) {
+                costBreakdown.highWireCost = parseFloat(
+                  parts[1].replace(/[^0-9.]/g, '')
+                ) || 0;
+              }
             } else if (line.startsWith('Poles:')) {
-              const parts = line.split(':')[1].split(' × ');
-              costBreakdown.poleCount = parseInt(parts[0]);
-              costBreakdown.usedPoleCost = parseFloat(
-                parts[1].replace(/[^0-9.]/g, '')
-              );
+              const parts = line.split(':')[1].split('×');
+              if (parts[0]) {
+                costBreakdown.poleCount = parseInt(parts[0].trim()) || 0;
+              }
+              if (parts[1]) {
+                costBreakdown.usedPoleCost = parseFloat(
+                  parts[1].replace(/[^0-9.]/g, '')
+                ) || 0;
+              }
               costBreakdown.poleCost =
                 costBreakdown.poleCount * (costBreakdown.usedPoleCost || 0);
             } else if (line.startsWith('Nodes:')) {
               costBreakdown.pointCount = parseInt(
-                line.split('Nodes:')[1].split(' • ')[0]
-              );
+                line.split(':')[1].split('•')[0].trim()
+              ) || 0;
             }
           });
 
-          if (costBreakdown) {
-            costBreakdown.totalMeters =
-              costBreakdown.lowVoltageMeters + costBreakdown.highVoltageMeters;
+          // Calculate and store original per-unit costs (this is what you asked for)
+          if (costBreakdown.lowVoltageMeters > 0) {
+            costBreakdown.usedLowCostPerMeter =
+              costBreakdown.lowWireCost / costBreakdown.lowVoltageMeters;
+          }
+          if (costBreakdown.highVoltageMeters > 0) {
+            costBreakdown.usedHighCostPerMeter =
+              costBreakdown.highWireCost / costBreakdown.highVoltageMeters;
           }
 
-          return;
+          return; // done with summary
         }
 
-        // Parse description lines for Type, Index
+        // Regular node (source/terminal/pole)
         const descLines = descText.split(/\n+/).map((l) => l.trim());
         let type: 'source' | 'terminal' | 'pole' = 'terminal';
         let index = -1;
 
         descLines.forEach((l) => {
-          if (l.startsWith('Type:'))
+          if (l.startsWith('Type:')) {
             type = l.split(':')[1].trim() as 'source' | 'terminal' | 'pole';
-          if (l.startsWith('Index:')) index = parseInt(l.split(':')[1].trim());
+          }
+          if (l.startsWith('Index:')) {
+            index = parseInt(l.split(':')[1].trim());
+          }
         });
 
         nodes.push({ index, lat, lng, name, type });
       } else if (lineEl) {
-        // Edge (LineString)
+        // Edge parsing (unchanged – your existing code)
         const coordsText =
-          lineEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() ||
-          '';
+          lineEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() || '';
         const coords = coordsText.split(/\s+/).filter((c) => c);
         if (coords.length < 2) return;
 
@@ -1406,35 +1446,34 @@ export default function MiniGridToolPage() {
         const [endLngStr, endLatStr] = coords[1].split(',');
 
         const findNode = (lat: number, lng: number) =>
-          nodes.find(n =>
-            Math.abs(n.lat - lat) < 1e-9 && Math.abs(n.lng - lng) < 1e-9
+          nodes.find(
+            (n) =>
+              Math.abs(n.lat - lat) < 1e-9 && Math.abs(n.lng - lng) < 1e-9
           );
 
         const start = findNode(parseFloat(startLatStr), parseFloat(startLngStr));
-        const end   = findNode(parseFloat(endLatStr), parseFloat(endLngStr));
+        const end = findNode(parseFloat(endLatStr), parseFloat(endLngStr));
 
-        if (!start || !end) {
-          console.warn('Could not match edge to nodes – skipping');
-          return;
-        }
+        if (!start || !end) return;
 
-        // Voltage from name: "Line X (voltage)"
         let voltage: 'low' | 'high' = 'low';
-        const nameLower = name.toLowerCase();
-        if (nameLower.includes('(high)')) voltage = 'high';
+        if (name.toLowerCase().includes('(high)')) voltage = 'high';
 
-        // Length from description: "Length: N m"
         let lengthMeters = 0;
         const descLines = descText.split(/\n+/).map((l) => l.trim());
         descLines.forEach((l) => {
           if (l.startsWith('Length:')) {
-            lengthMeters = parseFloat(l.split(':')[1].replace(/[^0-9.]/g, ''));
+            lengthMeters = parseFloat(l.split(':')[1].replace(/[^0-9.]/g, '')) || 0;
           }
         });
 
         edges.push({ start, end, lengthMeters, voltage });
       }
     });
+
+    // Final safety net
+    costBreakdown.totalMeters =
+      costBreakdown.lowVoltageMeters + costBreakdown.highVoltageMeters;
 
     return { nodes, edges, costBreakdown };
   };
@@ -1448,7 +1487,7 @@ export default function MiniGridToolPage() {
     setAllowDragTerminals(true);
     setExpandedSections({
       markers: false,
-      solver_cost: true,
+      solver: true,
       export: false,
       savedGrids: false,
     });
@@ -1536,13 +1575,27 @@ export default function MiniGridToolPage() {
           // Restore per-unit costs if they were saved in the KML
           if (parsed.costBreakdown) {
             const cb = parsed.costBreakdown;
-            setPoleCost(
-              cb.usedPoleCost || cb.poleCost / Math.max(cb.poleCount, 1) || poleCost
-            );
+
+            // Prefer the explicitly stored unit costs (most accurate)
+            if (cb.usedPoleCost !== undefined && cb.usedPoleCost > 0) {
+              setPoleCost(cb.usedPoleCost);
+            } else if (cb.poleCount > 0 && cb.poleCost > 0) {
+              setPoleCost(Math.round(cb.poleCost / cb.poleCount));
+            }
+
             const lowM = cb.lowVoltageMeters || 0;
-            setLowVoltageCost(lowM > 0 ? cb.lowWireCost / lowM : lowVoltageCost);
+            if (lowM > 0) {
+              const restoredLow =
+                cb.usedLowCostPerMeter ?? cb.lowWireCost / lowM;
+              setLowVoltageCost(Number(restoredLow.toFixed(2)));
+            }
+
             const highM = cb.highVoltageMeters || 0;
-            setHighVoltageCost(highM > 0 ? cb.highWireCost / highM : highVoltageCost);
+            if (highM > 0) {
+              const restoredHigh =
+                cb.usedHighCostPerMeter ?? cb.highWireCost / highM;
+              setHighVoltageCost(Number(restoredHigh.toFixed(2)));
+            }
           }
 
           shouldAutoFit.current = true;
@@ -1779,11 +1832,12 @@ export default function MiniGridToolPage() {
 
     setExpandedSections({
       markers: false,
-      solver_cost: true,
+      solver: true,
       export: false,
       savedGrids: false,
     });
     setAllowDragTerminals(true);
+    shouldAutoFit.current = true;
 
     // Save the CORRECT new state
     saveState(newState);
@@ -2180,7 +2234,7 @@ export default function MiniGridToolPage() {
     setAllowDragTerminals(false);
     setExpandedSections({
       markers: false,
-      solver_cost: false,
+      solver: false,
       export: true,
       savedGrids: false,
     });
@@ -2422,7 +2476,7 @@ export default function MiniGridToolPage() {
 
     setExpandedSections({
       markers: false,
-      solver_cost: false,
+      solver: false,
       export: true,
       savedGrids: false,
     });
@@ -2531,7 +2585,7 @@ export default function MiniGridToolPage() {
 
       setExpandedSections({
         markers: false,
-        solver_cost: false,
+        solver: false,
         export: false,
         savedGrids: true,
       });
@@ -2675,7 +2729,7 @@ export default function MiniGridToolPage() {
                     processFile(file);
                     setExpandedSections({
                       markers: false,
-                      solver_cost: true,
+                      solver: true,
                       export: false,
                       savedGrids: false,
                     });
