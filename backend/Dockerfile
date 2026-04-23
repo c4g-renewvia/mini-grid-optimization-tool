@@ -13,12 +13,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Copy dependency files first (critical for layer caching)
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
+
+RUN uv lock
 
 # Install dependencies only (no dev group, no editable install for production)
 # This layer is cached unless pyproject.toml or uv.lock changes
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
+
 
 # Now copy the application code
 COPY . .

@@ -13,22 +13,19 @@ endif
 -include .env
 
 # Pre-calculate missing variable flags
-VAPID_MISSING := $(if $(strip $(NEXT_PUBLIC_VAPID_PUBLIC_KEY)),,1)
-GOOGLE_MISSING := $(if $(and $(strip $(AUTH_GOOGLE_ID)),$(strip $(AUTH_GOOGLE_SECRET)),$(strip $(NEXT_PUBLIC_GOOGLE_MAPS_API_KEY))),,1)
-
-
+GOOGLE_MISSING := $(if $(strip $(NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)),,1)
 
 start_local:
 	@$(MAKE) check_env
 	@$(MAKE) .docker_down
-	@$(MAKE) run_docker
+	@$(MAKE) .run_docker
 	@$(URL_OPEN) $(NEXTAUTH_URL)
 
 run_docker:
-	docker compose --profile local up -d --remove-orphans --build
+	docker compose up -d --remove-orphans --build
 
 .docker_down:
-	docker compose --profile local down
+	docker compose down
 
 .docker_prune:
 	docker image prune
@@ -43,18 +40,4 @@ else
 	@echo ".env file already exists."
 endif
 
-ifeq ($(VAPID_MISSING),1)
-	@echo "NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set in .env."
-	@echo "Please update .env file with the generated VAPID public key."
-	@echo "Opening VAPID generator..."
-	@$(WAIT)
-	@$(URL_OPEN) "https://knock.app/tools/vapid-key-generator"
-endif
-ifeq ($(GOOGLE_MISSING),1)
-	@echo "One or more Google environment variables are missing (AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, or NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)."
-	@echo "Please update .env file with the Google environment variables."
-	@echo "Opening Google Cloud Console..."
-	@$(WAIT)
-	@$(URL_OPEN) "https://console.cloud.google.com/"
-endif
 	@echo "Environment check complete."
