@@ -22,10 +22,10 @@ start_local:
 	@$(URL_OPEN) $(NEXTAUTH_URL)
 
 run_docker:
-	docker compose up -d --remove-orphans --build
+	docker compose --profile local up -d --remove-orphans --build
 
 .docker_down:
-	docker compose down
+	docker compose --profile local down
 
 .docker_prune:
 	docker image prune
