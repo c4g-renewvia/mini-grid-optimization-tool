@@ -807,8 +807,9 @@ class BaseMiniGridSolver(ABC):
 
     def rename_poles(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
         """
-        Rename poles by network distance from the source (closest pole = Pole 001).
-        This is called during solving and before building the final result.
+        Rename poles using DEPTH-FIRST SEARCH (DFS preorder) order from the source.
+        Poles are numbered in the exact order they are first discovered when doing
+        a DFS traversal starting from the source node.
         """
         if self._source_idx is None or not graph:
             return graph
@@ -816,31 +817,26 @@ class BaseMiniGridSolver(ABC):
         graph = graph.copy()
 
         try:
-            # Compute shortest-path distance from source to every node (tree distance)
-            dist_dict = nx.single_source_dijkstra_path_length(
-                graph, self._source_idx, weight='length'
-            )
+            # DFS preorder traversal from source (depth-first discovery order)
+            dfs_order = list(nx.dfs_preorder_nodes(graph, self._source_idx))
         except (nx.NetworkXError, KeyError):
-            # Fallback if graph has no 'length' yet
-            dist_dict = nx.single_source_shortest_path_length(graph, self._source_idx)
+            # Fallback if graph is malformed
+            dfs_order = list(graph.nodes())
 
-        # Collect poles with their distance
+        # Collect poles in the exact DFS discovery order
         poles = []
-        for idx, data in graph.nodes(data=True):
+        for idx in dfs_order:
+            data = graph.nodes[idx]
             if data.get('type') == 'pole':
-                dist = dist_dict.get(idx, 999999.0)
-                poles.append((dist, idx, data))
+                poles.append((idx, data))
 
-        # Sort by distance (closest first)
-        poles.sort(key=lambda x: x[0])
-
-        # Rename in distance order
-        for i, (_, idx, data) in enumerate(poles, 1):
+        # Rename poles sequentially
+        for i, (idx, data) in enumerate(poles, 1):
             graph.nodes[idx]['name'] = f"Pole {i:03d}"
-            graph.nodes[idx]['used'] = True  # keep existing flag
+            graph.nodes[idx]['used'] = True
 
         if self.request.debug >= 1:
-            print(f"✅ Renamed {len(poles)} poles by distance from source")
+            print(f"✅ Renamed {len(poles)} poles using DFS (depth-first) order from source")
 
         return graph
 
