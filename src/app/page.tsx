@@ -570,7 +570,6 @@ export default function MiniGridToolPage() {
       labelSpan.style.fontSize = fontSize;
       labelSpan.style.fontWeight = 'bold';
       labelSpan.style.textShadow = '0 0 3px black';
-      labelSpan.style.marginTop = '3px';
       labelSpan.style.pointerEvents = 'none';
 
       // Assemble in correct order
