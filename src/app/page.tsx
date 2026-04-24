@@ -30,6 +30,7 @@ import type {
   MiniGridEdge,
   MiniGridNode,
   MiniGridRun,
+  SolverRequest,
   Solvers,
 } from '@/types/minigrid';
 import { SidebarUserMenu } from '@/components/minigrid-tool/SidebarUserMenu';
@@ -98,16 +99,16 @@ export default function MiniGridToolPage() {
   const [highVoltageCost, setHighVoltageCost] = useState<number>(0);
 
   const [
-    lowVoltagePoleToPoleLengthConstraint,
+    lowVoltagePoleToPoleMaxLength,
     setLowVoltagePoleToPoleLengthConstraint,
   ] = useState<number>(30);
   const [
-    lowVoltagePoleToTerminalLengthConstraint,
+    lowVoltagePoleToTerminalMaxLength,
     setLowVoltagePoleToTerminalLengthConstraint,
   ] = useState<number>(20);
 
   const [
-    lowVoltagePoleToTerminalMinimumLength,
+    lowVoltagePoleToTerminalMinLength,
     setLowVoltagePoleToTerminalMinimumLength,
   ] = useState<number>(5);
 
@@ -116,12 +117,12 @@ export default function MiniGridToolPage() {
     setHighVoltagePoleToPoleLengthConstraint,
   ] = useState<number>(0);
   const [
-    highVoltagePoleToTerminalLengthConstraint,
+    highVoltagePoleToTerminalMaxLength,
     setHighVoltagePoleToTerminalLengthConstraint,
   ] = useState<number>(0);
 
   const [
-    highVoltagePoleToTerminalMinimumLength,
+    highVoltagePoleToTerminalMinLength,
     setHighVoltagePoleToTerminalMinimumLength,
   ] = useState<number>(0);
 
@@ -655,12 +656,12 @@ export default function MiniGridToolPage() {
             if (isPoleToPole) {
               maxAllowedMeters = isHighVoltage
                 ? highVoltagePoleToPoleLengthConstraint
-                : lowVoltagePoleToPoleLengthConstraint;
+                : lowVoltagePoleToPoleMaxLength;
             } else {
               // Pole to Terminal (or Terminal to Pole)
               maxAllowedMeters = isHighVoltage
-                ? highVoltagePoleToTerminalLengthConstraint
-                : lowVoltagePoleToTerminalLengthConstraint;
+                ? highVoltagePoleToTerminalMaxLength
+                : lowVoltagePoleToTerminalMaxLength;
             }
 
             if (distance > maxAllowedMeters) {
@@ -1888,36 +1889,38 @@ export default function MiniGridToolPage() {
     const backendUrl =
       process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/solve';
 
+    const payload: SolverRequest = {
+      solver: 'SimpleMSTSolver',
+      params: { steinerize: true },
+      nodes: miniGridNodes,
+      edges: [],
+      voltageLevel: 'low',
+      lengthConstraints: {
+        low: {
+          poleToPoleMaxLength: lowVoltagePoleToPoleMaxLength,
+          poleToTerminalMaxLength: lowVoltagePoleToTerminalMaxLength,
+          poleToTerminalMinLength: lowVoltagePoleToTerminalMinLength,
+        },
+        high: {
+          poleToPoleMaxLength: highVoltagePoleToPoleLengthConstraint,
+          poleToTerminalMaxLength: highVoltagePoleToTerminalMaxLength,
+          poleToTerminalMinLength: highVoltagePoleToTerminalMinLength,
+        },
+      },
+      costs: {
+        poleCost: poleCost || 0,
+        lowVoltageCostPerMeter: lowVoltageCost || 0,
+        highVoltageCostPerMeter: highVoltageCost || 0,
+      },
+      debug: 0,
+      usePoles: true,
+    };
+
     try {
       const res = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          solver: 'SimpleMSTSolver',
-          params: { steinerize: true },
-          nodes: miniGridNodes,
-          edges: [],
-          voltageLevel: 'low',
-          lengthConstraints: {
-            low: {
-              poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
-              poleToTerminalLengthConstraint:
-                lowVoltagePoleToTerminalLengthConstraint,
-            },
-            high: {
-              poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
-              poleToTerminalLengthConstraint:
-                highVoltagePoleToTerminalLengthConstraint,
-            },
-          },
-          costs: {
-            poleCost: poleCost || 0,
-            lowVoltageCostPerMeter: lowVoltageCost || 0,
-            highVoltageCostPerMeter: highVoltageCost || 0,
-          },
-          debug: 0,
-          usePoles: true,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -1985,40 +1988,38 @@ export default function MiniGridToolPage() {
       process.env.NEXT_PUBLIC_BACKEND_LOCAL_OPT_URL ||
       'http://localhost:8000/local_optimization';
 
+    const payload: SolverRequest = {
+      solver: 'SimpleMSTSolver',
+      params: paramValues,
+      nodes: miniGridNodes,
+      edges: miniGridEdges,
+      voltageLevel: 'low',
+      lengthConstraints: {
+        low: {
+          poleToPoleMaxLength: lowVoltagePoleToPoleMaxLength,
+          poleToTerminalMaxLength: lowVoltagePoleToTerminalMaxLength,
+          poleToTerminalMinLength: lowVoltagePoleToTerminalMinLength,
+        },
+        high: {
+          poleToPoleMaxLength: highVoltagePoleToPoleLengthConstraint,
+          poleToTerminalMaxLength: highVoltagePoleToTerminalMaxLength,
+          poleToTerminalMinLength: highVoltagePoleToTerminalMinLength,
+        },
+      },
+      costs: {
+        poleCost: poleCost || 0,
+        lowVoltageCostPerMeter: lowVoltageCost || 0,
+        highVoltageCostPerMeter: highVoltageCost || 0,
+      },
+      debug: 0,
+      usePoles: true,
+    };
+
     try {
       const res = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          solver: 'SimpleMSTSolver', // or whatever base you want
-          params: paramValues,
-          nodes: miniGridNodes,
-          edges: miniGridEdges,
-          voltageLevel: 'low',
-          lengthConstraints: {
-            low: {
-              poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
-              poleToTerminalLengthConstraint:
-                lowVoltagePoleToTerminalLengthConstraint,
-              poleToTerminalMinimumLength:
-                lowVoltagePoleToTerminalMinimumLength,
-            },
-            high: {
-              poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
-              poleToTerminalLengthConstraint:
-                highVoltagePoleToTerminalLengthConstraint,
-              poleToTerminalMinimumLength:
-                highVoltagePoleToTerminalMinimumLength,
-            },
-          },
-          costs: {
-            poleCost: poleCost || 0,
-            lowVoltageCostPerMeter: lowVoltageCost || 0,
-            highVoltageCostPerMeter: highVoltageCost || 0,
-          },
-          debug: 0,
-          usePoles: true,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -2075,12 +2076,12 @@ export default function MiniGridToolPage() {
   };
 
   const handleRunSolver = async () => {
-    console.log(
-      `[handleRunSolver] Sending ${miniGridNodes.length} points to backend`
-    );
-    console.log(
-      `[handleRunSolver] Using existing poles? ${useExistingPoles && hasPoles ? 'YES' : 'NO'} (${miniGridNodes.filter((p) => p.type === 'pole').length} poles)`
-    );
+    // console.log(
+    //   `[handleRunSolver] Sending ${miniGridNodes.length} points to backend`
+    // );
+    // console.log(
+    //   `[handleRunSolver] Using existing poles? ${useExistingPoles && hasPoles ? 'YES' : 'NO'} (${miniGridNodes.filter((p) => p.type === 'pole').length} poles)`
+    // );
 
     if (miniGridNodes.length < 2) {
       alert('Need at least 2 points to run solver.');
@@ -2101,7 +2102,7 @@ export default function MiniGridToolPage() {
       poleCost: 0,
       pointCount: 0,
       grandTotal: 0,
-    }); // ← clear previous breakdown
+    }); //  clear previous breakdown
     setCalcError(null);
 
     const backendUrl =
@@ -2113,36 +2114,38 @@ export default function MiniGridToolPage() {
     // console.log("nodes", miniGridNodes);
     // console.log("edges", miniGridEdges);
 
+    const payload: SolverRequest = {
+      solver: selectedSolverName,
+      params: paramValues,
+      nodes: miniGridNodes,
+      edges: [], // or miniGridEdges if you want to send them
+      voltageLevel: 'low',
+      lengthConstraints: {
+        low: {
+          poleToPoleMaxLength: lowVoltagePoleToPoleMaxLength,
+          poleToTerminalMaxLength: lowVoltagePoleToTerminalMaxLength,
+          poleToTerminalMinLength: lowVoltagePoleToTerminalMinLength,
+        },
+        high: {
+          poleToPoleMaxLength: highVoltagePoleToPoleLengthConstraint,
+          poleToTerminalMaxLength: highVoltagePoleToTerminalMaxLength,
+          poleToTerminalMinLength: highVoltagePoleToTerminalMinLength,
+        },
+      },
+      costs: {
+        poleCost: poleCost || 0,
+        lowVoltageCostPerMeter: lowVoltageCost || 0,
+        highVoltageCostPerMeter: highVoltageCost || 0,
+      },
+      usePoles: useExistingPoles,
+      debug: 0,
+    };
+
     try {
       const res = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          solver: selectedSolverName,
-          params: paramValues,
-          nodes: miniGridNodes,
-          edges: [], // always send edges as empty for the main solve (only use nodes); the backend will decide how to use existing poles if applicable
-          voltageLevel: 'low',
-          lengthConstraints: {
-            low: {
-              poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
-              poleToTerminalLengthConstraint:
-                lowVoltagePoleToTerminalLengthConstraint,
-            },
-            high: {
-              poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
-              poleToTerminalLengthConstraint:
-                highVoltagePoleToTerminalLengthConstraint,
-            },
-          },
-          costs: {
-            poleCost: poleCost || 0,
-            lowVoltageCostPerMeter: lowVoltageCost || 0,
-            highVoltageCostPerMeter: highVoltageCost || 0,
-          },
-          debug: debug,
-          usePoles: useExistingPoles,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -2765,23 +2768,21 @@ export default function MiniGridToolPage() {
                 onLowVoltageCostChange={setLowVoltageCost}
                 onHighVoltageCostChange={setHighVoltageCost}
                 onRandomCosts={generateRandomCosts}
-                lowVoltagePoleToPoleLengthConstraint={
-                  lowVoltagePoleToPoleLengthConstraint
+                lowVoltagePoleToPoleMaxLength={lowVoltagePoleToPoleMaxLength}
+                lowVoltagePoleToTerminalMaxLength={
+                  lowVoltagePoleToTerminalMaxLength
                 }
-                lowVoltagePoleToTerminalLengthConstraint={
-                  lowVoltagePoleToTerminalLengthConstraint
-                }
-                lowVoltagePoleToTerminalMinimumLength={
-                  lowVoltagePoleToTerminalMinimumLength
+                lowVoltagePoleToTerminalMinLength={
+                  lowVoltagePoleToTerminalMinLength
                 }
                 highVoltagePoleToPoleLengthConstraint={
                   highVoltagePoleToPoleLengthConstraint
                 }
-                highVoltagePoleToTerminalLengthConstraint={
-                  highVoltagePoleToTerminalLengthConstraint
+                highVoltagePoleToTerminalMaxLength={
+                  highVoltagePoleToTerminalMaxLength
                 }
-                highVoltagePoleToTerminalMinimumLength={
-                  highVoltagePoleToTerminalMinimumLength
+                highVoltagePoleToTerminalMinLength={
+                  highVoltagePoleToTerminalMinLength
                 }
                 onLowVoltagePoleToPoleChange={
                   setLowVoltagePoleToPoleLengthConstraint

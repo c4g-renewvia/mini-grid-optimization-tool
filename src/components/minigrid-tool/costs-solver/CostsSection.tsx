@@ -16,12 +16,12 @@ interface CostsSectionProps {
   onHighVoltageCostChange: (value: number) => void;
   onRandomCosts: () => void;
 
-  lowVoltagePoleToPoleLengthConstraint: number;
-  lowVoltagePoleToTerminalLengthConstraint: number;
-  lowVoltagePoleToTerminalMinimumLength: number;
+  lowVoltagePoleToPoleMaxLength: number;
+  lowVoltagePoleToTerminalMaxLength: number;
+  lowVoltagePoleToTerminalMinLength: number;
   highVoltagePoleToPoleLengthConstraint: number;
-  highVoltagePoleToTerminalLengthConstraint: number;
-  highVoltagePoleToTerminalMinimumLength: number;
+  highVoltagePoleToTerminalMaxLength: number;
+  highVoltagePoleToTerminalMinLength: number;
 
   onLowVoltagePoleToPoleChange: (value: number) => void;
   onLowVoltagePoleToTerminalChange: (value: number) => void;
@@ -41,12 +41,12 @@ export default function CostsSection({
                                        onLowVoltageCostChange,
                                        onHighVoltageCostChange,
                                        onRandomCosts,
-                                       lowVoltagePoleToPoleLengthConstraint,
-                                       lowVoltagePoleToTerminalLengthConstraint,
-                                       lowVoltagePoleToTerminalMinimumLength,
+                                       lowVoltagePoleToPoleMaxLength,
+                                       lowVoltagePoleToTerminalMaxLength,
+                                       lowVoltagePoleToTerminalMinLength,
                                        highVoltagePoleToPoleLengthConstraint,
-                                       highVoltagePoleToTerminalLengthConstraint,
-                                       highVoltagePoleToTerminalMinimumLength,
+                                       highVoltagePoleToTerminalMaxLength,
+                                       highVoltagePoleToTerminalMinLength,
                                        onLowVoltagePoleToPoleChange,
                                        onLowVoltagePoleToTerminalChange,
                                        onLowVoltagePoleToTerminalMinimumChange,
@@ -90,12 +90,12 @@ export default function CostsSection({
           onLowVoltageCostChange={onLowVoltageCostChange}
           onHighVoltageCostChange={onHighVoltageCostChange}
           onRandomCosts={onRandomCosts}
-          lowVoltagePoleToPoleLengthConstraint={lowVoltagePoleToPoleLengthConstraint}
-          lowVoltagePoleToTerminalLengthConstraint={lowVoltagePoleToTerminalLengthConstraint}
-          lowVoltagePoleToTerminalMinimumLength={lowVoltagePoleToTerminalMinimumLength}
+          lowVoltagePoleToPoleMaxLength={lowVoltagePoleToPoleMaxLength}
+          lowVoltagePoleToTerminalMaxLength={lowVoltagePoleToTerminalMaxLength}
+          lowVoltagePoleToTerminalMinLength={lowVoltagePoleToTerminalMinLength}
           highVoltagePoleToPoleLengthConstraint={highVoltagePoleToPoleLengthConstraint}
-          highVoltagePoleToTerminalLengthConstraint={highVoltagePoleToTerminalLengthConstraint}
-          highVoltagePoleToTerminalMinimumLength={highVoltagePoleToTerminalMinimumLength}
+          highVoltagePoleToTerminalMaxLength={highVoltagePoleToTerminalMaxLength}
+          highVoltagePoleToTerminalMinLength={highVoltagePoleToTerminalMinLength}
           onLowVoltagePoleToPoleChange={onLowVoltagePoleToPoleChange}
           onLowVoltagePoleToTerminalChange={onLowVoltagePoleToTerminalChange}
           onLowVoltagePoleToTerminalMinimumChange={onLowVoltagePoleToTerminalMinimumChange}

@@ -12,14 +12,14 @@ interface CostParametersProps {
   onRandomCosts: () => void;
 
   // Maximum Length Constraints
-  lowVoltagePoleToPoleLengthConstraint: number;
-  lowVoltagePoleToTerminalLengthConstraint: number;
+  lowVoltagePoleToPoleMaxLength: number;
+  lowVoltagePoleToTerminalMaxLength: number;
   highVoltagePoleToPoleLengthConstraint: number;
-  highVoltagePoleToTerminalLengthConstraint: number;
+  highVoltagePoleToTerminalMaxLength: number;
 
   // Minimum Length Constraints
-  lowVoltagePoleToTerminalMinimumLength: number;
-  highVoltagePoleToTerminalMinimumLength: number;
+  lowVoltagePoleToTerminalMinLength: number;
+  highVoltagePoleToTerminalMinLength: number;
 
   // Handlers
   onLowVoltagePoleToPoleChange: (_value: number) => void;
@@ -41,14 +41,14 @@ export default function CostParameters({
                                          onRandomCosts,
 
                                          // Max constraints
-                                         lowVoltagePoleToPoleLengthConstraint,
-                                         lowVoltagePoleToTerminalLengthConstraint,
+                                         lowVoltagePoleToPoleMaxLength,
+                                         lowVoltagePoleToTerminalMaxLength,
                                          highVoltagePoleToPoleLengthConstraint,
-                                         highVoltagePoleToTerminalLengthConstraint,
+                                         highVoltagePoleToTerminalMaxLength,
 
                                          // Min constraints
-                                         lowVoltagePoleToTerminalMinimumLength,
-                                         highVoltagePoleToTerminalMinimumLength,
+                                         lowVoltagePoleToTerminalMinLength,
+                                         highVoltagePoleToTerminalMinLength,
 
                                          // Handlers
                                          onLowVoltagePoleToPoleChange,
@@ -140,7 +140,7 @@ export default function CostParameters({
                   type='number'
                   step='1'
                   min='1'
-                  value={lowVoltagePoleToPoleLengthConstraint}
+                  value={lowVoltagePoleToPoleMaxLength}
                   onChange={(e) =>
                     onLowVoltagePoleToPoleChange(parseFloat(e.target.value) || 30)
                   }
@@ -155,7 +155,7 @@ export default function CostParameters({
                   type='number'
                   step='1'
                   min='1'
-                  value={lowVoltagePoleToTerminalLengthConstraint}
+                  value={lowVoltagePoleToTerminalMaxLength}
                   onChange={(e) =>
                     onLowVoltagePoleToTerminalChange(parseFloat(e.target.value) || 20)
                   }
@@ -193,7 +193,7 @@ export default function CostParameters({
                   type='number'
                   step='1'
                   min='1'
-                  value={highVoltagePoleToTerminalLengthConstraint}
+                  value={highVoltagePoleToTerminalMaxLength}
                   onChange={(e) =>
                     onHighVoltagePoleToTerminalChange(parseFloat(e.target.value) || 20)
                   }
@@ -228,7 +228,7 @@ export default function CostParameters({
                   type='number'
                   step='0.1'
                   min='0'
-                  value={lowVoltagePoleToTerminalMinimumLength}
+                  value={lowVoltagePoleToTerminalMinLength}
                   onChange={(e) =>
                     onLowVoltagePoleToTerminalMinimumChange(parseFloat(e.target.value) || 5)
                   }
@@ -250,7 +250,7 @@ export default function CostParameters({
                   type='number'
                   step='0.1'
                   min='0'
-                  value={highVoltagePoleToTerminalMinimumLength}
+                  value={highVoltagePoleToTerminalMinLength}
                   onChange={(e) =>
                     onHighVoltagePoleToTerminalMinimumChange(parseFloat(e.target.value) || 8)
                   }

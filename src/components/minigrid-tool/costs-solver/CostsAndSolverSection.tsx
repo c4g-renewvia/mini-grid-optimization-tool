@@ -18,12 +18,12 @@ interface CostsAndSolverSectionProps {
   onHighVoltageCostChange: (value: number) => void;
   onRandomCosts: () => void;
 
-  lowVoltagePoleToPoleLengthConstraint: number;
-  lowVoltagePoleToTerminalLengthConstraint: number;
-  lowVoltagePoleToTerminalMinimumLength: number;
+  lowVoltagePoleToPoleMaxLength: number;
+  lowVoltagePoleToTerminalMaxLength: number;
+  lowVoltagePoleToTerminalMinLength: number;
   highVoltagePoleToPoleLengthConstraint: number;
-  highVoltagePoleToTerminalLengthConstraint: number;
-  highVoltagePoleToTerminalMinimumLength: number;
+  highVoltagePoleToTerminalMaxLength: number;
+  highVoltagePoleToTerminalMinLength: number;
 
   onLowVoltagePoleToPoleChange: (value: number) => void;
   onLowVoltagePoleToTerminalChange: (value: number) => void;
@@ -57,12 +57,12 @@ export default function CostsAndSolverSection({
   onLowVoltageCostChange,
   onHighVoltageCostChange,
   onRandomCosts,
-  lowVoltagePoleToPoleLengthConstraint,
-  lowVoltagePoleToTerminalLengthConstraint,
-  lowVoltagePoleToTerminalMinimumLength,
+  lowVoltagePoleToPoleMaxLength,
+  lowVoltagePoleToTerminalMaxLength,
+  lowVoltagePoleToTerminalMinLength,
   highVoltagePoleToPoleLengthConstraint,
-  highVoltagePoleToTerminalLengthConstraint,
-  highVoltagePoleToTerminalMinimumLength,
+  highVoltagePoleToTerminalMaxLength,
+  highVoltagePoleToTerminalMinLength,
   onLowVoltagePoleToPoleChange,
   onLowVoltagePoleToTerminalChange,
   onLowVoltagePoleToTerminalMinimumChange,
@@ -119,23 +119,23 @@ export default function CostsAndSolverSection({
             onLowVoltageCostChange={onLowVoltageCostChange}
             onHighVoltageCostChange={onHighVoltageCostChange}
             onRandomCosts={onRandomCosts}
-            lowVoltagePoleToPoleLengthConstraint={
-              lowVoltagePoleToPoleLengthConstraint
+            lowVoltagePoleToPoleMaxLength={
+              lowVoltagePoleToPoleMaxLength
             }
-            lowVoltagePoleToTerminalLengthConstraint={
-              lowVoltagePoleToTerminalLengthConstraint
+            lowVoltagePoleToTerminalMaxLength={
+              lowVoltagePoleToTerminalMaxLength
             }
-            lowVoltagePoleToTerminalMinimumLength={
-              lowVoltagePoleToTerminalMinimumLength
+            lowVoltagePoleToTerminalMinLength={
+              lowVoltagePoleToTerminalMinLength
             }
             highVoltagePoleToPoleLengthConstraint={
               highVoltagePoleToPoleLengthConstraint
             }
-            highVoltagePoleToTerminalLengthConstraint={
-              highVoltagePoleToTerminalLengthConstraint
+            highVoltagePoleToTerminalMaxLength={
+              highVoltagePoleToTerminalMaxLength
             }
-            highVoltagePoleToTerminalMinimumLength={
-              highVoltagePoleToTerminalMinimumLength
+            highVoltagePoleToTerminalMinLength={
+              highVoltagePoleToTerminalMinLength
             }
             onLowVoltagePoleToPoleChange={onLowVoltagePoleToPoleChange}
             onLowVoltagePoleToTerminalChange={onLowVoltagePoleToTerminalChange}
