@@ -52,6 +52,6 @@ class SimpleMSTSolver(BaseMiniGridSolver):
             mst = nx.minimum_spanning_tree(graph, weight="weight")
 
         if self.steinerize:
-            mst = self.split_long_edges_with_coords(mst)
+            mst = self.split_long_edges_w_poles(mst)
 
         return mst

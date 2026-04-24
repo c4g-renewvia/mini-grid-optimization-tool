@@ -1,12 +1,13 @@
 # optimizers/base.py
 import math
+from abc import ABC, abstractmethod
+from typing import Tuple, Union
+
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from abc import ABC, abstractmethod
 from matplotlib import collections as mc
 from scipy.optimize import minimize
-from typing import Tuple, Union
 
 from ..utils.models import *
 
@@ -160,21 +161,21 @@ class BaseMiniGridSolver(ABC):
 
     def get_min_pole_to_term(self) -> float:
         if self.request.voltageLevel == 'low':
-            return self.request.lengthConstraints.low.poleToTerminalMinimumLength
+            return self.request.lengthConstraints.low.poleToTerminalMinLength
         else:
-            return self.request.lengthConstraints.high.poleToTerminalMinimumLength
+            return self.request.lengthConstraints.high.poleToTerminalMinLength
 
     def get_max_pole_to_pole(self) -> float:
         if self.request.voltageLevel == 'low':
-            return self.request.lengthConstraints.low.poleToPoleLengthConstraint
+            return self.request.lengthConstraints.low.poleToPoleMaxLength
         else:
-            return self.request.lengthConstraints.high.poleToPoleLengthConstraint
+            return self.request.lengthConstraints.high.poleToPoleMaxLength
 
     def get_max_pole_to_term(self) -> float:
         if self.request.voltageLevel == 'low':
-            return self.request.lengthConstraints.low.poleToTerminalLengthConstraint
+            return self.request.lengthConstraints.low.poleToTerminalMaxLength
         else:
-            return self.request.lengthConstraints.high.poleToTerminalLengthConstraint
+            return self.request.lengthConstraints.high.poleToTerminalMaxLength
 
     def get_cost_per_meter(self) -> float:
         if self.request.voltageLevel == "low":
@@ -392,26 +393,65 @@ class BaseMiniGridSolver(ABC):
 
         return nodes
 
+    def _normalize_node_order(self):
+        """Force consistent ordering: Source (0) → Terminals → Poles.
+        Re-assigns dense contiguous indices 0,1,2,...
+        This eliminates the 'index X out of bounds for axis 1 with size Y' errors
+        when re-uploading solved KMLs."""
+        if not self._nodes:
+            return
+
+        # Group nodes by type (preserving original relative order within groups)
+        source_nodes = [n for n in self._nodes if n.type == "source"]
+        terminal_nodes = [n for n in self._nodes if n.type == "terminal"]
+        pole_nodes = [n for n in self._nodes if n.type == "pole"]
+
+        # Rebuild in the desired order
+        ordered_nodes = source_nodes + terminal_nodes + pole_nodes
+
+        # Re-index everything densely
+        self._nodes = []
+        self._terminal_indices = []
+        self._pole_indices = []
+        self._source_idx = 0
+
+        for i, node in enumerate(ordered_nodes):
+            new_node = Node(
+                index=i,
+                lat=node.lat,
+                lng=node.lng,
+                name=node.name or f"{node.type} {i}",
+                type=node.type,
+            )
+            self._nodes.append(new_node)
+
+            if node.type == "terminal":
+                self._terminal_indices.append(i)
+            elif node.type == "pole":
+                self._pole_indices.append(i)
+
+        # Rebuild derived arrays
+        self._coords = np.array([get_node_coord_tuple(n) for n in self._nodes], dtype=np.float64)
+        self._names = [n.name for n in self._nodes]
+
+        if self.request.debug >= 1:
+            print(f"✅ Normalized node order → {len(source_nodes)} source + "
+                  f"{len(terminal_nodes)} terminals + {len(pole_nodes)} poles")
+
     def parse_and_validate_input(self):
         """
-        Parses and validates the input data for constructing nodes. This includes parsing input data
-        such as coordinates, source index, terminal indices, names, and solver, as well as ensuring
-        basic operational validity through validation checks and setting default solver if not
-        provided.
-
-        Args:
-
-
-        Returns:
-            Tuple[list[Node], np.ndarray, int, List[int], List[str], Dict[str, float]]:
-            A tuple containing the constructed nodes, coordinates, source index,
-            terminal indices, names, and cost mappings.
+        Parses and validates the input data required for the operation. Ensures that
+        the input nodes, costs, and related data meet the necessary requirements and
+        formats them for subsequent processing steps.
 
         Raises:
-            ValueError: If the input does not contain at least one source and one terminal.
+            ValueError: If the number of nodes is less than 2.
+            ValueError: If more than one source node is found in the input.
+            ValueError: If no source node is found in the input.
+            ValueError: If there are fewer than two coordinates after normalization.
         """
         nodes = self.request.nodes
-        costs: Costs = self.request.costs.model_copy()  # defensive copy
+        costs: Costs = self.request.costs.model_copy()
 
         if len(nodes) < 2:
             raise ValueError("At least 2 nodes required")
@@ -444,10 +484,12 @@ class BaseMiniGridSolver(ABC):
         self._terminal_indices = terminal_indices
         self._pole_indices = pole_indices
 
+        # ────── Normalize ordering and indices ──────
+        self._normalize_node_order()
+
         # Build a graph of given nodes or edges
         self._graph = self.build_graph_from_nodes(self._nodes)
 
-        # You can add more validation / normalization here if desired
         if len(self._coords) < 2:
             raise ValueError("Need at least source + 1 terminal")
 
@@ -488,7 +530,7 @@ class BaseMiniGridSolver(ABC):
         """
         Compute total cost (wire + poles) + HUGE penalties for BOTH:
           - edges that are TOO LONG
-          - terminal edges that are TOO SHORT (poleToTerminalMinimumLength)
+          - terminal edges that are TOO SHORT (poleToTerminalMinLength)
         """
         # 1. Wire + intermediate support-pole costs
         wire_cost = sum(d['weight'] for u, v, d in graph.edges(data=True))
@@ -510,23 +552,21 @@ class BaseMiniGridSolver(ABC):
             is_terminal_edge = (u_type == "terminal" or v_type == "terminal")
 
             if is_terminal_edge:
-                max_len = (self.request.lengthConstraints.low.poleToTerminalLengthConstraint
-                           if voltage == "low" else self.request.lengthConstraints.high.poleToTerminalLengthConstraint)
+                max_len = self.get_max_pole_to_term()
                 min_len = self.get_min_pole_to_term()
             else:
-                max_len = (self.request.lengthConstraints.low.poleToPoleLengthConstraint
-                           if voltage == "low" else self.request.lengthConstraints.high.poleToPoleLengthConstraint)
+                max_len = self.get_max_pole_to_pole()
                 min_len = 0.5  # pole-pole has no meaningful minimum
 
             # Too long → massive linear penalty (same as before)
-            if length > max_len + 1e-4:
+            if length > max_len + 0.1:
                 excess = length - max_len
                 violation_penalty += MAX_EDGE_DIST_PENALTY * excess
 
             # Too short on terminal edges → also massive penalty
-            if is_terminal_edge and length < 2:
-                shortfall = min_len - length
-                violation_penalty += MAX_EDGE_DIST_PENALTY * shortfall * 2  # even stronger for minima
+            if is_terminal_edge and length < min_len:
+                shortfall = (min_len - length) * 1000
+                violation_penalty += MAX_EDGE_DIST_PENALTY * shortfall * 50
 
         return total + violation_penalty
 
@@ -534,7 +574,7 @@ class BaseMiniGridSolver(ABC):
         """
         Compute total cost (wire + poles) + HUGE penalties for BOTH:
           - edges that are TOO LONG
-          - terminal edges that are TOO SHORT (poleToTerminalMinimumLength)
+          - terminal edges that are TOO SHORT (poleToTerminalMinLength)
           - No violation penalty
         """
         # 1. Wire + intermediate support-pole costs
@@ -765,27 +805,43 @@ class BaseMiniGridSolver(ABC):
 
         return arbo_graph
 
-    @staticmethod
-    def rename_poles(graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
+    def rename_poles(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
         """
-        Extracts and processes nodes that are used within the provided pruned minimum
-        spanning tree (MST). Marks the nodes as used, assigns them a name if they are
-        of type "pole" and lack a name, and returns the list of used nodes.
-
-        Args:
-            graph: The pruned minimum spanning tree used to determine which
-                nodes to mark and process.
-
-        Returns:
-            list: A list of nodes that are used, with appropriate properties updated
-            based on the given MST and node attributes.
+        Rename poles by network distance from the source (closest pole = Pole 001).
+        This is called during solving and before building the final result.
         """
-        pole_counter = 1
-        for idx, node_data in graph.nodes(data=True):
-            if node_data['type'] == "pole":
-                graph.nodes[idx]['used'] = True
-                graph.nodes[idx]['name'] = f"Pole {pole_counter}"
-                pole_counter += 1
+        if self._source_idx is None or not graph:
+            return graph
+
+        graph = graph.copy()
+
+        try:
+            # Compute shortest-path distance from source to every node (tree distance)
+            dist_dict = nx.single_source_dijkstra_path_length(
+                graph, self._source_idx, weight='length'
+            )
+        except (nx.NetworkXError, KeyError):
+            # Fallback if graph has no 'length' yet
+            dist_dict = nx.single_source_shortest_path_length(graph, self._source_idx)
+
+        # Collect poles with their distance
+        poles = []
+        for idx, data in graph.nodes(data=True):
+            if data.get('type') == 'pole':
+                dist = dist_dict.get(idx, 999999.0)
+                poles.append((dist, idx, data))
+
+        # Sort by distance (closest first)
+        poles.sort(key=lambda x: x[0])
+
+        # Rename in distance order
+        for i, (_, idx, data) in enumerate(poles, 1):
+            graph.nodes[idx]['name'] = f"Pole {i:03d}"
+            graph.nodes[idx]['used'] = True  # keep existing flag
+
+        if self.request.debug >= 1:
+            print(f"✅ Renamed {len(poles)} poles by distance from source")
+
         return graph
 
     def prune_dead_end_pole_branches(self, graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
@@ -900,7 +956,72 @@ class BaseMiniGridSolver(ABC):
                 return False
         return True
 
-    def _post_solver_local_opt(self, graph) -> Union[nx.DiGraph, nx.Graph]:
+    def _enforce_min_pole_terminal_distances(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
+        """
+        Enforces minimum distance constraints between poles and terminals in a graph.
+
+        This method ensures that the physical constraints regarding the minimum distance
+        between poles and terminals are upheld within the provided graph. If any poles
+        and terminals are found to be closer than the prescribed minimum distance, the
+        positions of the poles are adjusted accordingly to meet the constraint. The
+        operation is performed on a modified copy of the graph, leaving the original
+        graph unaltered.
+
+        Parameters:
+            graph (Union[nx.DiGraph, nx.Graph]): The directed or undirected graph
+                containing nodes and edges representing poles, terminals, and their
+                connections.
+
+        Returns:
+            Union[nx.DiGraph, nx.Graph]: A modified graph that satisfies the minimum
+            distance constraints between poles and terminals.
+
+        Raises:
+            ValueError: If distance calculations fail or graph node attributes are
+            missing necessary geographic properties (`lat` and `lng`).
+        """
+        graph = graph.copy()
+        min_dist = self.get_min_pole_to_term()
+
+        if self.request.debug >= 1:
+            print(f"\n--- Enforcing min pole-to-terminal distance ({min_dist:.1f}m) ---")
+
+        fixed = 0
+        for u, v, data in list(graph.edges(data=True)):
+            u_type = graph.nodes[u].get('type')
+            v_type = graph.nodes[v].get('type')
+
+            if (u_type == 'terminal' or v_type == 'terminal') and (u_type == 'pole' or v_type == 'pole'):
+                pole_idx = u if u_type == 'pole' else v
+                term_idx = v if v_type == 'terminal' else u
+
+                lat_p, lon_p = graph.nodes[pole_idx]['lat'], graph.nodes[pole_idx]['lng']
+                lat_t, lon_t = graph.nodes[term_idx]['lat'], graph.nodes[term_idx]['lng']
+
+                dist = self.haversine_meters(lat_p, lon_p, lat_t, lon_t)
+
+                if dist < min_dist - 0.01:  # small tolerance
+                    # Move pole away from terminal along the line
+                    scale = min_dist / dist
+                    new_lat = lat_t - scale * (lat_t - lat_p)
+                    new_lon = lon_t - scale * (lon_t - lon_p)
+
+                    graph.nodes[pole_idx]['lat'] = float(new_lat)
+                    graph.nodes[pole_idx]['lng'] = float(new_lon)
+                    fixed += 1
+
+                    if self.request.debug >= 2:
+                        print(f"    Fixed pole {pole_idx} → terminal {term_idx} ({dist:.2f}m → {min_dist:.2f}m)")
+
+        if fixed > 0:
+            self._recompute_all_edges(graph)
+            if self.request.debug >= 1:
+                print(f"    → Fixed {fixed} violating edges")
+                self._plot_current_graph(graph, title="After min-distance enforcement")
+
+        return graph
+
+    def _post_solver_local_opt(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
         """
         Performs a local optimization on the given graph to reduce the total cost by
         iteratively applying optimization techniques. This process includes splitting
@@ -919,51 +1040,66 @@ class BaseMiniGridSolver(ABC):
             to minimize the total cost.
         """
         # Initial cleanup
-        graph = self.split_long_edges_with_coords(graph=graph)
         graph = self.rename_poles(graph)
 
         previous_cost = self._compute_total_cost(graph)
+        best_cost = previous_cost
+        best_graph = graph  # optional: for reversion
+
         iteration = 0
-        max_iterations = 12  # safety limit
+        max_iterations = 12
+        convergence_tol = 1e-3
+        stagnant_count = 0
+        max_stagnant = 1
 
         if self.request.debug >= 1:
             print(f"\n=== Starting Post-Solver Local Optimization ===")
-            print(f"Initial cost after split: {previous_cost:.2f}")
+            print(f"Initial cost: {previous_cost:.2f} | Nodes: {graph.number_of_nodes()}")
 
         while iteration < max_iterations:
             iteration += 1
-
             if self.request.debug >= 1:
-                print(f"\n--- Post-opt iteration {iteration} ---")
+                print(f"\n--- Iteration {iteration} ---")
 
-            # Run the two optimizers
             graph = self._pole_gradient_optimizer(graph)
             graph = self._drop_redundant_poles(graph)
-            graph = self.split_long_edges_with_coords(graph=graph)
+            graph = self.split_long_edges_w_poles(graph)
 
             current_cost = self._compute_total_cost(graph)
             delta = current_cost - previous_cost
+            is_close = math.isclose(current_cost, previous_cost, abs_tol=convergence_tol)
 
             if self.request.debug >= 1:
-                print(f"   Previous: {previous_cost:.2f} → Current: {current_cost:.2f} (Δ = {delta:+.2f})")
+                print(f"   Cost: {previous_cost:.2f} → {current_cost:.2f} (Δ = {delta:+.2f})")
 
-            # Stop conditions
-            if current_cost > previous_cost + 1e-3:  # cost actually increased
+            # Stopping conditions
+            if current_cost > previous_cost + convergence_tol:
                 if self.request.debug >= 1:
-                    print("   Cost increased → stopping")
+                    print("   Cost increased significantly → stopping")
+                graph = best_graph  # revert
                 break
 
-            if abs(delta) < 1e-3:  # no meaningful improvement
-                if self.request.debug >= 1:
-                    print("   No meaningful improvement → stopping")
-                break
+            if is_close:
+                stagnant_count += 1
+                if stagnant_count >= max_stagnant:
+                    if self.request.debug >= 1:
+                        print(f"   No meaningful improvement for {max_stagnant} iterations → stopping")
+                    break
+            else:
+                stagnant_count = 0
 
-            # Still improving → continue
             previous_cost = current_cost
+            if current_cost < best_cost:
+                best_cost = current_cost
+                best_graph = graph.copy()
+
+        graph = self._enforce_min_pole_terminal_distances(graph)
+
+        final_cost = self._compute_total_cost(graph)
 
         if self.request.debug >= 1:
             print(f"\n=== Post-opt finished after {iteration} iteration(s). "
-                  f"Final cost: {previous_cost:.2f} ===\n")
+                  f"Final cost: {final_cost:.2f} ===\n")
 
         return graph
 
@@ -1065,7 +1201,7 @@ class BaseMiniGridSolver(ABC):
         num_active_poles = len(poles) - len(pruned_nodes)
         return total_wire_and_extra + (num_active_poles * pole_cost)
 
-    def _drop_redundant_poles(self, pruned_graph: nx.DiGraph) -> nx.DiGraph:
+    def _drop_redundant_poles(self, pruned_graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
         """
         Removes redundant pole nodes from the graph that do not contribute to connecting
         terminals. A pole is considered redundant if its removal does not disconnect any
@@ -1133,8 +1269,24 @@ class BaseMiniGridSolver(ABC):
         current_graph = self.rename_poles(current_graph)
         return current_graph
 
-    def _recompute_all_edges(self, graph: nx.DiGraph):
-        """Recompute length + weight for EVERY edge after pole positions change."""
+    def _recompute_all_edges(self, graph: Union[nx.Graph, nx.DiGraph]):
+        """
+        Recalculates and updates all edges in the given graph with computed lengths and weights.
+
+        This method iterates through all edges in the provided graph, computes their lengths
+        based on the Haversine distance formula, and updates the edge attributes accordingly.
+        Additionally, it assigns a weight to each edge depending on its length and whether
+        either endpoint of the edge is a terminal node.
+
+        Parameters:
+        graph: Union[nx.Graph, nx.DiGraph]
+            The graph object containing nodes and edges. Nodes must include 'lat' and 'lng'
+            attributes representing their geographic coordinates. Additionally, a node may
+            optionally include a 'type' attribute to signify its role (e.g., 'terminal').
+
+        Raises:
+        None
+        """
         for u, v, data in list(graph.edges(data=True)):
             lat1, lon1 = graph.nodes[u]['lat'], graph.nodes[u]['lng']
             lat2, lon2 = graph.nodes[v]['lat'], graph.nodes[v]['lng']
@@ -1146,20 +1298,76 @@ class BaseMiniGridSolver(ABC):
                            graph.nodes[u].get('type') == 'terminal')
             data['weight'] = self.calc_edge_weight(length, to_terminal=to_terminal)
 
-    def _pole_gradient_optimizer(self, graph: Union[nx.Graph, nx.DiGraph]):
+    def _get_pole_optimization_order(self, graph: Union[nx.DiGraph, nx.Graph], farthest_first: bool = True) -> List[
+        int]:
         """
-        Optimizes the positions of pole nodes in a graph to reduce overall cost by adjusting their
-        latitude and longitude values. This optimization is performed over multiple passes,
-        taking into account specified movement constraints for each pole.
+        Generates an optimized order of poles for processing based on their distance
+        from a source node in the given graph. This function determines the order
+        either from farthest to closest or closest to farthest, depending on the
+        `farthest_first` parameter.
 
-        Args:
-            graph: A networkx graph or digraph in which nodes contain positional attributes
-            ('lat' for latitude and 'lng' for longitude) and a 'type' attribute that designates
-            if a node is a pole. The graph will be updated with optimized pole positions.
+        Parameters:
+        graph: nx.DiGraph or nx.Graph
+            The graph representing the network structure. Nodes must have a 'type'
+            attribute to identify poles, and edges may optionally have a 'length'
+            attribute for weighted distance calculation.
+        farthest_first: bool, default=True
+            If True, sorts poles from farthest to closest; if False, sorts poles from
+            closest to farthest.
 
         Returns:
-            A modified copy of the input graph with updated positions for pole nodes,
-            resulting in a lower total cost according to the optimization criteria.
+        List[int]
+            A list of node indices representing poles, sorted according to the
+            specified order of distance from the source node.
+        """
+        source_idx = self._source_idx
+        poles = [
+            idx for idx, data in graph.nodes(data=True)
+            if data.get('type') == 'pole'
+        ]
+        if not poles:
+            return []
+
+        # Compute shortest-path distance (using edge 'length' if present)
+        try:
+            dist_dict = nx.single_source_dijkstra_path_length(
+                graph, source_idx, weight='length'
+            )
+        except (nx.NetworkXError, KeyError):
+            # fallback for graphs without 'length' or disconnected nodes
+            dist_dict = nx.single_source_shortest_path_length(graph, source_idx)
+
+        # Sort poles
+        sorted_poles = sorted(
+            poles,
+            key=lambda p: dist_dict.get(p, 999999.0),
+            reverse=farthest_first
+        )
+
+        if self.request.debug >= 2:
+            print(f"  Pole optimization order: {'farthest-first' if farthest_first else 'closest-first'} "
+                  f"({len(sorted_poles)} poles)")
+
+        return sorted_poles
+
+    def _pole_gradient_optimizer(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
+        """
+        Optimizes the positions of poles in a graph with respect to a cost function. The optimization
+        is performed iteratively over selected poles, ensuring that each pole's movement adheres to
+        predefined constraints. The optimization process stops early if no meaningful improvement is
+        achieved in a pass.
+
+        Parameters:
+            graph (Union[nx.Graph, nx.DiGraph]): The graph containing nodes and edges, where nodes
+            represent points such as poles or terminals, and edges represent connections between these
+            points.
+
+        Returns:
+            Union[nx.Graph, nx.DiGraph]: A copy of the input graph with adjusted pole positions
+            optimized to minimize the total cost.
+
+        Raises:
+            None
         """
         pole_indices = [idx for idx, data in graph.nodes(data=True)
                         if data.get('type') == 'pole']
@@ -1167,28 +1375,34 @@ class BaseMiniGridSolver(ABC):
             return graph
 
         graph = graph.copy()
-        n_passes = 5
-        max_move_meters = 80.0  # tighter than before — prevents jumping over constraints
+        n_passes = 3
 
-        if self.request.debug >= 1:
-            initial_cost = self._compute_total_cost(graph)
-            print(
-                f"\n=== Sequential Pole Optimization ({len(pole_indices)} poles, {n_passes} passes, max move {max_move_meters}m) ===")
-            print(f"Initial cost: {initial_cost:.2f}")
-
+        max_move_meters = 20.0
         one_meter_deg = 1.0 / 111111.0
         max_delta_deg = max_move_meters * one_meter_deg
 
-        import random
+        if self.request.debug >= 1:
+            initial_cost = self._compute_total_cost(graph)
+            print(f"\n=== Sequential Pole Optimization ({len(pole_indices)} poles, "
+                  f"{n_passes} passes, max move {max_move_meters}m) ===")
+            print(f"Initial cost: {initial_cost:.2f}")
+
         improved_anywhere = True
+        total_improvement = 0.0
 
         for pass_num in range(n_passes):
             if not improved_anywhere and pass_num > 0:
+                if self.request.debug >= 1:
+                    print(f"   No improvement in pass {pass_num} → stopping early")
                 break
-            improved_anywhere = False
-            random.shuffle(pole_indices)
 
-            for node_idx in pole_indices:
+            improved_anywhere = False
+            pole_order = self._get_pole_optimization_order(
+                graph,
+                farthest_first=False
+            )
+
+            for node_idx in pole_order:
                 if node_idx not in graph:
                     continue
 
@@ -1198,9 +1412,11 @@ class BaseMiniGridSolver(ABC):
 
                 def objective(x):
                     lat, lon = x
+                    # Temporarily move pole
                     graph.nodes[node_idx]['lat'] = float(lat)
                     graph.nodes[node_idx]['lng'] = float(lon)
                     self._recompute_all_edges(graph)
+
                     return self._compute_total_cost(graph)
 
                 bounds = [
@@ -1211,32 +1427,56 @@ class BaseMiniGridSolver(ABC):
                 res = minimize(
                     objective,
                     [lat0, lon0],
-                    method='L-BFGS-B',
-                    bounds=bounds,
+                    method='BFGS',
+                    # bounds=bounds,
                 )
 
                 new_cost = res.fun
 
-                if new_cost < old_cost - 0.01:  # any meaningful improvement
+                best_lat, best_lon = res.x
+                graph.nodes[node_idx]['lat'] = float(best_lat)
+                graph.nodes[node_idx]['lng'] = float(best_lon)
+                self._recompute_all_edges(graph)
+
+                if new_cost < old_cost - 0.5:  # only accept meaningful real savings
                     improved_anywhere = True
-                    if self.request.debug >= 2:
-                        move_m = math.hypot((res.x[0] - lat0) / one_meter_deg, (res.x[1] - lon0) / one_meter_deg)
-                        print(f"   Pole {node_idx:3d} improved by {old_cost - new_cost:6.2f} € (moved {move_m:4.1f}m)")
+                    total_improvement += (new_cost - old_cost)
+                    edge_lengths = [e[2]['length'] for e in graph.edges(data=True)]
+                    if self.request.debug >= 1:
+                        print("Max edge length after move:", max(edge_lengths) if edge_lengths else 0.0)
+                    if self.request.debug >= 1:
+                        move_m = math.hypot(
+                            (res.x[0] - lat0) / one_meter_deg,
+                            (res.x[1] - lon0) / one_meter_deg
+                        )
+                        print(f"   Pole {node_idx:3d} improved by {new_cost - old_cost:+.2f} $ "
+                              f"(moved {move_m:.3f}m)")
+                    if self.request.debug >= 3:
+                        self._plot_current_graph(graph, added_points=[(res.x[0], res.x[1])], )
                 else:
-                    # Revert — move violated constraints or gave no benefit
+                    # Revert to original position
                     graph.nodes[node_idx]['lat'] = lat0
                     graph.nodes[node_idx]['lng'] = lon0
                     self._recompute_all_edges(graph)
 
         final_cost = self._compute_total_cost(graph)
+        if self.request.debug >= 1:
+            print(f"Optimization finished → cost {initial_cost:.2f} → {final_cost:.2f} "
+                  f"(total improvement {total_improvement:.2f})")
 
         if self.request.debug >= 1:
-            print(f"Optimization finished → cost {initial_cost:.2f} → {final_cost:.2f}")
-
-        if self.request.debug > 0:
-            self._plot_current_graph(graph, title="After Sequential Pole Optimization (min-distance fixed)")
+            self._plot_current_graph(graph,
+                                     title=f"After Sequential Pole Optimization(${self._compute_total_cost(graph):.2f}) + {self.get_min_max_edge_len(graph)}")
 
         return graph
+
+    def get_min_max_edge_len(self, graph):
+
+        edge_lengths = [e[2]['length'] for e in graph.edges(data=True)]
+        max_len = max(edge_lengths) if edge_lengths else 0.0
+        min_len = min(edge_lengths) if edge_lengths else 0.0
+
+        return f"Max edge length: {max_len}m | Min edge length: {min_len}m"
 
     @staticmethod
     def _get_num_poles_and_wire_length(graph: Union[nx.Graph, nx.DiGraph]):
@@ -1278,7 +1518,7 @@ class BaseMiniGridSolver(ABC):
 
         return n_poles, low_m, high_m
 
-    def split_long_edges_with_coords(self, graph: Union[nx.Graph, nx.DiGraph]) -> nx.DiGraph:
+    def split_long_edges_w_poles(self, graph: Union[nx.Graph, nx.DiGraph]) -> nx.DiGraph:
         """
         Break long edges (> max_length_m meters) into multiple shorter segments by
         inserting new intermediate pole nodes directly into the graph.
@@ -1316,7 +1556,7 @@ class BaseMiniGridSolver(ABC):
                 max_length_m = self.get_max_pole_to_pole()
 
             # Skip short edges
-            if length_m <= max_length_m + 0.01:  # small floating-point tolerance
+            if length_m <= max_length_m + .1:  # small tolerance
                 continue
 
             start_node = node_data_by_index[u]
@@ -1327,7 +1567,7 @@ class BaseMiniGridSolver(ABC):
 
             direction = end_coord - start_coord
 
-            # CORRECT way: use ceil so every segment <= max_length_m
+            # use ceil so every segment <= max_length_m
             num_segments = int(np.ceil(length_m / max_length_m))
             segment_length = length_m / num_segments
 
@@ -1379,31 +1619,111 @@ class BaseMiniGridSolver(ABC):
 
         # remove original edges
         new_graph.graph.update(graph.graph)
+
+        if self.request.debug >= 1:
+            self._plot_current_graph(new_graph, title="After Splitting Long Edges")
         return new_graph
+
+    def _get_ordered_nodes_and_remap_edges(self, graph: Union[nx.DiGraph, nx.Graph]):
+        """Return nodes in canonical order: Source → Terminals → Poles (sorted by distance from source)
+        with dense contiguous indices 0,1,2,... and remap all edges accordingly."""
+        source_nodes = []
+        terminal_nodes = []
+        pole_nodes = []
+
+        for idx, data in graph.nodes(data=True):
+            node = Node(
+                index=idx,
+                lat=data['lat'],
+                lng=data['lng'],
+                name=data.get('name') or f"{data['type']} {idx}",
+                type=data['type'],
+            )
+            if data['type'] == "source":
+                source_nodes.append(node)
+            elif data['type'] == "terminal":
+                terminal_nodes.append(node)
+            elif data['type'] == "pole":
+                pole_nodes.append(node)
+
+        # Keep original relative order for terminals
+        terminal_nodes.sort(key=lambda n: n.index)
+
+        # Sort poles by their CURRENT name (which was set by rename_poles to "Pole 001", "Pole 002", ...)
+        # This guarantees distance-based ordering
+        pole_nodes.sort(key=lambda n: n.name)
+
+        ordered_nodes = source_nodes + terminal_nodes + pole_nodes
+
+        # Build old → new index mapping
+        old_to_new = {node.index: new_idx for new_idx, node in enumerate(ordered_nodes)}
+
+        # Create final nodes with dense indices
+        final_nodes = []
+        for new_idx, node in enumerate(ordered_nodes):
+            final_nodes.append(Node(
+                index=new_idx,
+                lat=node.lat,
+                lng=node.lng,
+                name=node.name,
+                type=node.type,
+            ))
+
+        # Remap edges
+        final_edges = []
+        for start_idx, end_idx, edge_data in graph.edges(data=True):
+            new_start = old_to_new[start_idx]
+            new_end = old_to_new[end_idx]
+
+            start_data = graph.nodes[start_idx]
+            end_data = graph.nodes[end_idx]
+
+            final_edges.append(Edge(
+                start=Node(
+                    index=new_start,
+                    lat=start_data['lat'],
+                    lng=start_data['lng'],
+                    name=start_data.get('name'),
+                    type=start_data['type']
+                ),
+                end=Node(
+                    index=new_end,
+                    lat=end_data['lat'],
+                    lng=end_data['lng'],
+                    name=end_data.get('name'),
+                    type=end_data['type']
+                ),
+                lengthMeters=round(edge_data.get('length', 0.0), 4),
+                voltage=edge_data.get("voltage", "low"),
+            ))
+
+        return final_nodes, final_edges
 
     def build_solver_result(self, graph: Union[nx.DiGraph, nx.Graph],
                             debug_info: Optional[Dict[str, Any]] = None) -> SolverResult:
         """
-        Builds a SolverResult object from the provided graph and debug information.
+        Builds and returns a SolverResult object that encapsulates details about the network optimization solution,
+        including calculated costs, node and edge details, and optional debugging information.
 
-        The function computes the cost estimation, number of poles, and length of wires
-        required based on graph attributes. It also creates a detailed representation
-        of nodes and edges present in the graph.
+        This method processes a graph input, ensuring a consistent ordering of nodes and remapping of edges.
+        It performs cost calculations based on the number of poles and the lengths of low-voltage and high-voltage
+        wiring required. The results are then encapsulated in the SolverResult class instance.
 
-        Args:
-            graph (Union[nx.DiGraph, nx.Graph]): Input graph containing nodes and edges
-                with associated metadata such as geographic coordinates, types, and lengths.
-            debug_info (Optional[Dict[str, Any]]): Additional debug information to include
-                in the SolverResult if the request has debugging enabled.
+        Parameters:
+            graph (Union[nx.DiGraph, nx.Graph]): The input graph representing the network to be optimized.
+            debug_info (Optional[Dict[str, Any]]): Optional debugging information relevant to the optimization process.
 
         Returns:
-            SolverResult: Aggregated result containing detailed metrics, node and edge
-            representation, and cost estimates.
+            SolverResult: An object containing details of the optimized network, its associated costs, and debug information
+            if provided and enabled.
         """
         # rename poles to have a name
         graph = self.rename_poles(graph)
 
-        # 3. Build edges + lengths
+        # ────── Force consistent ordering on output ──────
+        nodes, edges = self._get_ordered_nodes_and_remap_edges(graph)
+
+        # Cost calculations (unchanged)
         num_poles, total_low_m, total_high_m = self._get_num_poles_and_wire_length(graph)
 
         pole_cost = self._costs.poleCost
@@ -1415,42 +1735,9 @@ class BaseMiniGridSolver(ABC):
         total_wire_cost = low_wire_cost + high_wire_cost
         total_cost = total_wire_cost + num_poles * pole_cost
 
-        nodes = [
-            Node(
-                index= idx,
-                lat= n['lat'],
-                lng= n['lng'],
-                name= n['name'] or f"{n['type']} {idx}",
-                type= n['type'],
-            )
-            for idx, n in graph.nodes(data=True)
-        ]
-
-        edges = []
-
-        for start_idx, end_idx, edge_data in graph.edges(data=True):
-            start = graph.nodes[start_idx]
-            end = graph.nodes[end_idx]
-            edges.append(Edge(
-                start=Node(
-                    index=start_idx,
-                    lat=start['lat'],
-                    lng=start['lng'],
-                    name=start['name'],
-                    type=start['type']),
-                end=Node(
-                    index=end_idx,
-                    lat=end['lat'],
-                    lng=end['lng'],
-                    name=end['name'],
-                    type=end['type']),
-                lengthMeters=round(edge_data['length'], 4),
-                voltage=edge_data["voltage"],
-            ))
-
         return SolverResult(
-            edges=edges,
-            nodes=nodes,
+            edges=edges,  # ← now correctly remapped
+            nodes=nodes,  # ← now guaranteed Source → Terminals → Poles
             totalLowVoltageMeters=round(total_low_m, 2),
             totalHighVoltageMeters=round(total_high_m, 2),
             numPolesUsed=num_poles,

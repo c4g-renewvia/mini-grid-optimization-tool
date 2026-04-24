@@ -3,13 +3,13 @@ from typing import Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
-poleToTerminalLengthConstraint: float
+poleToTerminalMaxLength: float
 
 
 class LengthConstraintsBase(BaseModel):
-    poleToPoleLengthConstraint: float = 30.0
-    poleToTerminalLengthConstraint: float = 20.0
-    poleToTerminalMinimumLength: float = 5.0
+    poleToPoleMaxLength: float = 30.0
+    poleToTerminalMaxLength: float = 20.0
+    poleToTerminalMinLength: float = 5.0
 
 
 class LengthConstraints(BaseModel):

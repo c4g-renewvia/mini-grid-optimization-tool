@@ -190,8 +190,8 @@ class GreedyIterSteinerSolver(CandidateGeneration):
         # 2. Extract Constraints & Costs
         low_cost = self.request.costs.lowVoltageCostPerMeter
         pole_cost = self.request.costs.poleCost
-        max_pole_pole = self.request.lengthConstraints.low.poleToPoleLengthConstraint
-        max_pole_term = self.request.lengthConstraints.low.poleToTerminalLengthConstraint
+        max_pole_pole = self.request.lengthConstraints.low.poleToPoleMaxLength
+        max_pole_term = self.request.lengthConstraints.low.poleToTerminalMaxLength
         MAX_PENALTY = 10000.0  # From your base class
 
         # 3. Vectorized Edge Weight Calculations

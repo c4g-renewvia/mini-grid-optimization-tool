@@ -52,8 +52,11 @@ def kml_nodes():
         pytest.skip("KML file not found or incorrectly formatted")
 
 
-# add "test_data_sets/minigrid_2026-04-09.kml" for larger test
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml" ,"test_data_sets/minigrid_2026-04-08.kml"])
+# add "test_data_sets/minigrid_2026-04-24.kml" for larger test
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml",
+                        "test_data_sets/minigrid_2026-04-08.kml",
+                        "test_data_sets/bc2.kml"])
+
 def kml_nodes_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
@@ -96,12 +99,12 @@ def default_costs():
 def default_length_constraints():
     """Standard cost parameters used in your main script."""
     return LengthConstraints(
-        low=LengthConstraintsBase(poleToPoleLengthConstraint=30,
-                                  poleToTerminalLengthConstraint=20,
-                                  poleToTerminalMinimumLength=5),
-        high=LengthConstraintsBase(poleToPoleLengthConstraint=50,
-                                   poleToTerminalLengthConstraint=20,
-                                   poleToTerminalMinimumLength=5)
+        low=LengthConstraintsBase(poleToPoleMaxLength=30,
+                                  poleToTerminalMaxLength=20,
+                                  poleToTerminalMinLength=5),
+        high=LengthConstraintsBase(poleToPoleMaxLength=50,
+                                   poleToTerminalMaxLength=20,
+                                   poleToTerminalMinLength=5)
     )
 
 
