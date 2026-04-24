@@ -16,7 +16,6 @@ import { useMiniGridHistory } from '@/hooks/useMiniGridHistory';
 import AddPointDialog from '@/components/minigrid-tool/define-markers/AddPointDialog';
 import DefineMarkersSection from '@/components/minigrid-tool/define-markers/DefineMarkersSection';
 
-import CostsAndSolverSection from '@/components/minigrid-tool/costs-solver/CostsAndSolverSection';
 import CostsSection from '@/components/minigrid-tool/costs-solver/CostsSection';
 import SolverSection from '@/components/minigrid-tool/costs-solver/SolverSection';
 
@@ -148,13 +147,14 @@ export default function MiniGridToolPage() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [allowDragTerminals, setAllowDragTerminals] = useState(true);
   const allowDragTerminalsRef = useRef(true); // Add this line
+  const [showEdgeLengths, setShowEdgeLengths] = useState(true); // ← NEW
 
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
     markers: false,
-    costs: false,           // ← default open
-    solver: false,         // ← new
+    costs: false, // ← default open
+    solver: false, // ← new
     export: false,
     savedGrids: false,
   });
@@ -166,7 +166,6 @@ export default function MiniGridToolPage() {
     }));
   };
 
-
   const [isAddPointDialogOpen, setIsAddPointDialogOpen] = useState(false);
   const [pendingPoint, setPendingPoint] = useState<{
     lat: number;
@@ -176,7 +175,6 @@ export default function MiniGridToolPage() {
     name: '',
     type: 'terminal' as 'source' | 'terminal' | 'pole',
   });
-
 
   const [solvers, setSolvers] = useState<Solvers[]>([]);
   const [selectedSolverName, setSelectedSolverName] = useState<string>(
@@ -316,6 +314,14 @@ export default function MiniGridToolPage() {
     allowDragTerminalsRef.current = allowDragTerminals;
   }, [allowDragTerminals]);
 
+  useEffect(() => {
+    lengthLabelsRef.current.forEach((label) => {
+      if (label) {
+        label.map = showEdgeLengths ? map : null;
+      }
+    });
+  }, [showEdgeLengths, map, miniGridEdges]);
+
   // ==================== MAP CLICK TO ADD MARKER ====================
   useEffect(() => {
     if (!map) return;
@@ -351,9 +357,8 @@ export default function MiniGridToolPage() {
       // 1. Get the latest state from the Ref to avoid stale closures
       const current = stateRef.current;
 
-
-      console.log("number of nodes before deletion", miniGridNodes.length)
-      console.log("number of edges before deletion", miniGridEdges.length)
+      console.log('number of nodes before deletion', miniGridNodes.length);
+      console.log('number of edges before deletion', miniGridEdges.length);
 
       // 2. Filter out the point and its node
       const updatedNodes = current.miniGridNodes.filter(
@@ -374,10 +379,8 @@ export default function MiniGridToolPage() {
       setMiniGridNodes(updatedNodes);
       setMiniGridEdges(updatedEdges);
 
-      console.log("number of nodes before deletion", updatedNodes.length)
-      console.log("number of edges before deletion", updatedEdges.length)
-
-
+      console.log('number of nodes before deletion', updatedNodes.length);
+      console.log('number of edges before deletion', updatedEdges.length);
 
       // 5. Push to History
       current.saveState({
@@ -386,13 +389,6 @@ export default function MiniGridToolPage() {
         costBreakdown: current.costBreakdown, // You may want to trigger a cost recalc here
         solverOriginalCost: current.solverOriginalCost,
       });
-
-      // Find the point we're about to delete (so we know if it's a pole)
-      const pointToDelete = current.miniGridNodes.find(
-        (n) => n.name === pointName
-      );
-      const isPoleBeingDeleted = pointToDelete?.type === 'pole';
-
     },
     [saveState] // ← important
   );
@@ -487,6 +483,8 @@ export default function MiniGridToolPage() {
         case 'terminal':
           iconUrl += 'blue-dot.png';
           labelColor = 'white';
+          scaledSize = new google.maps.Size(20, 20);
+          fontSize = '8';
           break;
         case 'pole':
           iconUrl += 'yellow-dot.png';
@@ -541,7 +539,7 @@ export default function MiniGridToolPage() {
       deleteBtn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)';
       deleteBtn.style.zIndex = '100';
       deleteBtn.style.pointerEvents = 'auto';
-      deleteBtn.style.opacity = '0';                    // ← Hidden by default
+      deleteBtn.style.opacity = '0'; // ← Hidden by default
       deleteBtn.style.transition = 'opacity 0.2s ease-in-out';
 
       // Show on hover (works over icon AND label)
@@ -578,6 +576,9 @@ export default function MiniGridToolPage() {
       // Assemble in correct order
       content.appendChild(iconWrapper);
       content.appendChild(labelSpan);
+
+      content.style.position = 'relative';
+      content.style.transform = 'translate(0%, 25%)';
 
       const marker = new google.maps.marker.AdvancedMarkerElement({
         position: { lat: point.lat, lng: point.lng },
@@ -931,10 +932,7 @@ export default function MiniGridToolPage() {
 
     if (paramDef.type === 'bool') {
       parsedValue = Boolean(value); // safely convert to boolean
-    } else if (
-      paramDef.type === 'int' ||
-      paramDef.type === 'float'
-    ) {
+    } else if (paramDef.type === 'int' || paramDef.type === 'float') {
       parsedValue = Number(value);
       if (isNaN(parsedValue)) return;
     } else {
@@ -1094,14 +1092,14 @@ export default function MiniGridToolPage() {
     });
 
     // Auto-fit when appropriate
-    if (hasValidPoints && shouldAutoFit.current) {   // ← add a ref
+    if (hasValidPoints && shouldAutoFit.current) {
+      // ← add a ref
       setTimeout(() => {
         map.fitBounds(bounds, { bottom: 80, left: 250, right: 20, top: 80 });
       }, 50);
     }
 
     shouldAutoFit.current = false;
-
   }, [map, miniGridNodes, createMarker]);
 
   // ==================== FETCH SOLVERS ====================
@@ -1116,8 +1114,8 @@ export default function MiniGridToolPage() {
           cache: 'no-store', // Force fresh response
           headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
+            Pragma: 'no-cache',
+            Expires: '0',
           },
         });
 
@@ -1126,7 +1124,6 @@ export default function MiniGridToolPage() {
         }
 
         const rawData = await res.json();
-
 
         let solversList: any[] = [];
 
@@ -1233,7 +1230,7 @@ export default function MiniGridToolPage() {
 
     setIsAddPointDialogOpen(false);
     setPendingPoint(null);
-  };;
+  };
 
   const handleAddCoordinatesManually = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1265,7 +1262,7 @@ export default function MiniGridToolPage() {
 
   // Enhanced parseKml to handle solved KMLs
   // ====================== FIXED parseKml FUNCTION ======================
-// Replace your entire existing parseKml function (around lines 520-650) with this version:
+  // Replace your entire existing parseKml function (around lines 520-650) with this version:
 
   const parseKml = (
     text: string
@@ -1304,7 +1301,7 @@ export default function MiniGridToolPage() {
     // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
     // CRITICAL FIX: Declare costBreakdown BEFORE the loop
     // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-    let costBreakdown: CostBreakdown = {
+    const costBreakdown: CostBreakdown = {
       lowVoltageMeters: 0,
       highVoltageMeters: 0,
       totalMeters: 0,
@@ -1340,7 +1337,8 @@ export default function MiniGridToolPage() {
 
       if (pointEl) {
         const coordsText =
-          pointEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() || '';
+          pointEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() ||
+          '';
         if (!coordsText) return;
 
         const [lngStr, latStr] = coordsText.split(',');
@@ -1357,36 +1355,30 @@ export default function MiniGridToolPage() {
 
           lines.forEach((line) => {
             if (line.startsWith('Grand Total:')) {
-              costBreakdown.grandTotal = parseFloat(
-                line.split(':')[1].replace(/[^0-9.]/g, '')
-              ) || 0;
+              costBreakdown.grandTotal =
+                parseFloat(line.split(':')[1].replace(/[^0-9.]/g, '')) || 0;
             } else if (line.startsWith('Wire:')) {
-              costBreakdown.wireCost = parseFloat(
-                line.split(':')[1].replace(/[^0-9.]/g, '')
-              ) || 0;
+              costBreakdown.wireCost =
+                parseFloat(line.split(':')[1].replace(/[^0-9.]/g, '')) || 0;
             } else if (line.startsWith('Low:')) {
               const parts = line.split('→');
               if (parts[0]) {
-                costBreakdown.lowVoltageMeters = parseFloat(
-                  parts[0].replace(/[^0-9.]/g, '')
-                ) || 0;
+                costBreakdown.lowVoltageMeters =
+                  parseFloat(parts[0].replace(/[^0-9.]/g, '')) || 0;
               }
               if (parts[1]) {
-                costBreakdown.lowWireCost = parseFloat(
-                  parts[1].replace(/[^0-9.]/g, '')
-                ) || 0;
+                costBreakdown.lowWireCost =
+                  parseFloat(parts[1].replace(/[^0-9.]/g, '')) || 0;
               }
             } else if (line.startsWith('High:')) {
               const parts = line.split('→');
               if (parts[0]) {
-                costBreakdown.highVoltageMeters = parseFloat(
-                  parts[0].replace(/[^0-9.]/g, '')
-                ) || 0;
+                costBreakdown.highVoltageMeters =
+                  parseFloat(parts[0].replace(/[^0-9.]/g, '')) || 0;
               }
               if (parts[1]) {
-                costBreakdown.highWireCost = parseFloat(
-                  parts[1].replace(/[^0-9.]/g, '')
-                ) || 0;
+                costBreakdown.highWireCost =
+                  parseFloat(parts[1].replace(/[^0-9.]/g, '')) || 0;
               }
             } else if (line.startsWith('Poles:')) {
               const parts = line.split(':')[1].split('×');
@@ -1394,16 +1386,14 @@ export default function MiniGridToolPage() {
                 costBreakdown.poleCount = parseInt(parts[0].trim()) || 0;
               }
               if (parts[1]) {
-                costBreakdown.usedPoleCost = parseFloat(
-                  parts[1].replace(/[^0-9.]/g, '')
-                ) || 0;
+                costBreakdown.usedPoleCost =
+                  parseFloat(parts[1].replace(/[^0-9.]/g, '')) || 0;
               }
               costBreakdown.poleCost =
                 costBreakdown.poleCount * (costBreakdown.usedPoleCost || 0);
             } else if (line.startsWith('Nodes:')) {
-              costBreakdown.pointCount = parseInt(
-                line.split(':')[1].split('•')[0].trim()
-              ) || 0;
+              costBreakdown.pointCount =
+                parseInt(line.split(':')[1].split('•')[0].trim()) || 0;
             }
           });
 
@@ -1438,7 +1428,8 @@ export default function MiniGridToolPage() {
       } else if (lineEl) {
         // Edge parsing (unchanged – your existing code)
         const coordsText =
-          lineEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() || '';
+          lineEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() ||
+          '';
         const coords = coordsText.split(/\s+/).filter((c) => c);
         if (coords.length < 2) return;
 
@@ -1447,11 +1438,13 @@ export default function MiniGridToolPage() {
 
         const findNode = (lat: number, lng: number) =>
           nodes.find(
-            (n) =>
-              Math.abs(n.lat - lat) < 1e-9 && Math.abs(n.lng - lng) < 1e-9
+            (n) => Math.abs(n.lat - lat) < 1e-9 && Math.abs(n.lng - lng) < 1e-9
           );
 
-        const start = findNode(parseFloat(startLatStr), parseFloat(startLngStr));
+        const start = findNode(
+          parseFloat(startLatStr),
+          parseFloat(startLngStr)
+        );
         const end = findNode(parseFloat(endLatStr), parseFloat(endLngStr));
 
         if (!start || !end) return;
@@ -1463,7 +1456,8 @@ export default function MiniGridToolPage() {
         const descLines = descText.split(/\n+/).map((l) => l.trim());
         descLines.forEach((l) => {
           if (l.startsWith('Length:')) {
-            lengthMeters = parseFloat(l.split(':')[1].replace(/[^0-9.]/g, '')) || 0;
+            lengthMeters =
+              parseFloat(l.split(':')[1].replace(/[^0-9.]/g, '')) || 0;
           }
         });
 
@@ -1631,13 +1625,17 @@ export default function MiniGridToolPage() {
           try {
             const rows = result.data as Record<string, string>[];
 
-            let counter = 0;                    // overall index counter (if needed)
-            const nameCounter = new Map<string, number>();   // tracks how many times each name appeared
+            let counter = 0; // overall index counter (if needed)
+            const nameCounter = new Map<string, number>(); // tracks how many times each name appeared
 
             const parsedPoints: MiniGridNode[] = rows
               .map((row) => {
                 // Parse basic fields
-                const rawName = (row.name?.trim() || row['name'] || 'Unnamed').trim();
+                const rawName = (
+                  row.name?.trim() ||
+                  row['name'] ||
+                  'Unnamed'
+                ).trim();
                 const typeStr = row.type?.trim() || row['type'] || 'terminal';
                 const latStr = row.latitude || row.lat || '';
                 const lngStr = row.longitude || row.lng || '';
@@ -1904,11 +1902,13 @@ export default function MiniGridToolPage() {
           lengthConstraints: {
             low: {
               poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
-              poleToTerminalLengthConstraint: lowVoltagePoleToTerminalLengthConstraint,
+              poleToTerminalLengthConstraint:
+                lowVoltagePoleToTerminalLengthConstraint,
             },
             high: {
               poleToPoleLengthConstraint: highVoltagePoleToPoleLengthConstraint,
-              poleToTerminalLengthConstraint: highVoltagePoleToTerminalLengthConstraint,
+              poleToTerminalLengthConstraint:
+                highVoltagePoleToTerminalLengthConstraint,
             },
           },
           costs: {
@@ -1940,7 +1940,9 @@ export default function MiniGridToolPage() {
       const newCostBreakdown = {
         lowVoltageMeters: data.totalLowVoltageMeters || 0,
         highVoltageMeters: data.totalHighVoltageMeters || 0,
-        totalMeters: (data.totalLowVoltageMeters || 0) + (data.totalHighVoltageMeters || 0),
+        totalMeters:
+          (data.totalLowVoltageMeters || 0) +
+          (data.totalHighVoltageMeters || 0),
         lowWireCost: data.lowWireCostEstimate || 0,
         highWireCost: data.highWireCostEstimate || 0,
         wireCost: data.totalWireCostEstimate || 0,
@@ -1961,7 +1963,8 @@ export default function MiniGridToolPage() {
         solverOriginalCost: solverOriginalCost,
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Reconnect graph failed';
+      const message =
+        err instanceof Error ? err.message : 'Reconnect graph failed';
       setCalcError(message);
       console.error('Reconnect error:', err);
       alert(message);
@@ -2120,7 +2123,7 @@ export default function MiniGridToolPage() {
           params: paramValues,
           nodes: miniGridNodes,
           edges: [], // always send edges as empty for the main solve (only use nodes); the backend will decide how to use existing poles if applicable
-          voltageLevel: "low",
+          voltageLevel: 'low',
           lengthConstraints: {
             low: {
               poleToPoleLengthConstraint: lowVoltagePoleToPoleLengthConstraint,
@@ -2221,8 +2224,6 @@ export default function MiniGridToolPage() {
       });
 
       shouldAutoFit.current = true;
-
-
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to run solver';
@@ -2472,7 +2473,6 @@ export default function MiniGridToolPage() {
 
     // Restore file name / metadata
     setFileName(run.fileName || null);
-
 
     setExpandedSections({
       markers: false,
@@ -2766,18 +2766,42 @@ export default function MiniGridToolPage() {
                 onLowVoltageCostChange={setLowVoltageCost}
                 onHighVoltageCostChange={setHighVoltageCost}
                 onRandomCosts={generateRandomCosts}
-                lowVoltagePoleToPoleLengthConstraint={lowVoltagePoleToPoleLengthConstraint}
-                lowVoltagePoleToTerminalLengthConstraint={lowVoltagePoleToTerminalLengthConstraint}
-                lowVoltagePoleToTerminalMinimumLength={lowVoltagePoleToTerminalMinimumLength}
-                highVoltagePoleToPoleLengthConstraint={highVoltagePoleToPoleLengthConstraint}
-                highVoltagePoleToTerminalLengthConstraint={highVoltagePoleToTerminalLengthConstraint}
-                highVoltagePoleToTerminalMinimumLength={highVoltagePoleToTerminalMinimumLength}
-                onLowVoltagePoleToPoleChange={setLowVoltagePoleToPoleLengthConstraint}
-                onLowVoltagePoleToTerminalChange={setLowVoltagePoleToTerminalLengthConstraint}
-                onLowVoltagePoleToTerminalMinimumChange={setLowVoltagePoleToTerminalMinimumLength}
-                onHighVoltagePoleToPoleChange={setHighVoltagePoleToPoleLengthConstraint}
-                onHighVoltagePoleToTerminalChange={setHighVoltagePoleToTerminalLengthConstraint}
-                onHighVoltagePoleToTerminalMinimumChange={setHighVoltagePoleToTerminalMinimumLength}
+                lowVoltagePoleToPoleLengthConstraint={
+                  lowVoltagePoleToPoleLengthConstraint
+                }
+                lowVoltagePoleToTerminalLengthConstraint={
+                  lowVoltagePoleToTerminalLengthConstraint
+                }
+                lowVoltagePoleToTerminalMinimumLength={
+                  lowVoltagePoleToTerminalMinimumLength
+                }
+                highVoltagePoleToPoleLengthConstraint={
+                  highVoltagePoleToPoleLengthConstraint
+                }
+                highVoltagePoleToTerminalLengthConstraint={
+                  highVoltagePoleToTerminalLengthConstraint
+                }
+                highVoltagePoleToTerminalMinimumLength={
+                  highVoltagePoleToTerminalMinimumLength
+                }
+                onLowVoltagePoleToPoleChange={
+                  setLowVoltagePoleToPoleLengthConstraint
+                }
+                onLowVoltagePoleToTerminalChange={
+                  setLowVoltagePoleToTerminalLengthConstraint
+                }
+                onLowVoltagePoleToTerminalMinimumChange={
+                  setLowVoltagePoleToTerminalMinimumLength
+                }
+                onHighVoltagePoleToPoleChange={
+                  setHighVoltagePoleToPoleLengthConstraint
+                }
+                onHighVoltagePoleToTerminalChange={
+                  setHighVoltagePoleToTerminalLengthConstraint
+                }
+                onHighVoltagePoleToTerminalMinimumChange={
+                  setHighVoltagePoleToTerminalMinimumLength
+                }
               />
 
               {/* 3. Solver Section */}
@@ -2791,7 +2815,9 @@ export default function MiniGridToolPage() {
                 onParamChange={updateParam}
                 useExistingPoles={useExistingPoles}
                 onUseExistingPolesChange={setUseExistingPoles}
-                poleCount={miniGridNodes.filter((n) => n.type === 'pole').length}
+                poleCount={
+                  miniGridNodes.filter((n) => n.type === 'pole').length
+                }
                 onRunSolver={handleRunSolver}
                 computing={computingMiniGrid}
                 calcError={calcError}
@@ -2811,6 +2837,8 @@ export default function MiniGridToolPage() {
                 miniGridNodes={miniGridNodes}
                 allowDragTerminals={allowDragTerminals}
                 onAllowDragTerminalsChange={setAllowDragTerminals}
+                showEdgeLengths={showEdgeLengths}
+                onShowEdgeLengthsChange={setShowEdgeLengths}
                 onDownloadKml={downloadKml}
                 onSaveToDatabase={handleSaveToDatabase}
                 isAuthenticated={!!session?.user}

@@ -17,6 +17,8 @@ interface ExportAndSummarySectionProps {
   miniGridNodes: MiniGridNode[];
   allowDragTerminals: boolean;
   onAllowDragTerminalsChange: (value: boolean) => void;
+  showEdgeLengths: boolean;           // ← NEW
+  onShowEdgeLengthsChange: (_show: boolean) => void; // ← NEW
   onDownloadKml: () => void;
   onSaveToDatabase: () => void;
   isAuthenticated: boolean;
@@ -34,6 +36,8 @@ export default function ExportAndSummarySection({
   highVoltageCost,
   miniGridNodes,
   allowDragTerminals,
+  showEdgeLengths,
+  onShowEdgeLengthsChange,
   onAllowDragTerminalsChange,
   onDownloadKml,
   onSaveToDatabase,
@@ -79,6 +83,8 @@ export default function ExportAndSummarySection({
           miniGridNodes={miniGridNodes}
           allowDragTerminals={allowDragTerminals}
           onAllowDragTerminalsChange={onAllowDragTerminalsChange}
+          showEdgeLengths={showEdgeLengths}
+          onShowEdgeLengthsChange={onShowEdgeLengthsChange}
           onDownloadKml={onDownloadKml}
           onSaveToDatabase={onSaveToDatabase}
           isAuthenticated={isAuthenticated}
