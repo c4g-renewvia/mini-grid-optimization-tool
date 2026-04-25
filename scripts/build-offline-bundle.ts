@@ -101,8 +101,8 @@ export function assembleOfflineBundle({ root, stageDir }: AssembleOptions) {
     run('bash', ['build-solver.sh'], { cwd: resolve(root, 'backend') });
   }
 
-  // 3. Migrated SQLite DB seeded with the offline user.
-  step('Create offline.db (migrated, seeded with offline user)');
+  // 3. Migrated SQLite DB seeded with the anonymous user.
+  step('Create offline.db (migrated, seeded with anonymous user)');
   const releaseDir = resolve(root, 'release');
   mkdirSync(releaseDir, { recursive: true });
   const tmpDb = resolve(releaseDir, '_tmp-offline.db');
@@ -123,12 +123,12 @@ export function assembleOfflineBundle({ root, stageDir }: AssembleOptions) {
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL! }) });
 await prisma.user.upsert({
-  where: { id: 'offline-user' },
+  where: { id: 'anonymous-user' },
   update: {},
   create: {
-    id: 'offline-user',
-    email: 'offline@localhost',
-    name: 'Offline User',
+    id: 'anonymous-user',
+    email: 'anonymous@localhost',
+    name: 'Anonymous User',
     role: 'ADMIN',
     emailVerified: new Date(),
   },

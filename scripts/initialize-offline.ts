@@ -87,7 +87,7 @@ async function main() {
     );
   });
 
-  console.log('Upserting offline user...');
+  console.log('Upserting anonymous user...');
   const seedFileRel = 'scripts/.seed-offline-tmp.mts';
   const seedFile = resolve(ROOT, seedFileRel);
   const seedSource = `import { PrismaClient } from '../prisma/generated/prisma/client.ts';
@@ -95,18 +95,18 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 await prisma.user.upsert({
-  where: { id: 'offline-user' },
+  where: { id: 'anonymous-user' },
   update: {},
   create: {
-    id: 'offline-user',
-    email: 'offline@localhost',
-    name: 'Offline User',
+    id: 'anonymous-user',
+    email: 'anonymous@localhost',
+    name: 'Anonymous User',
     role: 'ADMIN',
     emailVerified: new Date(),
   },
 });
 await prisma.$disconnect();
-console.log('offline user upserted');
+console.log('anonymous user upserted');
 `;
   writeFileSync(seedFile, seedSource);
   try {

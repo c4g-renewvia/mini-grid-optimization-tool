@@ -74,6 +74,8 @@ function getOrPromptConfig() {
     ipcMain.handleOnce('save-config', (_e, partial) => {
       const config = {
         mapsKey: partial.mapsKey,
+        googleClientId: partial.googleClientId || undefined,
+        googleClientSecret: partial.googleClientSecret || undefined,
         authSecret:
           existing?.authSecret ?? crypto.randomBytes(32).toString('base64'),
       };
@@ -129,18 +131,23 @@ function spawnSolver() {
 }
 
 function spawnServer(config) {
+  const env = {
+    ...process.env,
+    OFFLINE_MODE: 'true',
+    DATABASE_URL: `file:${DB_PATH}`,
+    GOOGLE_MAPS_API_KEY: config.mapsKey,
+    AUTH_SECRET: config.authSecret,
+    NEXTAUTH_URL: `http://localhost:${PORT}`,
+    AUTH_TRUST_HOST: 'true',
+    PORT: String(PORT),
+    HOSTNAME: '127.0.0.1',
+  };
+  if (config.googleClientId && config.googleClientSecret) {
+    env.AUTH_GOOGLE_ID = config.googleClientId;
+    env.AUTH_GOOGLE_SECRET = config.googleClientSecret;
+  }
   serverProc = spawn(NODE_BIN, [SERVER_ENTRY], {
-    env: {
-      ...process.env,
-      OFFLINE_MODE: 'true',
-      DATABASE_URL: `file:${DB_PATH}`,
-      GOOGLE_MAPS_API_KEY: config.mapsKey,
-      AUTH_SECRET: config.authSecret,
-      NEXTAUTH_URL: `http://localhost:${PORT}`,
-      AUTH_TRUST_HOST: 'true',
-      PORT: String(PORT),
-      HOSTNAME: '127.0.0.1',
-    },
+    env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   teeChildOutput(serverProc, path.join(LOGS_DIR, 'server.log'), (line) => {

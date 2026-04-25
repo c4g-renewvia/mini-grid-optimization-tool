@@ -72,8 +72,5 @@ backend/*.spec
 
 # Offline-mode release artifacts
 release/
-
-# Electron build-side artifacts (electron-builder triggers a pnpm install
-# in electron/ during packaging; nothing here belongs in git)
 electron/node_modules/
 electron/pnpm-lock.yaml

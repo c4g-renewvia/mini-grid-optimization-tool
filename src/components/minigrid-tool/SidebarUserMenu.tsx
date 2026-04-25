@@ -24,6 +24,10 @@ export function SidebarUserMenu() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
 
+  if (session?.user?.id === 'anonymous-user') {
+    return <ThemeSwitcher />;
+  }
+
   if (!session) {
     return (
       <Button

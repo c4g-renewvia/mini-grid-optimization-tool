@@ -7,12 +7,14 @@ import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
 
 const isOffline = process.env.OFFLINE_MODE === 'true';
+const hasOfflineAuth = !!process.env.AUTH_GOOGLE_ID;
+const useAnonymousFallback = isOffline && !hasOfflineAuth;
 
-const OFFLINE_SESSION: Session = {
+const ANONYMOUS_SESSION: Session = {
   user: {
-    id: 'offline-user',
-    email: 'offline@localhost',
-    name: 'Offline User',
+    id: 'anonymous-user',
+    email: 'anonymous@localhost',
+    name: 'Anonymous User',
     role: 'ADMIN',
     image: null,
   },
@@ -94,19 +96,19 @@ export const authOptions: NextAuthConfig = {
 
 const real = NextAuth(authOptions);
 
-const offlineHandlers = {
+const anonymousHandlers = {
   GET: async (req: NextRequest) => {
     if (new URL(req.url).pathname.endsWith('/session')) {
-      return Response.json(OFFLINE_SESSION);
+      return Response.json(ANONYMOUS_SESSION);
     }
     return real.handlers.GET(req);
   },
   POST: real.handlers.POST,
 };
 
-export const handlers = isOffline ? offlineHandlers : real.handlers;
+export const handlers = useAnonymousFallback ? anonymousHandlers : real.handlers;
 export const auth = (
-  isOffline ? (async () => OFFLINE_SESSION) : real.auth
+  useAnonymousFallback ? (async () => ANONYMOUS_SESSION) : real.auth
 ) as typeof real.auth;
 export const signIn = real.signIn;
 export const signOut = real.signOut;
