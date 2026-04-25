@@ -101,7 +101,9 @@ export function assembleOfflineBundle({ root, stageDir }: AssembleOptions) {
 
   // 2. Solver binary (skip if it already exists).
   step('Build PyInstaller solver binary (if missing)');
-  const solverBin = resolve(root, 'backend/dist/minigrid-solver');
+  const solverBinName =
+    process.platform === 'win32' ? 'minigrid-solver.exe' : 'minigrid-solver';
+  const solverBin = resolve(root, 'backend/dist', solverBinName);
   if (existsSync(solverBin)) {
     console.log(`Reusing ${solverBin}`);
   } else {
@@ -160,7 +162,7 @@ await prisma.$disconnect();
   mkdirSync(join(stageDir, 'server'));
   mkdirSync(join(stageDir, 'prisma'));
 
-  cpSync(solverBin, join(stageDir, 'solver/minigrid-solver'));
+  cpSync(solverBin, join(stageDir, 'solver', solverBinName));
 
   // pnpm's node_modules uses relative symlinks; preserve them verbatim so the
   // standalone resolves correctly at the install site. Don't dereference

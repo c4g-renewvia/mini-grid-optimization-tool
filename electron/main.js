@@ -24,7 +24,11 @@ const BUILD_COMMIT_HASH = (() => {
 const RESOURCES = app.isPackaged
   ? process.resourcesPath
   : path.join(__dirname, '..', 'release', 'minigrid-tool');
-const SOLVER_BIN = path.join(RESOURCES, 'solver', 'minigrid-solver');
+const SOLVER_BIN = path.join(
+  RESOURCES,
+  'solver',
+  process.platform === 'win32' ? 'minigrid-solver.exe' : 'minigrid-solver'
+);
 const SERVER_ENTRY = path.join(RESOURCES, 'server', 'server.js');
 const SEED_DB = path.join(RESOURCES, 'prisma', 'offline.db');
 const NODE_BIN = path.join(
