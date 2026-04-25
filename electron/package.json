@@ -16,20 +16,25 @@
       "main.js",
       "preload.js",
       "setup.html",
+      "loading.html",
       "package.json"
     ],
+    "afterPack": "./after-pack.js",
     "extraResources": [
       {
         "from": "../release/electron-stage/solver",
-        "to": "solver"
+        "to": "solver",
+        "filter": ["**/*"]
       },
       {
         "from": "../release/electron-stage/server",
-        "to": "server"
+        "to": "server",
+        "filter": ["**/*"]
       },
       {
         "from": "../release/electron-stage/prisma",
-        "to": "prisma"
+        "to": "prisma",
+        "filter": ["**/*"]
       }
     ],
     "asarUnpack": [

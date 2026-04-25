@@ -79,16 +79,49 @@ function getOrPromptConfig() {
   });
 }
 
+function teeChildOutput(child, logPath, onLine) {
+  const stream = fs.createWriteStream(logPath, { flags: 'a' });
+  let buffer = '';
+  const pipe = (chunk) => {
+    stream.write(chunk);
+    buffer += chunk.toString();
+    let idx;
+    while ((idx = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 1);
+      try {
+        onLine(line);
+      } catch {
+        // status updates are best-effort
+      }
+    }
+  };
+  child.stdout?.on('data', pipe);
+  child.stderr?.on('data', pipe);
+  child.on('exit', () => stream.end());
+}
+
 function spawnSolver() {
-  const log = fs.openSync(path.join(LOGS_DIR, 'solver.log'), 'a');
   solverProc = spawn(SOLVER_BIN, [], {
     env: {
       ...process.env,
       MPLCONFIGDIR: path.join(CACHE_DIR, 'mpl'),
       SOLVER_HOST: '127.0.0.1',
       SOLVER_PORT: '8000',
+      PYTHONUNBUFFERED: '1',
     },
-    stdio: ['ignore', log, log],
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  teeChildOutput(solverProc, path.join(LOGS_DIR, 'solver.log'), (line) => {
+    if (line.includes('Matplotlib is building the font cache')) {
+      setLoadingStatus(
+        'Building the matplotlib font cache (one-time, ~60–90s)…'
+      );
+    } else if (line.includes('Application startup complete')) {
+      setLoadingStatus('Solver ready. Starting the web server…');
+    } else if (line.includes('Uvicorn running')) {
+      setLoadingStatus('Solver listening on :8000. Starting the web server…');
+    }
   });
   solverProc.on('exit', (code) => {
     console.log(`solver exited (${code})`);
@@ -97,7 +130,6 @@ function spawnSolver() {
 }
 
 function spawnServer(config) {
-  const log = fs.openSync(path.join(LOGS_DIR, 'server.log'), 'a');
   serverProc = spawn(process.execPath, [SERVER_ENTRY], {
     env: {
       ...process.env,
@@ -111,7 +143,14 @@ function spawnServer(config) {
       PORT: String(PORT),
       HOSTNAME: '127.0.0.1',
     },
-    stdio: ['ignore', log, log],
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  teeChildOutput(serverProc, path.join(LOGS_DIR, 'server.log'), (line) => {
+    if (line.includes('Ready in')) {
+      setLoadingStatus('Web server ready. Loading the app…');
+    } else if (line.includes('Starting...')) {
+      setLoadingStatus('Web server starting…');
+    }
   });
   serverProc.on('exit', (code) => {
     console.log(`server exited (${code})`);
@@ -119,7 +158,7 @@ function spawnServer(config) {
   });
 }
 
-function waitForServer(timeoutMs = 60_000) {
+function waitForServer(timeoutMs = 180_000) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const tick = () => {
@@ -149,7 +188,32 @@ function createMainWindow() {
     title: 'Mini-Grid Optimization Tool',
     webPreferences: { contextIsolation: true },
   });
-  mainWindow.loadURL(`http://localhost:${PORT}`);
+  mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+}
+
+function setLoadingStatus(text) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const safe = JSON.stringify(text);
+  mainWindow.webContents
+    .executeJavaScript(
+      `(() => { const el = document.getElementById('status'); if (el) el.textContent = ${safe}; })()`
+    )
+    .catch(() => {});
+}
+
+function showLoadingError(message) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const safe = JSON.stringify(message);
+  mainWindow.webContents
+    .executeJavaScript(
+      `(() => {
+        document.getElementById('root').classList.add('has-err');
+        document.getElementById('title').textContent = 'Failed to start';
+        document.getElementById('status').textContent = 'See logs for details. The app will keep running so you can read this.';
+        document.getElementById('err').textContent = ${safe};
+      })()`
+    )
+    .catch(() => {});
 }
 
 function shutdown() {
@@ -168,17 +232,22 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+  createMainWindow();
+  setLoadingStatus('Starting the solver…');
   spawnSolver();
+  setLoadingStatus(
+    'Starting the web server (first launch builds a font cache, ~1 min)…'
+  );
   spawnServer(config);
   try {
     await waitForServer();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL(`http://localhost:${PORT}`);
+    }
   } catch (err) {
     console.error('Server failed to come up:', err);
-    shutdown();
-    app.quit();
-    return;
+    showLoadingError(String(err));
   }
-  createMainWindow();
 });
 
 app.on('window-all-closed', () => {
