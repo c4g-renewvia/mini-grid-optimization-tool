@@ -243,9 +243,13 @@ writeFileSync(
     'Every launch:',
     '  ./start.sh        # spawns the solver + the Next.js server, opens browser',
     '',
-    'Cache: matplotlib font cache is written to your OS user-data dir',
-    '(~/Library/Application Support/minigrid-solver/ on macOS,',
-    ' ~/.local/share/minigrid-solver/ on Linux). Safe to delete; will rebuild.',
+    'Persistent state lives outside this folder:',
+    '  database  ~/Library/Application Support/minigrid-solver/ (macOS)',
+    '            ~/.local/share/minigrid-solver/ (Linux)',
+    '  cache     ~/Library/Caches/minigrid-solver/ (macOS)',
+    '            ~/.cache/minigrid-solver/ (Linux)',
+    '  logs      ~/Library/Logs/minigrid-solver/ (macOS)',
+    '            ~/.local/state/minigrid-solver/logs/ (Linux)',
     '',
   ].join('\n')
 );
