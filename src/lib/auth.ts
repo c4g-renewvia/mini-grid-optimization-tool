@@ -1,9 +1,22 @@
 import { prisma } from '@/lib/prisma';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import type { User } from '@prisma/client';
-import NextAuth, { type NextAuthConfig } from 'next-auth';
+import NextAuth, { type NextAuthConfig, type Session } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { cookies } from 'next/headers';
+
+const isOffline = process.env.OFFLINE_MODE === 'true';
+
+const OFFLINE_SESSION: Session = {
+  user: {
+    id: 'offline-user',
+    email: 'offline@localhost',
+    name: 'Offline User',
+    role: 'ADMIN',
+    image: null,
+  },
+  expires: '2099-01-01T00:00:00.000Z',
+};
 
 export const authOptions: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
@@ -77,4 +90,22 @@ export const authOptions: NextAuthConfig = {
     },
   },
 };
-export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
+
+const real = NextAuth(authOptions);
+
+const offlineHandlers = {
+  GET: async (req: Request) => {
+    if (new URL(req.url).pathname.endsWith('/session')) {
+      return Response.json(OFFLINE_SESSION);
+    }
+    return real.handlers.GET(req);
+  },
+  POST: real.handlers.POST,
+};
+
+export const handlers = isOffline ? offlineHandlers : real.handlers;
+export const auth = (
+  isOffline ? (async () => OFFLINE_SESSION) : real.auth
+) as typeof real.auth;
+export const signIn = real.signIn;
+export const signOut = real.signOut;

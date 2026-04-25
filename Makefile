@@ -41,3 +41,19 @@ else
 endif
 
 	@echo "Environment check complete."
+
+
+# --- Offline Mode -----------------------------------------------------------
+# Run the tool with no Docker, no Postgres, no Google OAuth.
+# Requires Node + Python + uv installed locally.
+
+offline: offline_check_env offline_build_backend offline_start
+
+offline_check_env:
+	@test -f .env.local || pnpm run offline:init
+
+offline_build_backend:
+	@test -f backend/dist/minigrid-solver || (cd backend && bash build-solver.sh)
+
+offline_start:
+	@pnpm exec tsx scripts/start-offline.ts
