@@ -2,9 +2,18 @@
 
 import os
 
-import uvicorn
+# Pin matplotlib's cache to a stable user dir so the font cache built on first
+# launch persists across runs. Without this, PyInstaller --onefile rebuilds the
+# cache every launch (60-90s) because the bundle's temp dir is purged on exit.
+# Must be set before any matplotlib import (which happens transitively via server.py).
+os.environ.setdefault(
+    "MPLCONFIGDIR", os.path.expanduser("~/.cache/minigrid-solver/mpl")
+)
+os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
-from server import app
+import uvicorn  # noqa: E402
+
+from server import app  # noqa: E402
 
 
 def main() -> None:

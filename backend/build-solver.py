@@ -40,6 +40,8 @@ def main() -> int:
         "uvicorn.protocols.websockets.auto",
         "--hidden-import",
         "uvicorn.lifespan.on",
+        "--exclude-module",
+        "tkinter",
         str(HERE / "run-solver.py"),
     ]
 

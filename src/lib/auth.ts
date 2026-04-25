@@ -4,6 +4,7 @@ import type { User } from '@prisma/client';
 import NextAuth, { type NextAuthConfig, type Session } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { cookies } from 'next/headers';
+import type { NextRequest } from 'next/server';
 
 const isOffline = process.env.OFFLINE_MODE === 'true';
 
@@ -94,7 +95,7 @@ export const authOptions: NextAuthConfig = {
 const real = NextAuth(authOptions);
 
 const offlineHandlers = {
-  GET: async (req: Request) => {
+  GET: async (req: NextRequest) => {
     if (new URL(req.url).pathname.endsWith('/session')) {
       return Response.json(OFFLINE_SESSION);
     }

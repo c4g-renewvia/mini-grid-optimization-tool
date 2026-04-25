@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import { randomBytes } from 'crypto';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { createInterface } from 'readline/promises';
 import { stdin as input, stdout as output } from 'process';
 import { resolve } from 'path';
@@ -67,7 +67,7 @@ async function main() {
   await new Promise<void>((resolveP, reject) => {
     const child = spawn(
       'pnpm',
-      ['exec', 'prisma', 'db', 'push', `--schema=${SCHEMA_PATH}`, '--skip-generate'],
+      ['exec', 'prisma', 'db', 'push', `--schema=${SCHEMA_PATH}`],
       { stdio: 'inherit', shell: true, cwd: ROOT, env: childEnv }
     );
     child.on('exit', (code) =>
@@ -88,33 +88,46 @@ async function main() {
   });
 
   console.log('Upserting offline user...');
-  const seedScript = `
-    import { PrismaClient } from '${resolve(ROOT, 'prisma/generated/prisma/client.js').replace(/\\\\/g, '/')}';
-    const prisma = new PrismaClient();
-    await prisma.user.upsert({
-      where: { id: 'offline-user' },
-      update: {},
-      create: {
-        id: 'offline-user',
-        email: 'offline@localhost',
-        name: 'Offline User',
-        role: 'ADMIN',
-        emailVerified: new Date(),
-      },
+  const seedFileRel = 'scripts/.seed-offline-tmp.mts';
+  const seedFile = resolve(ROOT, seedFileRel);
+  const seedSource = `import { PrismaClient } from '../prisma/generated/prisma/client.ts';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? 'file:./prisma/offline.db' });
+const prisma = new PrismaClient({ adapter });
+await prisma.user.upsert({
+  where: { id: 'offline-user' },
+  update: {},
+  create: {
+    id: 'offline-user',
+    email: 'offline@localhost',
+    name: 'Offline User',
+    role: 'ADMIN',
+    emailVerified: new Date(),
+  },
+});
+await prisma.$disconnect();
+console.log('offline user upserted');
+`;
+  writeFileSync(seedFile, seedSource);
+  try {
+    await new Promise<void>((resolveP, reject) => {
+      const child = spawn('pnpm', ['exec', 'tsx', seedFileRel], {
+        stdio: 'inherit',
+        shell: true,
+        cwd: ROOT,
+        env: childEnv,
+      });
+      child.on('exit', (code) =>
+        code === 0 ? resolveP() : reject(new Error(`seed exited ${code}`))
+      );
     });
-    await prisma.$disconnect();
-  `;
-  await new Promise<void>((resolveP, reject) => {
-    const child = spawn('pnpm', ['exec', 'tsx', '-e', seedScript], {
-      stdio: 'inherit',
-      shell: true,
-      cwd: ROOT,
-      env: childEnv,
-    });
-    child.on('exit', (code) =>
-      code === 0 ? resolveP() : reject(new Error(`seed exited ${code}`))
-    );
-  });
+  } finally {
+    try {
+      unlinkSync(seedFile);
+    } catch {
+      // ignore
+    }
+  }
 
   console.log('Offline initialization complete.');
 }
