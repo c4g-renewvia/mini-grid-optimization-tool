@@ -613,6 +613,49 @@ vercel deploy --prod
 
 ---
 
+## Offline / Desktop Architecture
+
+The tool supports an offline mode that replaces the PostgreSQL + Docker + Google OAuth stack with a lightweight local setup. The standard web deployment is unaffected.
+
+### Database
+
+Offline mode uses SQLite via Prisma's `@prisma/adapter-better-sqlite3` driver adapter. A duplicate schema lives in `prisma/schema-offline/` (SQLite provider, `String?` instead of the `UserRole` enum). The active database file is stored in the OS-managed user data directory, not alongside the application files:
+- macOS: `~/Library/Application Support/minigrid-solver/offline.db`
+- Linux: `${XDG_DATA_HOME:-$HOME/.local/share}/minigrid-solver/offline.db`
+- Windows (Electron): `%APPDATA%/minigrid-tool/offline.db`
+
+### Authentication
+
+When `OFFLINE_MODE=true` and no Google OAuth credentials are provided, `src/lib/auth.ts` returns a hardcoded anonymous session (`id: 'anonymous-user'`). The sidebar hides all auth UI (sign-in, profile, notifications) for this user and shows only the theme switcher. If Google OAuth credentials are provided in the setup, the standard NextAuth flow runs normally.
+
+### Solver Binary
+
+The Python FastAPI backend is compiled into a single-file executable via PyInstaller (`backend/build-solver.py`). The binary bundles all solver dependencies (NetworkX, SciPy, Shapely, etc.) and requires no Python installation on the host. Matplotlib's font cache is written to the OS cache directory (`platformdirs.user_cache_dir`) to avoid a slow rebuild on every launch.
+
+### Distribution Formats
+
+| Format | Audience | Contents |
+|--------|----------|----------|
+| **Developer mode** (`make offline`) | Developers | Source tree, `next dev`, `uv run uvicorn` |
+| **Standalone bundle** (`.zip`) | Non-devs with Node.js | PyInstaller solver binary, Next.js standalone server, setup/start shell scripts |
+| **Desktop app** (`.dmg`/`.exe`/`.AppImage`) | End users | Electron wrapper bundling a Node runtime, the standalone server, and the solver binary |
+
+### Electron Desktop App
+
+The Electron app (`electron/`) spawns two child processes: the solver binary and the Next.js standalone server (via a bundled Node runtime). Configuration (Google Maps API key, optional OAuth credentials) is stored in `app.getPath('userData')/config.json`. Logs go to `app.getPath('logs')`. The app detects version changes via a build-time commit hash baked into `build-info.json`; on mismatch, it deletes the old config and re-runs setup. The database is preserved across updates.
+
+```
+Electron Main Process
+├── Solver Binary (port 8000, 127.0.0.1)
+├── Node + Next.js Standalone Server (port 3000, 127.0.0.1)
+│   ├── OFFLINE_MODE=true
+│   ├── DATABASE_URL=file:<userData>/offline.db
+│   └── GOOGLE_MAPS_API_KEY=<from config.json>
+└── BrowserWindow → http://localhost:3000
+```
+
+---
+
 ## Future Architecture Improvements
 
 1. **Message Queue**: Redis for async job processing
@@ -640,7 +683,7 @@ vercel deploy --prod
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: April 16, 2026  
+**Document Version**: 1.1  
+**Last Updated**: April 25, 2026  
 **Maintained By**: C4G Renewvia Team
 
