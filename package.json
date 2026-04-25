@@ -24,7 +24,8 @@
     "docker:build": "docker compose build",
     "offline:init": "tsx scripts/initialize-offline.ts",
     "offline:start": "tsx scripts/start-offline.ts",
-    "offline:package": "tsx scripts/package-offline.ts"
+    "offline:package": "tsx scripts/package-offline.ts",
+    "electron:build": "tsx scripts/build-electron.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
@@ -68,6 +69,8 @@
     "@types/papaparse": "^5.3.16",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^9.1.0",
@@ -86,7 +89,9 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3"
+      "better-sqlite3",
+      "electron",
+      "electron-winstaller"
     ]
   }
 }

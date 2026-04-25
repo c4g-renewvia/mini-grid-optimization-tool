@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mini-Grid — Setup</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        background: #18181b;
+        color: #f4f4f5;
+        font-size: 14px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 20px;
+        color: #a1a1aa;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 12px;
+        color: #d4d4d8;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      input[type='text'] {
+        width: 100%;
+        padding: 10px 12px;
+        background: #27272a;
+        border: 1px solid #3f3f46;
+        border-radius: 6px;
+        color: #fafafa;
+        font-family: ui-monospace, monospace;
+        font-size: 13px;
+      }
+      input[type='text']:focus {
+        outline: none;
+        border-color: #6366f1;
+      }
+      button {
+        margin-top: 20px;
+        width: 100%;
+        padding: 10px 16px;
+        background: #6366f1;
+        color: white;
+        border: 0;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #4f46e5;
+      }
+      button:disabled {
+        background: #3f3f46;
+        cursor: not-allowed;
+      }
+      .err {
+        margin-top: 8px;
+        color: #f87171;
+        font-size: 12px;
+        min-height: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Welcome to Mini-Grid</h1>
+    <p>
+      Paste your Google Maps API key to finish setup. The key is stored locally
+      and only used to render the map.
+    </p>
+    <form id="form">
+      <label for="key">Google Maps API key</label>
+      <input
+        id="key"
+        type="text"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="AIzaSy..."
+        required
+      />
+      <button type="submit" id="submit">Save and continue</button>
+      <div class="err" id="err"></div>
+    </form>
+    <script>
+      const form = document.getElementById('form');
+      const input = document.getElementById('key');
+      const err = document.getElementById('err');
+      const submit = document.getElementById('submit');
+      input.focus();
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const mapsKey = input.value.trim();
+        if (!mapsKey) {
+          err.textContent = 'Required';
+          return;
+        }
+        submit.disabled = true;
+        try {
+          await window.electronAPI.saveConfig({ mapsKey });
+        } catch (e) {
+          err.textContent = String(e);
+          submit.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
