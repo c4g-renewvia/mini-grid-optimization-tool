@@ -23,7 +23,8 @@
     "docker:down": "docker compose down",
     "docker:build": "docker compose build",
     "offline:init": "tsx scripts/initialize-offline.ts",
-    "offline:start": "tsx scripts/start-offline.ts"
+    "offline:start": "tsx scripts/start-offline.ts",
+    "offline:package": "tsx scripts/package-offline.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

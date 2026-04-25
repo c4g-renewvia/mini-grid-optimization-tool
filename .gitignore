@@ -69,3 +69,6 @@ backend/*.spec
 
 # Local SQLite databases
 *.db
+
+# Offline-mode release artifacts 
+release/

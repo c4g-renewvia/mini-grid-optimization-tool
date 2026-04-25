@@ -52,14 +52,39 @@ export const viewport: Viewport = {
   themeColor: '#000000',
 };
 
+// Force per-request rendering so process.env reads (specifically the runtime
+// GOOGLE_MAPS_API_KEY injected via window.__APP_CONFIG__ below) happen at
+// request time, not at build time. Without this, Next.js statically renders
+// the root layout and bakes whatever the env was during `next build` (empty
+// in the offline-zip build path) into the prerendered HTML.
+export const dynamic = 'force-dynamic';
+
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  // Runtime-resolved config exposed to the client. NEXT_PUBLIC_* values are
+  // inlined at build time, which doesn't work for the offline zip where the
+  // Maps key is supplied per-install via .env at start.sh time. Reading the
+  // non-prefixed var here (server component, request-time) and injecting it
+  // before hydration lets the client read window.__APP_CONFIG__.mapsKey.
+  const appConfig = {
+    mapsKey:
+      process.env.GOOGLE_MAPS_API_KEY ??
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ??
+      '',
+  };
   return (
     <html lang='en' suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__APP_CONFIG__=${JSON.stringify(appConfig)};`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

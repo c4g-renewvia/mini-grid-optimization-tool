@@ -35,8 +35,17 @@ import type {
 } from '@/types/minigrid';
 import { SidebarUserMenu } from '@/components/minigrid-tool/SidebarUserMenu';
 
+// Prefer runtime config injected by RootLayout (window.__APP_CONFIG__). Falls
+// back to the build-time-inlined NEXT_PUBLIC_ var so existing Docker/dev flows
+// keep working unchanged. The runtime path is what makes the offline zip work
+// — its bundle is built without any NEXT_PUBLIC_ key and the server reads
+// GOOGLE_MAPS_API_KEY from the user's .env at request time.
 const GOOGLE_MAPS_API_KEY =
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY';
+  (typeof window !== 'undefined' &&
+    (window as unknown as { __APP_CONFIG__?: { mapsKey?: string } })
+      .__APP_CONFIG__?.mapsKey) ||
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  'YOUR_GOOGLE_MAPS_API_KEY';
 
 function toLiteral(
   pos: google.maps.marker.AdvancedMarkerElement['position']
