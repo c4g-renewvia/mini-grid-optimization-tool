@@ -25,6 +25,7 @@ import {
   writeFileSync,
 } from 'fs';
 import { resolve, join } from 'path';
+import { tmpdir } from 'os';
 
 export interface AssembleOptions {
   /** Repo root (where package.json lives). */
@@ -61,10 +62,15 @@ export function assembleOfflineBundle({ root, stageDir }: AssembleOptions) {
 
   // 1. Next.js standalone build (offline mode env, no NEXT_PUBLIC maps key).
   step('Build Next.js standalone (OFFLINE_MODE=true)');
+  // Placeholder DATABASE_URL so src/lib/prisma.ts doesn't throw at module load
+  // during `next build`'s page-data collection. Nothing actually queries; the
+  // empty file is created and removed below.
+  const buildPlaceholderDb = join(tmpdir(), `minigrid-build-${process.pid}.db`);
   const buildEnv = {
     ...process.env,
     OFFLINE_MODE: 'true',
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: '',
+    DATABASE_URL: `file:${buildPlaceholderDb}`,
   };
   // Inject `export const dynamic = 'force-dynamic'` into layout.tsx for the
   // offline build only. Next 16 rejects non-literal `dynamic` exports, so we
@@ -90,6 +96,7 @@ export function assembleOfflineBundle({ root, stageDir }: AssembleOptions) {
     run('pnpm', ['run', 'build'], { cwd: root, env: buildEnv });
   } finally {
     writeFileSync(LAYOUT_PATH, layoutOriginal);
+    if (existsSync(buildPlaceholderDb)) rmSync(buildPlaceholderDb);
   }
 
   // 2. Solver binary (skip if it already exists).
