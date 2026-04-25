@@ -7,12 +7,28 @@
  */
 
 import { spawnSync } from 'child_process';
-import { copyFileSync, mkdirSync } from 'fs';
+import { copyFileSync, mkdirSync, writeFileSync } from 'fs';
 import { resolve, join } from 'path';
 import { assembleOfflineBundle } from './build-offline-bundle';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const STAGE = resolve(ROOT, 'release/electron-stage');
+
+// Stamp the build with the current git commit hash so main.js can detect
+// install-over-old-version on launch and trigger re-setup.
+console.log('\n=== Stamp build-info.json ===');
+const commitHash = (() => {
+  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' });
+  if (r.status !== 0) {
+    throw new Error(`git rev-parse HEAD failed: ${r.stderr}`);
+  }
+  return r.stdout.trim();
+})();
+writeFileSync(
+  resolve(ROOT, 'electron/build-info.json'),
+  JSON.stringify({ commitHash }, null, 2) + '\n'
+);
+console.log(`commitHash=${commitHash}`);
 
 assembleOfflineBundle({ root: ROOT, stageDir: STAGE });
 

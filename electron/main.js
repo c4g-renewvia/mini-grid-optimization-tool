@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -11,6 +11,15 @@ const LOGS_DIR = app.getPath('logs');
 const CONFIG_PATH = path.join(USER_DATA, 'config.json');
 const DB_PATH = path.join(USER_DATA, 'offline.db');
 const PORT = 3000;
+
+const BUILD_INFO_PATH = path.join(__dirname, 'build-info.json');
+const BUILD_COMMIT_HASH = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(BUILD_INFO_PATH, 'utf8')).commitHash || null;
+  } catch {
+    return null;
+  }
+})();
 
 const RESOURCES = app.isPackaged
   ? process.resourcesPath
@@ -27,6 +36,8 @@ const NODE_BIN = path.join(
 let mainWindow = null;
 let solverProc = null;
 let serverProc = null;
+let currentConfig = null;
+let booted = false;
 
 function ensureDirs() {
   for (const d of [USER_DATA, CACHE_DIR, LOGS_DIR, path.join(CACHE_DIR, 'mpl')]) {
@@ -47,43 +58,67 @@ function readConfig() {
 }
 
 function writeConfig(config) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  fs.writeFileSync(
+    CONFIG_PATH,
+    JSON.stringify({ ...config, commitHash: BUILD_COMMIT_HASH }, null, 2)
+  );
 }
 
-function getOrPromptConfig() {
+function configIsCurrent(config) {
+  if (!config?.mapsKey) return false;
+  // In dev (unpackaged), skip the hash check so config persists across rebuilds.
+  if (!app.isPackaged) return true;
+  return !!BUILD_COMMIT_HASH && config.commitHash === BUILD_COMMIT_HASH;
+}
+
+function showSetupWindow(existingConfig) {
   return new Promise((resolve, reject) => {
-    const existing = readConfig();
-    if (existing?.mapsKey) {
-      resolve(existing);
-      return;
-    }
     const setupWin = new BrowserWindow({
       width: 540,
-      height: 360,
+      height: 520,
       resizable: false,
-      title: 'Mini-Grid — Setup',
+      title: 'Mini-Grid Optimizer — Setup',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
       },
     });
+    setupWin.removeMenu?.();
     setupWin.loadFile(path.join(__dirname, 'setup.html'));
+    let saved = false;
     setupWin.on('closed', () => {
-      if (!readConfig()) reject(new Error('Setup cancelled'));
+      ipcMain.removeHandler('save-config');
+      if (!saved) reject(new Error('Setup cancelled'));
     });
-    ipcMain.handleOnce('save-config', (_e, partial) => {
+    ipcMain.handle('save-config', (_e, partial) => {
       const config = {
         mapsKey: partial.mapsKey,
         googleClientId: partial.googleClientId || undefined,
         googleClientSecret: partial.googleClientSecret || undefined,
         authSecret:
-          existing?.authSecret ?? crypto.randomBytes(32).toString('base64'),
+          existingConfig?.authSecret ??
+          crypto.randomBytes(32).toString('base64'),
       };
       writeConfig(config);
+      saved = true;
       setupWin.close();
       resolve(config);
     });
   });
+}
+
+async function getOrPromptConfig() {
+  const existing = readConfig();
+  if (configIsCurrent(existing)) return existing;
+  // Stale or missing: wipe so the renderer doesn't see leftover values.
+  if (fs.existsSync(CONFIG_PATH)) {
+    try {
+      fs.unlinkSync(CONFIG_PATH);
+    } catch {
+      // best effort
+    }
+  }
+  return showSetupWindow(null);
 }
 
 function teeChildOutput(child, logPath, onLine) {
@@ -188,7 +223,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
-    title: 'Mini-Grid Optimization Tool',
+    title: 'Mini-Grid Optimizer',
     webPreferences: { contextIsolation: true },
   });
   mainWindow.loadFile(path.join(__dirname, 'loading.html'));
@@ -228,8 +263,178 @@ function shutdown() {
   }
 }
 
+function waitForExit(child) {
+  if (!child || child.killed) return Promise.resolve();
+  return new Promise((resolve) => {
+    if (child.exitCode != null) resolve();
+    else child.once('exit', () => resolve());
+  });
+}
+
+async function reconfigureFromSettings() {
+  const existing = readConfig();
+  let newConfig;
+  try {
+    newConfig = await showSetupWindow(existing);
+  } catch {
+    // user cancelled; keep current config + running processes
+    return;
+  }
+  currentConfig = newConfig;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+    await new Promise((resolve) =>
+      mainWindow.webContents.once('did-finish-load', resolve)
+    );
+    setLogHint(LOGS_DIR);
+    markStepComplete(1);
+  }
+  // Settings can change env both children read (Maps key, OAuth, AUTH_SECRET);
+  // restart both for simplicity.
+  const oldServer = serverProc;
+  const oldSolver = solverProc;
+  if (oldServer && !oldServer.killed) oldServer.kill();
+  if (oldSolver && !oldSolver.killed) oldSolver.kill();
+  await waitForExit(oldServer);
+  await waitForExit(oldSolver);
+  spawnSolver();
+  spawnServer(newConfig);
+  try {
+    await waitForServer();
+    markStepComplete(4);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL(`http://localhost:${PORT}`);
+    }
+  } catch (err) {
+    showLoadingError(String(err));
+  }
+}
+
+async function resetDatabase() {
+  const result = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: 'warning',
+    title: 'Reset Database',
+    message: 'Reset Mini-Grid Optimizer database?',
+    detail:
+      'All saved grid runs will be permanently deleted. This cannot be undone.',
+    buttons: ['Cancel', 'Reset'],
+    defaultId: 0,
+    cancelId: 0,
+  });
+  if (result.response !== 1) return;
+
+  // Solver is stateless — only the server holds the SQLite handle. Just
+  // restart the server.
+  const oldServer = serverProc;
+  if (oldServer && !oldServer.killed) oldServer.kill();
+  await waitForExit(oldServer);
+
+  try {
+    if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
+  } catch (err) {
+    dialog.showErrorBox('Reset failed', `Could not delete the database: ${err}`);
+    if (currentConfig) spawnServer(currentConfig);
+    return;
+  }
+  if (fs.existsSync(SEED_DB)) fs.copyFileSync(SEED_DB, DB_PATH);
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+    await new Promise((resolve) =>
+      mainWindow.webContents.once('did-finish-load', resolve)
+    );
+    setLogHint(LOGS_DIR);
+    markStepComplete(1);
+    markStepComplete(2);
+  }
+  if (currentConfig) spawnServer(currentConfig);
+  try {
+    await waitForServer();
+    markStepComplete(3);
+    markStepComplete(4);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL(`http://localhost:${PORT}`);
+    }
+  } catch (err) {
+    showLoadingError(String(err));
+  }
+}
+
+function buildAppMenu() {
+  const isMac = process.platform === 'darwin';
+  const settingsItem = {
+    label: 'Settings…',
+    accelerator: isMac ? 'Cmd+,' : undefined,
+    enabled: booted,
+    click: reconfigureFromSettings,
+  };
+  const resetItem = {
+    label: 'Reset Database…',
+    enabled: booted,
+    click: resetDatabase,
+  };
+  const helpItems = [
+    {
+      label: 'Open Data Folder',
+      click: () => shell.openPath(USER_DATA),
+    },
+    {
+      label: 'Open Logs Folder',
+      click: () => shell.openPath(LOGS_DIR),
+    },
+    { type: 'separator' },
+    resetItem,
+  ];
+  const editMenu = {
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { role: 'selectAll' },
+    ],
+  };
+  const viewMenu = {
+    label: 'View',
+    submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }],
+  };
+  const helpMenu = { label: 'Help', submenu: helpItems };
+
+  const template = [];
+  if (isMac) {
+    template.push({
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        settingsItem,
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    });
+  } else {
+    template.push({
+      label: 'File',
+      submenu: [settingsItem, { type: 'separator' }, { role: 'quit' }],
+    });
+  }
+  template.push(editMenu, viewMenu, helpMenu);
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+ipcMain.handle('get-current-config', () => readConfig());
+
 app.whenReady().then(async () => {
   ensureDirs();
+  buildAppMenu();
   let config;
   try {
     config = await getOrPromptConfig();
@@ -238,9 +443,11 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+  currentConfig = config;
   createMainWindow();
-  // wait for the loading window to finish loading before any DOM updates
-  await new Promise((resolve) => mainWindow.webContents.once('did-finish-load', resolve));
+  await new Promise((resolve) =>
+    mainWindow.webContents.once('did-finish-load', resolve)
+  );
   setLogHint(LOGS_DIR);
   markStepComplete(1);
   spawnSolver();
@@ -251,6 +458,8 @@ app.whenReady().then(async () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.loadURL(`http://localhost:${PORT}`);
     }
+    booted = true;
+    buildAppMenu();
   } catch (err) {
     console.error('Server failed to come up:', err);
     showLoadingError(String(err));

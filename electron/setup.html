@@ -177,7 +177,18 @@
       const googleSecretInput = document.getElementById('googleSecret');
       const err = document.getElementById('err');
       const submit = document.getElementById('submit');
-      mapsKeyInput.focus();
+      (async () => {
+        try {
+          const existing = await window.electronAPI.getCurrentConfig();
+          if (existing && existing.mapsKey) {
+            mapsKeyInput.value = existing.mapsKey;
+            if (existing.googleClientId) googleIdInput.value = existing.googleClientId;
+            if (existing.googleClientSecret) googleSecretInput.value = existing.googleClientSecret;
+            submit.textContent = 'Save';
+          }
+        } catch {}
+        mapsKeyInput.focus();
+      })();
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const mapsKey = mapsKeyInput.value.trim();

@@ -18,6 +18,7 @@
       "setup.html",
       "loading.html",
       "icon.png",
+      "build-info.json",
       "package.json"
     ],
     "afterPack": "./after-pack.js",

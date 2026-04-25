@@ -74,3 +74,4 @@ backend/*.spec
 release/
 electron/node_modules/
 electron/pnpm-lock.yaml
+electron/build-info.json
