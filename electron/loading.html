@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Mini-Grid — Starting</title>
+    <title>Mini-Grid Optimizer — Starting</title>
     <style>
       :root {
         color-scheme: dark;
@@ -27,40 +27,71 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        font-size: 14px;
       }
-      .center {
-        text-align: center;
-        max-width: 480px;
+      .container {
+        max-width: 460px;
         padding: 32px;
       }
-      .spinner {
-        width: 48px;
-        height: 48px;
-        margin: 0 auto 24px;
-        border: 4px solid #3f3f46;
-        border-top-color: #6366f1;
-        border-radius: 50%;
-        animation: spin 0.9s linear infinite;
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 28px;
       }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
+      .header img {
+        width: 40px;
+        height: 40px;
       }
-      h1 {
-        margin: 0 0 12px;
-        font-size: 20px;
+      .header h1 {
+        margin: 0;
+        font-size: 18px;
         font-weight: 600;
       }
-      p {
-        margin: 0;
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
         color: #a1a1aa;
-        line-height: 1.5;
-        font-size: 14px;
+      }
+      .step.done {
+        color: #f4f4f5;
+      }
+      .step .marker {
+        flex: 0 0 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        background: #27272a;
+        color: #71717a;
+      }
+      .step.done .marker {
+        background: #6366f1;
+        color: white;
+      }
+      .step .marker svg {
+        width: 14px;
+        height: 14px;
+        display: none;
+      }
+      .step.done .marker svg {
+        display: block;
+      }
+      .step.done .marker .num {
+        display: none;
       }
       .err {
         display: none;
-        margin-top: 16px;
+        margin-top: 20px;
         padding: 12px 16px;
         background: #3f1d1d;
         border: 1px solid #7f1d1d;
@@ -68,34 +99,66 @@
         color: #fecaca;
         font-family: ui-monospace, monospace;
         font-size: 12px;
-        text-align: left;
         white-space: pre-wrap;
         word-break: break-word;
-      }
-      .has-err .spinner {
-        display: none;
       }
       .has-err .err {
         display: block;
       }
       .hint {
         display: block;
-        margin-top: 16px;
+        margin-top: 24px;
         font-size: 12px;
         color: #71717a;
       }
     </style>
   </head>
   <body>
-    <div class="center" id="root">
-      <div class="spinner"></div>
-      <h1 id="title">Starting Mini-Grid</h1>
-      <p id="status">
-        Loading the solver. First launch can take up to a minute while the font
-        cache is built.
-      </p>
+    <div class="container" id="root">
+      <div class="header">
+        <img src="icon.png" alt="" />
+        <h1>Mini-Grid Optimizer</h1>
+      </div>
+      <div class="steps">
+        <div class="step" data-step="1">
+          <span class="marker">
+            <span class="num">1</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 8 7 12 13 4" />
+            </svg>
+          </span>
+          <span>Loading configuration</span>
+        </div>
+        <div class="step" data-step="2">
+          <span class="marker">
+            <span class="num">2</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 8 7 12 13 4" />
+            </svg>
+          </span>
+          <span>Starting optimization engine</span>
+        </div>
+        <div class="step" data-step="3">
+          <span class="marker">
+            <span class="num">3</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 8 7 12 13 4" />
+            </svg>
+          </span>
+          <span>Starting application server</span>
+        </div>
+        <div class="step" data-step="4">
+          <span class="marker">
+            <span class="num">4</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 8 7 12 13 4" />
+            </svg>
+          </span>
+          <span>Opening application</span>
+        </div>
+      </div>
       <div class="err" id="err"></div>
-      <span class="hint" id="hint">Logs at ~/Library/Logs/minigrid-solver/</span>
+      <span class="hint" id="hint"></span>
     </div>
   </body>
 </html>

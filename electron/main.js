@@ -18,6 +18,11 @@ const RESOURCES = app.isPackaged
 const SOLVER_BIN = path.join(RESOURCES, 'solver', 'minigrid-solver');
 const SERVER_ENTRY = path.join(RESOURCES, 'server', 'server.js');
 const SEED_DB = path.join(RESOURCES, 'prisma', 'offline.db');
+const NODE_BIN = path.join(
+  RESOURCES,
+  'node-runtime',
+  process.platform === 'win32' ? 'node.exe' : 'node'
+);
 
 let mainWindow = null;
 let solverProc = null;
@@ -113,14 +118,8 @@ function spawnSolver() {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   teeChildOutput(solverProc, path.join(LOGS_DIR, 'solver.log'), (line) => {
-    if (line.includes('Matplotlib is building the font cache')) {
-      setLoadingStatus(
-        'Building the matplotlib font cache (one-time, ~60–90s)…'
-      );
-    } else if (line.includes('Application startup complete')) {
-      setLoadingStatus('Solver ready. Starting the web server…');
-    } else if (line.includes('Uvicorn running')) {
-      setLoadingStatus('Solver listening on :8000. Starting the web server…');
+    if (line.includes('Application startup complete') || line.includes('Uvicorn running')) {
+      markStepComplete(2);
     }
   });
   solverProc.on('exit', (code) => {
@@ -130,10 +129,9 @@ function spawnSolver() {
 }
 
 function spawnServer(config) {
-  serverProc = spawn(process.execPath, [SERVER_ENTRY], {
+  serverProc = spawn(NODE_BIN, [SERVER_ENTRY], {
     env: {
       ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
       OFFLINE_MODE: 'true',
       DATABASE_URL: `file:${DB_PATH}`,
       GOOGLE_MAPS_API_KEY: config.mapsKey,
@@ -147,9 +145,7 @@ function spawnServer(config) {
   });
   teeChildOutput(serverProc, path.join(LOGS_DIR, 'server.log'), (line) => {
     if (line.includes('Ready in')) {
-      setLoadingStatus('Web server ready. Loading the app…');
-    } else if (line.includes('Starting...')) {
-      setLoadingStatus('Web server starting…');
+      markStepComplete(3);
     }
   });
   serverProc.on('exit', (code) => {
@@ -191,29 +187,32 @@ function createMainWindow() {
   mainWindow.loadFile(path.join(__dirname, 'loading.html'));
 }
 
-function setLoadingStatus(text) {
+function runInLoading(js) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  const safe = JSON.stringify(text);
-  mainWindow.webContents
-    .executeJavaScript(
-      `(() => { const el = document.getElementById('status'); if (el) el.textContent = ${safe}; })()`
-    )
-    .catch(() => {});
+  mainWindow.webContents.executeJavaScript(js).catch(() => {});
+}
+
+function markStepComplete(index) {
+  runInLoading(
+    `(() => { const el = document.querySelector('.step[data-step="${index}"]'); if (el) el.classList.add('done'); })()`
+  );
+}
+
+function setLogHint(logDir) {
+  const safe = JSON.stringify(`Logs: ${logDir}`);
+  runInLoading(
+    `(() => { const el = document.getElementById('hint'); if (el) el.textContent = ${safe}; })()`
+  );
 }
 
 function showLoadingError(message) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
   const safe = JSON.stringify(message);
-  mainWindow.webContents
-    .executeJavaScript(
-      `(() => {
-        document.getElementById('root').classList.add('has-err');
-        document.getElementById('title').textContent = 'Failed to start';
-        document.getElementById('status').textContent = 'See logs for details. The app will keep running so you can read this.';
-        document.getElementById('err').textContent = ${safe};
-      })()`
-    )
-    .catch(() => {});
+  runInLoading(
+    `(() => {
+      document.getElementById('root').classList.add('has-err');
+      document.getElementById('err').textContent = ${safe};
+    })()`
+  );
 }
 
 function shutdown() {
@@ -233,14 +232,15 @@ app.whenReady().then(async () => {
     return;
   }
   createMainWindow();
-  setLoadingStatus('Starting the solver…');
+  // wait for the loading window to finish loading before any DOM updates
+  await new Promise((resolve) => mainWindow.webContents.once('did-finish-load', resolve));
+  setLogHint(LOGS_DIR);
+  markStepComplete(1);
   spawnSolver();
-  setLoadingStatus(
-    'Starting the web server (first launch builds a font cache, ~1 min)…'
-  );
   spawnServer(config);
   try {
     await waitForServer();
+    markStepComplete(4);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.loadURL(`http://localhost:${PORT}`);
     }

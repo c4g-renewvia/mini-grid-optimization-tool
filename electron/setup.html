@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Mini-Grid — Setup</title>
+    <title>Mini-Grid Optimizer — Setup</title>
     <style>
       :root {
         color-scheme: dark;
@@ -22,8 +22,18 @@
         color: #f4f4f5;
         font-size: 14px;
       }
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      .header img {
+        width: 40px;
+        height: 40px;
+      }
       h1 {
-        margin: 0 0 8px;
+        margin: 0;
         font-size: 18px;
         font-weight: 600;
       }
@@ -82,7 +92,10 @@
     </style>
   </head>
   <body>
-    <h1>Welcome to Mini-Grid</h1>
+    <div class="header">
+      <img src="icon.png" alt="" />
+      <h1>Welcome to Mini-Grid Optimizer</h1>
+    </div>
     <p>
       Paste your Google Maps API key to finish setup. The key is stored locally
       and only used to render the map.

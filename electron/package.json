@@ -6,7 +6,7 @@
   "main": "main.js",
   "build": {
     "appId": "com.c4g.minigrid-tool",
-    "productName": "MiniGrid Optimization Tool",
+    "productName": "Mini-Grid Optimizer",
     "electronVersion": "41.3.0",
     "directories": {
       "output": "../release/electron",
@@ -17,6 +17,7 @@
       "preload.js",
       "setup.html",
       "loading.html",
+      "icon.png",
       "package.json"
     ],
     "afterPack": "./after-pack.js",
@@ -34,6 +35,11 @@
       {
         "from": "../release/electron-stage/prisma",
         "to": "prisma",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../release/electron-stage/node-runtime",
+        "to": "node-runtime",
         "filter": ["**/*"]
       }
     ],
