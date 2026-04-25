@@ -70,5 +70,10 @@ backend/*.spec
 # Local SQLite databases
 *.db
 
-# Offline-mode release artifacts 
+# Offline-mode release artifacts
 release/
+
+# Electron build-side artifacts (electron-builder triggers a pnpm install
+# in electron/ during packaging; nothing here belongs in git)
+electron/node_modules/
+electron/pnpm-lock.yaml
