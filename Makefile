@@ -52,6 +52,7 @@ offline: offline_check_env offline_build_backend offline_start
 offline_check_env:
 	@test -f .env.local || pnpm run offline:init
 
+# POSIX-only (Linux/macOS). Windows is handled by Layer 3.
 offline_build_backend:
 	@test -f backend/dist/minigrid-solver || (cd backend && bash build-solver.sh)
 

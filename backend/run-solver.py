@@ -14,11 +14,10 @@ import tempfile
 # server.py.
 def _resolve_mpl_cache_dir() -> str:
     try:
-        from platformdirs import user_data_dir
+        from platformdirs import user_cache_dir
 
-        path = os.path.join(user_data_dir("minigrid-solver"), "mpl")
+        path = os.path.join(user_cache_dir("minigrid-solver"), "mpl")
         os.makedirs(path, exist_ok=True)
-        # confirm writable
         probe = os.path.join(path, ".write-probe")
         with open(probe, "w") as f:
             f.write("")

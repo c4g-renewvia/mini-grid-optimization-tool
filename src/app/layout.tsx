@@ -52,9 +52,6 @@ export const viewport: Viewport = {
   themeColor: '#000000',
 };
 
-// Offline mode needs per-request rendering so the Maps key is read at runtime, not build time.
-export const dynamic = 'force-dynamic';
-
 export default async function RootLayout({
   children,
 }: Readonly<{

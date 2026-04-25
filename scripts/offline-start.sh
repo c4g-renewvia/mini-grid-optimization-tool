@@ -12,7 +12,16 @@ if [ ! -f "$APP_DIR/.env" ]; then
   exit 1
 fi
 
-# Load .env into the current shell so child processes inherit.
+case "$(uname -s)" in
+  Darwin) LOG_DIR="$HOME/Library/Logs/minigrid-solver" ;;
+  Linux)  LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/minigrid-solver/logs" ;;
+  *)
+    echo "Error: unsupported platform $(uname -s). Layer 2 supports macOS and Linux." >&2
+    exit 1
+    ;;
+esac
+mkdir -p "$LOG_DIR"
+
 set -a
 # shellcheck disable=SC1091
 source "$APP_DIR/.env"
@@ -25,11 +34,11 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "Starting solver on :8000..."
-"$APP_DIR/solver/minigrid-solver" >"$APP_DIR/solver.log" 2>&1 &
+"$APP_DIR/solver/minigrid-solver" >"$LOG_DIR/solver.log" 2>&1 &
 SOLVER_PID=$!
 
 echo "Starting web server on :3000..."
-node "$APP_DIR/server/server.js" >"$APP_DIR/server.log" 2>&1 &
+node "$APP_DIR/server/server.js" >"$LOG_DIR/server.log" 2>&1 &
 NEXT_PID=$!
 
 # Wait for the web server to come up before opening the browser.
@@ -48,7 +57,7 @@ case "$(uname)" in
 esac
 
 echo
-echo "Logs:  $APP_DIR/solver.log   $APP_DIR/server.log"
+echo "Logs:  $LOG_DIR/solver.log   $LOG_DIR/server.log"
 echo "Press Ctrl+C to stop."
 
 # Wait for either child to exit, then trigger cleanup. `wait -n` is bash 4.3+;

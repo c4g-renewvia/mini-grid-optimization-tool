@@ -8,7 +8,7 @@ import { resolve } from 'path';
 const ROOT = resolve(import.meta.dirname, '..');
 const ENV_PATH = resolve(ROOT, '.env.local');
 const SCHEMA_PATH = 'prisma/schema-offline';
-const DB_PATH = 'file:./prisma/offline.db';
+const DB_PATH = `file:${resolve(ROOT, 'prisma/offline.db')}`;
 
 function readEnv(): Record<string, string> {
   if (!existsSync(ENV_PATH)) return {};

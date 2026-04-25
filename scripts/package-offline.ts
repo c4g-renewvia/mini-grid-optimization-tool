@@ -33,6 +33,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'fs';
@@ -67,6 +68,12 @@ function step(label: string) {
   console.log(`\n=== ${label} ===`);
 }
 
+if (!existsSync(resolve(ROOT, 'prisma/schema-offline'))) {
+  throw new Error(
+    'prisma/schema-offline/ not found. Run from the repo root.'
+  );
+}
+
 // 1. Next.js standalone build (offline mode env, no NEXT_PUBLIC maps key).
 step('Build Next.js standalone (OFFLINE_MODE=true)');
 const buildEnv = {
@@ -75,12 +82,29 @@ const buildEnv = {
   // Strip any inherited Maps key so it doesn't get inlined into the bundle.
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: '',
 };
-// Make sure the prisma client is generated against the offline schema before
-// building (the build resolves Prisma types).
-run('pnpm', ['exec', 'prisma', 'generate', '--schema=prisma/schema-offline'], {
-  env: buildEnv,
-});
-run('pnpm', ['run', 'build'], { env: buildEnv });
+// Inject `export const dynamic = 'force-dynamic'` into layout.tsx for the
+// offline build only. Next 16 rejects non-literal `dynamic` exports, so we
+// can't express this conditionally in source. Restore on success or failure.
+const LAYOUT_PATH = resolve(ROOT, 'src/app/layout.tsx');
+const layoutOriginal = readFileSync(LAYOUT_PATH, 'utf8');
+const layoutWithDynamic = layoutOriginal.replace(
+  /(export default async function RootLayout)/,
+  "export const dynamic = 'force-dynamic';\n\n$1"
+);
+if (layoutWithDynamic === layoutOriginal) {
+  throw new Error(
+    'package-offline: failed to inject dynamic export into layout.tsx'
+  );
+}
+writeFileSync(LAYOUT_PATH, layoutWithDynamic);
+try {
+  run('pnpm', ['exec', 'prisma', 'generate', '--schema=prisma/schema-offline'], {
+    env: buildEnv,
+  });
+  run('pnpm', ['run', 'build'], { env: buildEnv });
+} finally {
+  writeFileSync(LAYOUT_PATH, layoutOriginal);
+}
 
 // 2. Solver binary (skip if it already exists).
 step('Build PyInstaller solver binary (if missing)');
@@ -91,8 +115,8 @@ if (existsSync(solverBin)) {
   run('bash', ['build-solver.sh'], { cwd: resolve(ROOT, 'backend') });
 }
 
-// 3. Empty migrated SQLite DB.
-step('Create empty offline.db');
+// 3. Empty migrated SQLite DB seeded with the offline user.
+step('Create offline.db (migrated, seeded with offline user)');
 const tmpDb = resolve(ROOT, 'release/_tmp-offline.db');
 if (existsSync(tmpDb)) rmSync(tmpDb);
 mkdirSync(RELEASE, { recursive: true });
@@ -106,6 +130,34 @@ run(
     },
   }
 );
+const seedFileRel = 'scripts/.seed-package-tmp.mts';
+const seedFile = resolve(ROOT, seedFileRel);
+writeFileSync(
+  seedFile,
+  `import { PrismaClient } from '../prisma/generated/prisma/client.ts';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL! }) });
+await prisma.user.upsert({
+  where: { id: 'offline-user' },
+  update: {},
+  create: {
+    id: 'offline-user',
+    email: 'offline@localhost',
+    name: 'Offline User',
+    role: 'ADMIN',
+    emailVerified: new Date(),
+  },
+});
+await prisma.$disconnect();
+`
+);
+try {
+  run('pnpm', ['exec', 'tsx', seedFileRel], {
+    env: { ...process.env, DATABASE_URL: `file:${tmpDb}` },
+  });
+} finally {
+  rmSync(seedFile, { force: true });
+}
 
 // 4. Assemble the staging tree.
 step('Assemble staging directory');
