@@ -110,7 +110,7 @@ export default function MiniGridToolPage() {
   const [
     lowVoltagePoleToTerminalMinLength,
     setLowVoltagePoleToTerminalMinimumLength,
-  ] = useState<number>(5);
+  ] = useState<number>(2);
 
   const [
     highVoltagePoleToPoleLengthConstraint,
@@ -138,9 +138,6 @@ export default function MiniGridToolPage() {
     pointCount: 0,
     grandTotal: 0,
   });
-
-  const poleCount = miniGridNodes.filter((n) => n.type === 'pole').length;
-  const hasPoles = poleCount > 0;
 
   const [solverOriginalCost, setSolverOriginalCost] = useState<number>(0);
 
@@ -479,12 +476,12 @@ export default function MiniGridToolPage() {
         case 'source':
           iconUrl += 'green-dot.png';
           labelColor = '#00ff00';
-          scaledSize = new google.maps.Size(44, 44);
+          scaledSize = new google.maps.Size(40, 40);
           break;
         case 'terminal':
           iconUrl += 'blue-dot.png';
           labelColor = 'white';
-          scaledSize = new google.maps.Size(20, 20);
+          scaledSize = new google.maps.Size(25, 25);
           fontSize = '8';
           break;
         case 'pole':
@@ -1096,6 +1093,8 @@ export default function MiniGridToolPage() {
       // ← add a ref
       setTimeout(() => {
         map.fitBounds(bounds, { bottom: 80, left: 250, right: 20, top: 80 });
+        map.setTilt(0); // force flat view (no 3D tilt)
+        map.setHeading(0); // force north-up (no rotation)
       }, 50);
     }
 
@@ -2862,15 +2861,24 @@ export default function MiniGridToolPage() {
             <p className='text-center text-xs text-zinc-500 dark:text-zinc-400'>
               <a
                 href={
-                  'https://drive.google.com/file/d/1m5vtUijPxrbMqG0B-hNIa4mG5RXADIH5/view?usp=sharing'
+                  'https://docs.google.com/document/d/1pUWcXN9O8WqFoxtYhJPWGU3ujsP9fYLeI0qmc3sjQdc/edit?usp=sharing'
                 }
                 target='_blank'
               >
                 User Manual |
               </a>
-              <a href={'https://forms.gle/Az6j5cjtzJJDEQAEA'} target='_blank'>
+              <a href={'https://forms.gle/8raMH5mGBkNRZuUb7'} target='_blank'>
                 {' '}
-                Give Feedback{' '}
+                Give Feedback |
+              </a>
+              <a
+                href={
+                  'https://github.com/c4g-renewvia/mini-grid-optimization-tool'
+                }
+                target='_blank'
+              >
+                {' '}
+                Contribute to the Project{' '}
               </a>
             </p>
           </div>
