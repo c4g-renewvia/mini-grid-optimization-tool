@@ -231,6 +231,7 @@ export default function MiniGridToolPage() {
     solverOriginalCost,
     lowVoltageCost,
     highVoltageCost,
+    poleCost,
     saveState,
   });
 
@@ -243,6 +244,7 @@ export default function MiniGridToolPage() {
       solverOriginalCost, // ← NEW
       lowVoltageCost,
       highVoltageCost,
+      poleCost,
       saveState,
     };
   }, [
@@ -252,6 +254,7 @@ export default function MiniGridToolPage() {
     solverOriginalCost, // ← NEW
     lowVoltageCost,
     highVoltageCost,
+    poleCost,
     saveState,
   ]);
 
@@ -360,16 +363,21 @@ export default function MiniGridToolPage() {
       // 1. Get the latest state from the Ref to avoid stale closures
       const current = stateRef.current;
 
-      console.log('number of nodes before deletion', miniGridNodes.length);
-      console.log('number of edges before deletion', miniGridEdges.length);
+      console.log(
+        'number of nodes before deletion',
+        current.miniGridNodes.length
+      );
+      console.log(
+        'number of edges before deletion',
+        current.miniGridEdges.length
+      );
 
-      // 2. Filter out the point and its node
+      // 2. Filter out the point
       const updatedNodes = current.miniGridNodes.filter(
         (n) => n.name !== pointName
       );
 
-      // 3. Critically: Remove any edges connected to this specific point
-      // We check if both the start and end of an edge still exist in the new points list
+      // 3. Remove any edges connected to this point
       const updatedEdges = current.miniGridEdges.filter((edge) => {
         const startExists = updatedNodes.some(
           (n) => n.name === edge.start.name
@@ -378,22 +386,59 @@ export default function MiniGridToolPage() {
         return startExists && endExists;
       });
 
+      // === RECALCULATE COST BREAKDOWN FROM SCRATCH ===
+      const remainingPoles = updatedNodes.filter(
+        (n) => n.type === 'pole'
+      ).length;
+      const newPoleCostTotal = remainingPoles * (current.poleCost || 0);
+
+      let lowVoltageMeters = 0;
+      let highVoltageMeters = 0;
+
+      updatedEdges.forEach((edge) => {
+        const meters = edge.lengthMeters || 0;
+        if (edge.voltage === 'low') {
+          lowVoltageMeters += meters;
+        } else if (edge.voltage === 'high') {
+          highVoltageMeters += meters;
+        }
+      });
+
+      const totalMeters = lowVoltageMeters + highVoltageMeters;
+      const lowWireCost = lowVoltageMeters * (current.lowVoltageCost || 0);
+      const highWireCost = highVoltageMeters * (current.highVoltageCost || 0);
+      const wireCost = lowWireCost + highWireCost;
+
+      const newCostBreakdown: CostBreakdown = {
+        lowVoltageMeters,
+        highVoltageMeters,
+        totalMeters,
+        lowWireCost,
+        highWireCost,
+        wireCost,
+        poleCount: remainingPoles,
+        poleCost: newPoleCostTotal,
+        pointCount: updatedNodes.length,
+        grandTotal: wireCost + newPoleCostTotal,
+      };
+
       // 4. Update React State
       setMiniGridNodes(updatedNodes);
       setMiniGridEdges(updatedEdges);
+      setCostBreakdown(newCostBreakdown);
 
-      console.log('number of nodes before deletion', updatedNodes.length);
-      console.log('number of edges before deletion', updatedEdges.length);
+      console.log('number of nodes after deletion', updatedNodes.length);
+      console.log('number of edges after deletion', updatedEdges.length);
 
-      // 5. Push to History
+      // 5. Push to History (with freshly calculated costs)
       current.saveState({
         miniGridNodes: updatedNodes,
         miniGridEdges: updatedEdges,
-        costBreakdown: current.costBreakdown, // You may want to trigger a cost recalc here
+        costBreakdown: newCostBreakdown,
         solverOriginalCost: current.solverOriginalCost,
       });
     },
-    [saveState] // ← important
+    [saveState]
   );
 
   const handleDeleteEdge = useCallback((clickedEdge: MiniGridEdge) => {

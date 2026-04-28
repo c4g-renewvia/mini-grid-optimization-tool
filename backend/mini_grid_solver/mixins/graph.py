@@ -238,6 +238,7 @@ class GraphMixin:
                     if ((i_type == "source" and j_type == "pole") or
                             (i_type == "pole" and j_type == "pole") or
                             (i_type == "pole" and j_type == "terminal") or
+                            (i_type == "source" and j_type == "terminal") or
                             include_terminals):
                         G.add_edge(i, j)
                         d = dist_matrix[i, j]
