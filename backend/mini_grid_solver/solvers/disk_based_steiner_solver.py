@@ -1137,9 +1137,16 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         best_graph = self.attach_terminals(backbone_coords, backbone_names)
 
         # ── Step 3: Post-solve gradient descent optimization ────────────────
+        # Extra Final Optimizations
         if self.request.debug >= 1:
             print("Step 3: Post-solve gradient descent optimization")
         final_graph = self._post_solver_opt(best_graph)
+
+        nodes = [Node(index=x[0], **x[1]) for x in final_graph.nodes(data=True)]
+        final_graph = self.build_graph_from_nodes(nodes, directed=True)
+        final_graph = self._minimum_spanning_arborescence_w_attrs(final_graph)
+
+        final_graph = self._post_solver_opt(final_graph)
 
         if self.request.debug >= 1:
             n_poles = sum(1 for _, d in final_graph.nodes(data=True) if d['type'] == 'pole')

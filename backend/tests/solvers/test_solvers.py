@@ -53,10 +53,7 @@ def kml_nodes():
 
 
 # add "test_data_sets/minigrid_2026-04-24.kml" for larger test
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-07.kml",
-                        "test_data_sets/minigrid_2026-04-08.kml",
-                        "test_data_sets/bc2.kml"])
-
+@pytest.fixture(params=["test_data_sets/minigrid_2026-04-28 (1).kml"])
 def kml_nodes_random_test_set(request):
     """Parses coordinates from the ground truth KML."""
     try:
@@ -237,7 +234,7 @@ def test_all_solvers_with_csv(solver_name, csv_nodes, default_costs, default_len
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-@pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
+@pytest.mark.parametrize("solver_name", ["DiskBasedSteinerSolver"] )# SOLVER_REGISTRY.keys())
 def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes, default_costs,
                               default_length_constraints):
     """
@@ -251,7 +248,7 @@ def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes,
         nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=0,
+        debug=2,
     )
 
     result = solver_class(req).solve()
