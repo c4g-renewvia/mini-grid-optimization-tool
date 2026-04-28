@@ -1077,7 +1077,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
             self._plot_current_graph(best_graph,
                                      added_points=self._coords[self._terminal_indices],
-                                     title=f"Backbone + Terminals Attached (${self._compute_total_cost(best_graph):.2f})  + {self.get_min_max_edge_len(best_graph)}")
+                                     title=f"Backbone + Terminals Attached (${self._compute_total_cost(best_graph):.2f})  + {self.print_min_max_edge_len(best_graph)}")
 
         return best_graph
 
