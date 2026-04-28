@@ -1,9 +1,25 @@
 import { prisma } from '@/lib/prisma';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import type { User } from '@prisma/client';
-import NextAuth, { type NextAuthConfig } from 'next-auth';
+import NextAuth, { type NextAuthConfig, type Session } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { cookies } from 'next/headers';
+import type { NextRequest } from 'next/server';
+
+const isOffline = process.env.OFFLINE_MODE === 'true';
+const hasOfflineAuth = !!process.env.AUTH_GOOGLE_ID;
+const useAnonymousFallback = isOffline && !hasOfflineAuth;
+
+const ANONYMOUS_SESSION: Session = {
+  user: {
+    id: 'anonymous-user',
+    email: 'anonymous@localhost',
+    name: 'Anonymous User',
+    role: 'ADMIN',
+    image: null,
+  },
+  expires: '2099-01-01T00:00:00.000Z',
+};
 
 export const authOptions: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
@@ -77,4 +93,22 @@ export const authOptions: NextAuthConfig = {
     },
   },
 };
-export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
+
+const real = NextAuth(authOptions);
+
+const anonymousHandlers = {
+  GET: async (req: NextRequest) => {
+    if (new URL(req.url).pathname.endsWith('/session')) {
+      return Response.json(ANONYMOUS_SESSION);
+    }
+    return real.handlers.GET(req);
+  },
+  POST: real.handlers.POST,
+};
+
+export const handlers = useAnonymousFallback ? anonymousHandlers : real.handlers;
+export const auth = (
+  useAnonymousFallback ? (async () => ANONYMOUS_SESSION) : real.auth
+) as typeof real.auth;
+export const signIn = real.signIn;
+export const signOut = real.signOut;

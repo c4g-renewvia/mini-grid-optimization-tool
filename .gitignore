@@ -58,3 +58,20 @@ venv/
 .venv/
 ENV/
 .env*.local
+
+# PyInstaller
+backend/build/
+backend/dist/
+backend/*.spec
+
+# Python package metadata
+**/*.egg-info/
+
+# Local SQLite databases
+*.db
+
+# Offline-mode release artifacts
+release/
+electron/node_modules/
+electron/pnpm-lock.yaml
+electron/build-info.json

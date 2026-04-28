@@ -1,0 +1,21 @@
+model MiniGridRun {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String? // optional custom name
+  fileName  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Core data (JSON serialized)
+  miniGridNodes Json?
+  miniGridEdges Json?
+  costBreakdown Json?
+
+  poleCost        Float?
+  lowVoltageCost  Float?
+  highVoltageCost Float?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}

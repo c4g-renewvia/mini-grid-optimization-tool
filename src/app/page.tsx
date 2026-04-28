@@ -35,8 +35,13 @@ import type {
 } from '@/types/minigrid';
 import { SidebarUserMenu } from '@/components/minigrid-tool/SidebarUserMenu';
 
+// Runtime config from layout.tsx, then build-time NEXT_PUBLIC_ fallback.
 const GOOGLE_MAPS_API_KEY =
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY';
+  (typeof window !== 'undefined' &&
+    (window as unknown as { __APP_CONFIG__?: { mapsKey?: string } })
+      .__APP_CONFIG__?.mapsKey) ||
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  'YOUR_GOOGLE_MAPS_API_KEY';
 
 function toLiteral(
   pos: google.maps.marker.AdvancedMarkerElement['position']

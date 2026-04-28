@@ -145,6 +145,51 @@ Access the tool at [http://localhost:3000](http://localhost:3000).
 
 ---
 
+## Running Offline (No Docker, No PostgreSQL)
+
+The tool can also run in offline mode using a local SQLite database instead of PostgreSQL. No Docker, no Google OAuth credentials, and no internet connection (beyond Google Maps tile fetches) are required. There are three ways to run offline, depending on your audience:
+
+### 1. Developer Mode
+
+For developers with Node.js and Python already installed. Runs directly from the source tree.
+
+**Prerequisites**: Node.js 24+, pnpm 10+, Python 3.13+, [uv](https://github.com/astral-sh/uv)
+
+```bash
+pnpm run offline:init   # Prompts for Google Maps API key, sets up SQLite DB
+make offline             # Starts solver + Next.js dev server
+```
+
+Open [http://localhost:3000](http://localhost:3000). To switch back to the standard Postgres workflow, delete `.env.local` and run `pnpm exec prisma generate` against the default schema.
+
+### 2. Standalone Bundle
+
+For non-developers on Linux or macOS who have Node.js installed but not Python or Docker. Distributed as a `.zip` from GitHub Releases.
+
+**Prerequisites**: Node.js 24+
+
+```bash
+unzip minigrid-tool-<platform>.zip
+cd minigrid-tool
+./setup.sh    # Prompts for Google Maps API key
+./start.sh    # Starts solver binary + Next.js standalone server
+```
+
+The solver runs as a self-contained binary (PyInstaller); no Python installation needed on the host. User data (saved grid runs) is stored in an OS-managed directory and persists across updates.
+
+### 3. Desktop App (Electron)
+
+For end users on macOS, Windows, or Linux. No prerequisites.
+
+Download the `.dmg` (macOS), `.exe` (Windows), or `.AppImage` (Linux) from GitHub Releases. On first launch the app prompts for a Google Maps API key. Google OAuth sign-in is optional and can be configured in the setup screen or later via the Settings menu.
+
+**Notes**:
+- macOS: The app is unsigned. Right-click > Open > click through the Gatekeeper warning on first launch.
+- Windows: Click "More info" > "Run anyway" to dismiss the SmartScreen warning.
+- There is no auto-updater. Download a new release to update.
+
+---
+
 ## Technologies Used
 
 - **Frameworks**: [Next.js](https://nextjs.org/), [FastAPI](https://fastapi.tiangolo.com/)

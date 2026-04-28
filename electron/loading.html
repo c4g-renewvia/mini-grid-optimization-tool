@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mini-Grid Optimizer — Starting</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+      body {
+        background: #18181b;
+        color: #f4f4f5;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+      }
+      .container {
+        max-width: 460px;
+        padding: 32px;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 28px;
+      }
+      .header img {
+        width: 40px;
+        height: 40px;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #a1a1aa;
+      }
+      .step.done {
+        color: #f4f4f5;
+      }
+      .step .marker {
+        flex: 0 0 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        background: #27272a;
+        color: #71717a;
+      }
+      .step.done .marker {
+        background: #6366f1;
+        color: white;
+      }
+      .step .marker svg {
+        width: 14px;
+        height: 14px;
+        display: none;
+      }
+      .step.done .marker svg {
+        display: block;
+      }
+      .step.done .marker .num {
+        display: none;
+      }
+      .err {
+        display: none;
+        margin-top: 20px;
+        padding: 12px 16px;
+        background: #3f1d1d;
+        border: 1px solid #7f1d1d;
+        border-radius: 6px;
+        color: #fecaca;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .has-err .err {
+        display: block;
+      }
+      .hint {
+        display: block;
+        margin-top: 24px;
+        font-size: 12px;
+        color: #71717a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container" id="root">
+      <div class="header">
+        <img src="icon.png" alt="" />
+        <h1>Mini-Grid Optimizer</h1>
+      </div>
+      <div class="steps">
+        <div class="step" data-step="1">
+          <span class="marker">
+            <span class="num">1</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 8 7 12 13 4" />
+            </svg>
+          </span>
+          <span>Loading configuration</span>
+        </div>
+        <div class="step" data-step="2">
+          <span class="marker">
+            <span class="num">2</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 8 7 12 13 4" />
+            </svg>
+          </span>
+          <span>Starting optimization engine</span>
+        </div>
+        <div class="step" data-step="3">
+          <span class="marker">
+            <span class="num">3</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 8 7 12 13 4" />
+            </svg>
+          </span>
+          <span>Starting application server</span>
+        </div>
+        <div class="step" data-step="4">
+          <span class="marker">
+            <span class="num">4</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 8 7 12 13 4" />
+            </svg>
+          </span>
+          <span>Opening application</span>
+        </div>
+      </div>
+      <div class="err" id="err"></div>
+      <span class="hint" id="hint"></span>
+    </div>
+  </body>
+</html>

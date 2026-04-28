@@ -58,8 +58,22 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  // Runtime Maps key for offline mode; falls back to build-time NEXT_PUBLIC_ var.
+  const appConfig = {
+    mapsKey:
+      process.env.GOOGLE_MAPS_API_KEY ??
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ??
+      '',
+  };
   return (
     <html lang='en' suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__APP_CONFIG__=${JSON.stringify(appConfig)};`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

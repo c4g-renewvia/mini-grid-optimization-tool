@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mini-Grid Optimizer — Setup</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        background: #18181b;
+        color: #f4f4f5;
+        font-size: 14px;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      .header img {
+        width: 40px;
+        height: 40px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 20px;
+        color: #a1a1aa;
+        line-height: 1.5;
+      }
+      section {
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #27272a;
+      }
+      section:last-of-type {
+        border-bottom: none;
+      }
+      h2 {
+        margin: 0 0 4px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #f4f4f5;
+      }
+      h2 .req {
+        color: #6366f1;
+        font-weight: 500;
+        margin-left: 6px;
+        font-size: 12px;
+      }
+      h2 .opt {
+        color: #71717a;
+        font-weight: 500;
+        margin-left: 6px;
+        font-size: 12px;
+      }
+      .hint {
+        margin: 0 0 14px;
+        color: #a1a1aa;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+        margin-bottom: 6px;
+        font-size: 11px;
+        color: #d4d4d8;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      input[type='text'] {
+        width: 100%;
+        padding: 10px 12px;
+        background: #27272a;
+        border: 1px solid #3f3f46;
+        border-radius: 6px;
+        color: #fafafa;
+        font-family: ui-monospace, monospace;
+        font-size: 13px;
+      }
+      input[type='text']:focus {
+        outline: none;
+        border-color: #6366f1;
+      }
+      button {
+        width: 100%;
+        padding: 10px 16px;
+        background: #6366f1;
+        color: white;
+        border: 0;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #4f46e5;
+      }
+      button:disabled {
+        background: #3f3f46;
+        cursor: not-allowed;
+      }
+      .err {
+        margin-top: 8px;
+        color: #f87171;
+        font-size: 12px;
+        min-height: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <img src="icon.png" alt="" />
+      <h1>Welcome to Mini-Grid Optimizer</h1>
+    </div>
+    <form id="form">
+      <section>
+        <h2>Maps<span class="req">required</span></h2>
+        <p class="hint">
+          Used to render the map. Stored locally on this computer.
+        </p>
+        <label for="mapsKey">Google Maps API key</label>
+        <input
+          id="mapsKey"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="AIzaSy..."
+          required
+        />
+      </section>
+      <section>
+        <h2>Authentication<span class="opt">optional</span></h2>
+        <p class="hint">
+          Leave blank to use a single local anonymous account. Provide both
+          values to enable Google sign-in.
+        </p>
+        <label for="googleId">Google OAuth client ID</label>
+        <input
+          id="googleId"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="123-abc.apps.googleusercontent.com"
+        />
+        <label for="googleSecret">Google OAuth client secret</label>
+        <input
+          id="googleSecret"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="GOCSPX-..."
+        />
+      </section>
+      <button type="submit" id="submit">Save and continue</button>
+      <div class="err" id="err"></div>
+    </form>
+    <script>
+      const form = document.getElementById('form');
+      const mapsKeyInput = document.getElementById('mapsKey');
+      const googleIdInput = document.getElementById('googleId');
+      const googleSecretInput = document.getElementById('googleSecret');
+      const err = document.getElementById('err');
+      const submit = document.getElementById('submit');
+      (async () => {
+        try {
+          const existing = await window.electronAPI.getCurrentConfig();
+          if (existing && existing.mapsKey) {
+            mapsKeyInput.value = existing.mapsKey;
+            if (existing.googleClientId) googleIdInput.value = existing.googleClientId;
+            if (existing.googleClientSecret) googleSecretInput.value = existing.googleClientSecret;
+            submit.textContent = 'Save';
+          }
+        } catch {}
+        mapsKeyInput.focus();
+      })();
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const mapsKey = mapsKeyInput.value.trim();
+        const googleId = googleIdInput.value.trim();
+        const googleSecret = googleSecretInput.value.trim();
+        if (!mapsKey) {
+          err.textContent = 'Maps API key is required.';
+          return;
+        }
+        if ((googleId && !googleSecret) || (!googleId && googleSecret)) {
+          err.textContent =
+            'Provide both client ID and client secret to enable sign-in, or leave both blank.';
+          return;
+        }
+        submit.disabled = true;
+        try {
+          await window.electronAPI.saveConfig({
+            mapsKey,
+            googleClientId: googleId || undefined,
+            googleClientSecret: googleSecret || undefined,
+          });
+        } catch (e) {
+          err.textContent = String(e);
+          submit.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

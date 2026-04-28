@@ -1,0 +1,72 @@
+{
+  "name": "minigrid-tool",
+  "version": "0.1.0",
+  "description": "Mini-Grid Optimization Tool — desktop app",
+  "private": true,
+  "main": "main.js",
+  "build": {
+    "appId": "com.c4g.minigrid-tool",
+    "productName": "Mini-Grid Optimizer",
+    "electronVersion": "41.3.0",
+    "directories": {
+      "output": "../release/electron",
+      "buildResources": "."
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "setup.html",
+      "loading.html",
+      "icon.png",
+      "build-info.json",
+      "package.json"
+    ],
+    "afterPack": "./after-pack.js",
+    "extraResources": [
+      {
+        "from": "../release/electron-stage/solver",
+        "to": "solver",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../release/electron-stage/server",
+        "to": "server",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../release/electron-stage/prisma",
+        "to": "prisma",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../release/electron-stage/node-runtime",
+        "to": "node-runtime",
+        "filter": ["**/*"]
+      }
+    ],
+    "asarUnpack": [
+      "**/*"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "identity": null
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}
