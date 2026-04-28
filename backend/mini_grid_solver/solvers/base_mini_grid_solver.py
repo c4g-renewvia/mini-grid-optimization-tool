@@ -231,7 +231,6 @@ class BaseMiniGridSolver(ABC):
         # Plot edges
         edge_lines = []
         for u, v in graph.edges():
-            # Safely look up the exact coordinate using the node's unique index
             if u in coord_dict and v in coord_dict:
                 pt_u = [coord_dict[u][1], coord_dict[u][0]]  # [lng, lat]
                 pt_v = [coord_dict[v][1], coord_dict[v][0]]
@@ -240,6 +239,34 @@ class BaseMiniGridSolver(ABC):
         if edge_lines:
             lc = mc.LineCollection(edge_lines, colors='green', linewidths=1.5, alpha=0.7)
             ax.add_collection(lc)
+
+        # ─── NEW: Display node indices on the graph ─────────────────────────
+        for idx, (lat, lon) in coord_dict.items():
+            node_type = graph.nodes[idx].get('type', 'unknown')
+            if node_type == 'source':
+                color = 'blue'
+                offset = (0.00003, 0.00003)
+                fontsize = 9
+            elif node_type == 'terminal':
+                color = 'darkred'
+                offset = (0.00003, 0.00003)
+                fontsize = 8
+            else:  # pole
+                color = 'black'
+                offset = (0.00003, 0.00003)
+                fontsize = 8
+
+            ax.text(
+                lon + offset[0],
+                lat + offset[1],
+                str(idx),
+                fontsize=fontsize,
+                color=color,
+                ha='left',
+                va='bottom',
+                bbox=dict(boxstyle="round,pad=0.1", facecolor="white", alpha=0.75, edgecolor='none'),
+                zorder=10
+            )
 
         ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
@@ -1058,8 +1085,21 @@ class BaseMiniGridSolver(ABC):
                 print(f"\n--- Iteration {iteration} ---")
 
             graph = self._pole_gradient_optimizer(graph)
+            graph = self._merge_collinear_pole_chains(graph)
             graph = self._drop_redundant_poles(graph)
             graph = self.split_long_edges_w_poles(graph)
+
+            # rebuild graph to refresh attributes and ensure consistency and shortest path
+            nodes = [ Node(index=x[0], **x[1]) for x in graph.nodes(data=True)]
+            graph = self.build_graph_from_nodes(nodes, directed=True)
+            graph = self._minimum_spanning_arborescence_w_attrs(graph)
+            graph = self.prune_dead_end_pole_branches(graph)
+
+            graph = self.split_long_edges_w_poles(graph)
+
+            if self.request.debug >= 2:
+                print(f"Nodes: {graph.number_of_nodes()}")
+                self._plot_current_graph(graph, title=f"After iteration {iteration}")
 
             current_cost = self._compute_total_cost(graph)
             delta = current_cost - previous_cost
@@ -1263,6 +1303,7 @@ class BaseMiniGridSolver(ABC):
             self._plot_current_graph(current_graph, added_points=None, title="After Drop Phase")
 
         current_graph = self.rename_poles(current_graph)
+        current_graph = self.rename_poles(current_graph)
         return current_graph
 
     def _recompute_all_edges(self, graph: Union[nx.Graph, nx.DiGraph]):
@@ -1415,16 +1456,10 @@ class BaseMiniGridSolver(ABC):
 
                     return self._compute_total_cost(graph)
 
-                bounds = [
-                    (lat0 - max_delta_deg, lat0 + max_delta_deg),
-                    (lon0 - max_delta_deg, lon0 + max_delta_deg)
-                ]
-
                 res = minimize(
                     objective,
                     [lat0, lon0],
                     method='BFGS',
-                    # bounds=bounds,
                 )
 
                 new_cost = res.fun
@@ -1514,110 +1549,303 @@ class BaseMiniGridSolver(ABC):
 
         return n_poles, low_m, high_m
 
-    def split_long_edges_w_poles(self, graph: Union[nx.Graph, nx.DiGraph]) -> nx.DiGraph:
+    def _distance_from_source(self, graph: Union[nx.Graph, nx.DiGraph], node_idx: int) -> float:
         """
-        Break long edges (> max_length_m meters) into multiple shorter segments by
-        inserting new intermediate pole nodes directly into the graph.
-
-        Args:
-            graph: The current minimum spanning arborescence (directed graph)
-
-        Returns:
-            Updated graph with inserted intermediate nodes.
+        Returns the (approximate) distance from the source to a given node.
+        Uses edge 'length' when available (preferred), otherwise falls back to hop count.
         """
-        new_graph = graph.copy()
+        try:
+            dists = nx.single_source_dijkstra_path_length(graph, self._source_idx, weight='length')
+            return float(dists.get(node_idx, 999999.0))
+        except (nx.NetworkXError, KeyError):
+            # fallback for graphs without length attributes
+            try:
+                return float(nx.shortest_path_length(graph, self._source_idx, node_idx))
+            except:
+                return 999999.0
 
-        # Build node data lookup
-        node_data_by_index = {
-            n: data.copy()
-            for n, data in new_graph.nodes(data=True)
-        }
+    def _merge_collinear_pole_chains(self, graph: Union[nx.Graph, nx.DiGraph]) -> nx.DiGraph:
+        """
+        NEW BEHAVIOR (as requested):
+        - Start at every TERMINAL
+        - Walk UPSTREAM (via predecessors) collecting the chain
+        - Stop when we reach a node that has MORE THAN 1 SUCCESSOR
+          (i.e. a branching point in the tree)
+        - Treat that branching node as the START of the merged edge
+        - The terminal is the END of the merged edge
+        - If the entire chain is collinear, collapse all intermediate poles
+          into ONE long straight edge (branch_point → terminal)
 
-        if not node_data_by_index:
-            return new_graph
+        This is repeated across the whole graph until all straight chains
+        leading to terminals are reduced to single edges.
 
-        next_index = max(node_data_by_index) + 1
+        After this pass, split_long_edges_w_poles will see the full long
+        straight segments and apply maximal spacing + terminal stretch.
+        """
+        graph = graph.copy()
+        merged_count = 0
 
-        for u, v, data in list(new_graph.edges(data=True)):
+        # Ensure we have a proper directed arborescence (edges point away from source)
+        if not isinstance(graph, nx.DiGraph):
+            graph = self.build_directed_graph_for_arborescence(
+                [Node(index=i, lat=n['lat'], lng=n['lng'], type=n['type'], name=n.get('name'))
+                 for i, n in graph.nodes(data=True)]
+            )
 
-            u_type = new_graph.nodes[u]['type']
-            v_type = new_graph.nodes[v]['type']
+        terminal_nodes = [
+            n for n, data in graph.nodes(data=True)
+            if data.get('type') == 'terminal'
+        ]
 
-            length_m = data.get("length", 0.0)
-            voltage = data.get("voltage", "unknown")
+        visited = set()  # prevent re-processing overlapping chains
 
-            if u_type == "terminal" or v_type == "terminal":
-                max_length_m = self.get_max_pole_to_term()
-            else:
-                max_length_m = self.get_max_pole_to_pole()
-
-            # Skip short edges
-            if length_m <= max_length_m + .1:  # small tolerance
+        for term_idx in terminal_nodes:
+            if term_idx in visited:
                 continue
 
-            start_node = node_data_by_index[u]
-            end_node = node_data_by_index[v]
+            # Build chain UPSTREAM from terminal
+            chain = [term_idx]
+            current = term_idx
 
-            start_coord = np.array([start_node["lat"], start_node["lng"]], dtype=float)
-            end_coord = np.array([end_node["lat"], end_node["lng"]], dtype=float)
+            while True:
+                preds = list(graph.predecessors(current))
+                if len(preds) != 1:          # not a straight path
+                    break
+                pred = preds[0]
 
-            direction = end_coord - start_coord
+                # Stop when we hit a branching node (more than 1 successor)
+                if graph.out_degree(pred) > 1:
+                    chain.append(pred)
+                    break
 
-            # use ceil so every segment <= max_length_m
-            num_segments = int(np.ceil(length_m / max_length_m))
-            segment_length = length_m / num_segments
+                # Also stop at source (it has no predecessor)
+                if pred == self._source_idx:
+                    chain.append(pred)
+                    break
 
-            # Remove the original long edge
+                chain.append(pred)
+                current = pred
+
+                if current in visited:
+                    break
+
+            # Reverse so chain[0] = upstream branching node / source
+            #          chain[-1] = terminal
+            chain = chain[::-1]
+
+            # Need at least 2 edges (3 nodes) to be worth merging
+            if len(chain) < 3:
+                continue
+
+            # Check collinearity
+            is_straight = True
+            for i in range(len(chain) - 2):
+                p1 = np.array([graph.nodes[chain[i]]['lat'], graph.nodes[chain[i]]['lng']])
+                p2 = np.array([graph.nodes[chain[i+1]]['lat'], graph.nodes[chain[i+1]]['lng']])
+                p3 = np.array([graph.nodes[chain[i+2]]['lat'], graph.nodes[chain[i+2]]['lng']])
+
+                v1 = p2 - p1
+                v2 = p3 - p2
+                cross = abs(v1[0] * v2[1] - v1[1] * v2[0])
+                if cross > 1e-5:   # tight tolerance (~0.5–1°)
+                    is_straight = False
+                    break
+
+            if not is_straight:
+                continue
+
+            # === MERGE the straight chain ===
+            start_idx = chain[0]      # branching node or source
+            end_idx   = chain[-1]     # terminal
+            end_type  = graph.nodes[end_idx].get('type')
+
+            # Compute true total length of the chain
+            total_length = 0.0
+            for i in range(len(chain) - 1):
+                total_length += graph[chain[i]][chain[i+1]]['length']
+
+            # Remove all intermediate poles
+            for mid in chain[1:-1]:
+                if graph.nodes[mid].get('type') == 'pole':
+                    graph.remove_node(mid)
+                    merged_count += 1
+
+            # Add single long edge
+            is_to_terminal = (end_type == 'terminal')
+            graph.add_edge(
+                start_idx, end_idx,
+                length=total_length,
+                voltage=graph.nodes[start_idx].get('voltage', self.request.voltageLevel),
+                weight=self.calc_edge_weight(total_length, to_terminal=is_to_terminal)
+            )
+
+            # Mark all nodes in this chain as visited
+            visited.update(chain)
+
+        graph = self.rename_poles(graph)
+
+        if self.request.debug >= 1 and merged_count > 0:
+            print(f"  _merge_collinear_pole_chains: merged {merged_count} intermediate poles "
+                  f"into long straight segments (terminal-first, stop at branch points)")
+            self._plot_current_graph(graph, title="After Collinear Merge (terminal-first + branch stop)")
+
+        return graph
+
+    def split_long_edges_w_poles(self, graph: Union[nx.Graph, nx.DiGraph]) -> nx.DiGraph:
+        """
+        HARD-RESPECTING long-edge splitting.
+
+        • Every created edge (pole-pole or pole-terminal) is guaranteed to be:
+          - ≤ max_pole_to_pole (or max_pole_to_term for service drops)
+          - ≥ a safe minimum (no near-overlapping poles)
+
+        • Uses **uniform spacing** for the entire remaining segment.
+          This completely eliminates tiny final segments that were causing
+          almost-overlapping poles.
+
+        • Terminal edges: first pole placed exactly at max_pole_to_term from the terminal,
+          then the rest of the chain is split evenly.
+        """
+        MIN_SEGMENT_M = 5.0   # hard floor — you can tune this if you want even stricter
+
+        new_graph = graph.copy()
+
+        # node data cache
+        node_data = {n: data.copy() for n, data in new_graph.nodes(data=True)}
+        if not node_data:
+            return new_graph
+
+        next_index = max(new_graph.nodes) + 1
+
+        # Pre-compute source distances for pole-pole heuristic
+        source_dist = {}
+        try:
+            source_dist = nx.single_source_dijkstra_path_length(
+                new_graph, self._source_idx, weight='length'
+            )
+        except (nx.NetworkXError, KeyError):
+            pass
+
+        for u, v, data in list(new_graph.edges(data=True)):
+            if u not in new_graph or v not in new_graph:
+                continue
+
+            u_type = new_graph.nodes[u].get('type', '')
+            v_type = new_graph.nodes[v].get('type', '')
+            length_m = float(data.get("length", 0.0))
+            voltage = data.get("voltage", self.request.voltageLevel)
+
+            is_terminal_edge = (u_type == "terminal" or v_type == "terminal")
+
+            if is_terminal_edge:
+                max_allowed = self.get_max_pole_to_term()
+            else:
+                max_allowed = self.get_max_pole_to_pole()
+
+            if length_m <= max_allowed + 1.0:
+                continue
+
+            # ── Determine starting end ──
+            if is_terminal_edge:
+                term_idx = u if u_type == "terminal" else v
+                far_idx = v if u_type == "terminal" else u
+                start_idx, end_idx = term_idx, far_idx
+                to_terminal = True
+            else:
+                d_u = source_dist.get(u, self._distance_from_source(new_graph, u))
+                d_v = source_dist.get(v, self._distance_from_source(new_graph, v))
+                start_idx, end_idx = (u, v) if d_u <= d_v else (v, u)
+                to_terminal = False
+
+            start_pos = np.array([node_data[start_idx]['lat'], node_data[start_idx]['lng']], dtype=float)
+            end_pos   = np.array([node_data[end_idx]['lat'],   node_data[end_idx]['lng']],   dtype=float)
+
             new_graph.remove_edge(u, v)
 
-            prev_idx = u
-            for i in range(1, num_segments):
-                fraction = i / num_segments
-                current = start_coord + fraction * direction
+            prev_idx = start_idx
+            remaining_m = length_m
 
-                # Add new intermediate pole
+            current_pos = start_pos
+
+            # ── Terminal edge special case ──
+            if is_terminal_edge:
+                # Serving pole exactly at max_pole_to_term from terminal
+                frac = max_allowed / length_m
+                first_pole_pos = current_pos + frac * (end_pos - current_pos)
+
                 new_graph.add_node(
                     next_index,
-                    lat=float(current[0]),
-                    lng=float(current[1]),
+                    lat=float(first_pole_pos[0]),
+                    lng=float(first_pole_pos[1]),
                     type="pole",
-                    name="pole",
-                    used=True,
+                    name=f"Pole {next_index}"
                 )
-
-                node_data_by_index[next_index] = {
-                    "lat": float(current[0]),
-                    "lng": float(current[1]),
-                    "type": "pole",
-                    "name": "pole",
-                    "used": True,
-                }
+                node_data[next_index] = {"lat": float(first_pole_pos[0]), "lng": float(first_pole_pos[1]), "type": "pole"}
 
                 new_graph.add_edge(
-                    prev_idx,
-                    next_index,
-                    length=segment_length,
+                    start_idx, next_index,
+                    length=max_allowed,
                     voltage=voltage,
-                    weight=self.calc_edge_weight(segment_length),
+                    weight=self.calc_edge_weight(max_allowed, to_terminal=True)
                 )
 
                 prev_idx = next_index
                 next_index += 1
+                remaining_m = length_m - max_allowed
+                max_allowed = self.get_max_pole_to_pole()  # switch to pole-pole max for the rest
+                current_pos = first_pole_pos
 
-            # Final segment to original end node
+
+            # ── Uniform spacing for the remaining straight segment ──
+            if remaining_m > max_allowed + 0.1:
+                num_segments = math.ceil(remaining_m / max_allowed)
+                segment_length = remaining_m / num_segments   # guaranteed <= max_allowed
+
+                # Make sure we don't create a segment shorter than MIN_SEGMENT_M
+                if segment_length < MIN_SEGMENT_M and num_segments > 1:
+                    num_segments -= 1
+                    segment_length = remaining_m / num_segments
+
+                for i in range(1, num_segments):
+                    frac = i / num_segments
+                    current_pos = current_pos + frac * (end_pos - current_pos)
+
+                    new_graph.add_node(
+                        next_index,
+                        lat=float(current_pos[0]),
+                        lng=float(current_pos[1]),
+                        type="pole",
+                        name=f"Pole {next_index}"
+                    )
+                    node_data[next_index] = {"lat": float(current_pos[0]), "lng": float(current_pos[1]), "type": "pole"}
+
+                    new_graph.add_edge(
+                        prev_idx, next_index,
+                        length=segment_length,
+                        voltage=voltage,
+                        weight=self.calc_edge_weight(segment_length)
+                    )
+
+                    prev_idx = next_index
+                    next_index += 1
+
+            # ── Final segment (now guaranteed to respect limits) ──
+            final_length = remaining_m if not is_terminal_edge else (length_m - (length_m - remaining_m))
+            final_to_terminal = to_terminal and (prev_idx != end_idx)
             new_graph.add_edge(
-                prev_idx,
-                v,
-                length=segment_length,
+                prev_idx, end_idx,
+                length=final_length,
                 voltage=voltage,
-                weight=self.calc_edge_weight(segment_length),
+                weight=self.calc_edge_weight(final_length, to_terminal=final_to_terminal)
             )
 
-        # remove original edges
-        new_graph.graph.update(graph.graph)
+        new_graph = self.rename_poles(new_graph)
 
         if self.request.debug >= 1:
-            self._plot_current_graph(new_graph, title="After Splitting Long Edges")
+            added = next_index - (max(node_data.keys()) + 1 if node_data else 0)
+            print(f"  split_long_edges_w_poles: added {added} poles (hard uniform spacing — limits strictly respected)")
+            self._plot_current_graph(new_graph, title="After Hard-Respect Long Edge Splitting")
+
         return new_graph
 
     def _get_ordered_nodes_and_remap_edges(self, graph: Union[nx.DiGraph, nx.Graph]):

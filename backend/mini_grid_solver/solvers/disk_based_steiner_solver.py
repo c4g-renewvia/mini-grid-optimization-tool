@@ -9,6 +9,7 @@ from .candidate_generation import CandidateGeneration
 from ..utils.models import *
 from ..utils.registry import register_solver
 
+METERS_PER_DEG_LAT = 111111.0
 
 @register_solver
 class DiskBasedSteinerSolver(CandidateGeneration):
@@ -74,7 +75,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             else:
                 avg_lat = 45.0  # fallback (Portland area)
 
-            METERS_PER_DEG_LAT = 111111.0
             METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(avg_lat))
 
             # Radius in degrees for lat and lon axes
@@ -156,7 +156,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
     @staticmethod
     def _latlon_to_meters(points: np.ndarray, ref_lat: float, ref_lon: float) -> np.ndarray:
         """Project lat/lon points to local East-North meters using the same scaling as the rest of the class."""
-        METERS_PER_DEG_LAT = 111111.0
         METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(ref_lat))
         # points shape: (n, 2) → [lat, lon]
         north_m = (points[:, 0] - ref_lat) * METERS_PER_DEG_LAT
@@ -166,7 +165,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
     @staticmethod
     def _meters_to_latlon(meter_points: np.ndarray, ref_lat: float, ref_lon: float) -> np.ndarray:
         """Reverse projection."""
-        METERS_PER_DEG_LAT = 111111.0
         METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(ref_lat))
         dlat = meter_points[:, 1] / METERS_PER_DEG_LAT
         dlon = meter_points[:, 0] / METERS_PER_DEG_LON
@@ -268,53 +266,26 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
     def _minimum_disk_cover(self, term_coords: np.ndarray, R: float) -> Tuple[np.ndarray, list]:
         """
-        Determines an optimal set of disk centers that covers all specified terminal coordinates
-        within a given radius, using a greedy set-cover algorithm with tie-breaking for optimality.
+        Minimum Disk Cover with STRONG TREE-LIKE bias (outward growth from source).
 
-        The algorithm identifies candidate disk centers using pairwise intersections of disks, as well as
-        source-biased circumference points for each terminal. Each candidate center is evaluated based on
-        how many uncovered terminals it can cover, with tie-breaking based on minimizing overlap with already
-        covered terminals or proximity to a source coordinate. This ensures an efficient coverage while
-        remaining computationally feasible even for larger datasets.
+        1. Primary goal: minimize number of disks (classic greedy set-cover)
+        2. Tie-breaker: among candidates that cover the same max number of new terminals,
+           pick the one closest to the *current partial tree* (source + already selected disks).
+           This gives exactly the "source node outward + bias toward closest node" behavior you want.
 
-        Debugging plots and logs are generated if debug levels are set higher than 1 in the request object,
-        providing intermediate states like candidate generation, coverage matrix, and final selected centers.
-
-        Examples of debug output include:
-        - Candidate generation: pairwise intersections and source-biased points.
-        - Building a coverage matrix using vectorized operations.
-        - Coverage optimization with greedy set-cover and tie-breaking for optimal selection.
-
-        Args:
-        term_coords : np.ndarray
-            A 2D array representing the terminal coordinates, where each row contains the latitude
-            and longitude of a terminal.
-        R : float
-            The radius of the disk, in units consistent with the coordinates (e.g., meters for geospatial
-            data using Haversine distance).
-
-        Returns:
-            Tuple[np.ndarray, list]
-                A tuple containing two elements:
-                - A 2D array of shape (m, 2), where `m` is the number of selected disk centers, and each row
-                  represents the latitude and longitude of a disk center.
-                - A list of descriptive names for each disk center, indicating its identifier (e.g.,
-                  "DiskCenterPole 1", "DiskCenterPole 2").
-
-        Raises:
-            ValueError
-                If no candidate centers are found or no disk centers can be determined to cover the terminals.
-
+        FULL DEBUG PLOTTING RESTORED:
+        - Plot after every selection/jiggle so you can watch the candidate selection happen step-by-step.
+        - All original debug plots (Before / Filtered / FINAL) are kept.
+        - Your improved _jiggle_disk_center (with revert-if-no-coverage-gain) is still used.
         """
         if len(term_coords) == 0:
             return np.empty((0, 2), dtype=float)
 
         term_coords = np.asarray(term_coords, dtype=float)
         n_term = len(term_coords)
-
         source_coord = self._coords[self._source_idx]
 
-        # ─── 1. Generate candidate disk centers ─────────────────────────────
+        # ─── 1. Generate high-quality candidates ─────────────────────────────
         candidates_list = []
 
         # (a) Pairwise two-circle candidates
@@ -323,21 +294,19 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                 pair_centers = self._two_circle_centers(term_coords[i], term_coords[j], R)
                 candidates_list.extend(pair_centers)
 
-        # degree spread biased
+        # (b) Source-biased circumference points (more candidates for better tree options)
         for t in term_coords:
             circ_points = self._generate_biased_circumference_points(
                 terminal=t,
                 bias_point=source_coord,
                 R=R,
-                num_points=6,  # tune this
-                angle_spread_deg=90
+                num_points=8,          # increased density
+                angle_spread_deg=120   # wider spread
             )
             candidates_list.extend(circ_points)
 
-        # === NEW: Delaunay circumcenter candidates ===
-        # delaunay_cands = self.generate_delaunay_circumcenter_candidates(
-        #     term_coords, R
-        # )
+        # (c) Optional geometrically perfect Delaunay circumcenters
+        # delaunay_cands = self.generate_delaunay_circumcenter_candidates(term_coords, R)
         # candidates_list.extend(delaunay_cands)
 
         if not candidates_list:
@@ -345,25 +314,30 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         candidates = self.filter_disk_candidates(np.array(candidates_list), term_coords)
 
-        if self.request.debug >= 2:
-            print(f"  Disk cover: generated {len(candidates)} candidate centers "
-                  f"({n_term}×2 source-biased circumference + pairwise)")
+        if len(candidates) == 0:
+            raise ValueError("No valid disk candidates after filtering")
+
+        if self.request.debug >= 1:
+            print(f"  Tree-biased Disk Cover: generated {len(candidates)} candidates for {n_term} terminals")
 
         # ─── 2. Vectorized coverage matrix ─────────────────────────────────
         dist_matrix = self.haversine_vec(candidates, term_coords)
-        covers = dist_matrix <= R + .1
+        covers = dist_matrix <= R + 0.1
 
         if self.request.debug >= 2:
             print(f"  Vectorized coverage matrix built: {covers.shape}")
 
-        # ─── 3. Greedy Set-Cover with tie-breaking ────────────────
+        # ─── 3. Greedy Set-Cover with dynamic tree bias ────────────────────
         uncovered_mask = np.ones(n_term, dtype=bool)
         selected_centers = []
+        current_tree_points = [source_coord.copy()]   # start with source only
+        step = 0
 
         while np.any(uncovered_mask):
+            step += 1
             # Primary score: number of NEW uncovered terminals covered
             new_coverage_counts = np.sum(covers[:, uncovered_mask], axis=1)
-            max_new = np.max(new_coverage_counts)
+            max_new = int(np.max(new_coverage_counts))
 
             if max_new <= 0:
                 break
@@ -373,39 +347,22 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             if len(best_candidates_idx) == 1:
                 chosen_idx = best_candidates_idx[0]
             else:
-                # Secondary tie-breaker: minimize coverage of ALREADY covered terminals
-                already_mask = ~uncovered_mask
-                if np.any(already_mask):
-                    overlap_counts = np.sum(
-                        covers[best_candidates_idx][:, already_mask], axis=1
-                    )
-                    min_overlap = np.min(overlap_counts)
-                    best_candidates_idx = best_candidates_idx[overlap_counts == min_overlap]
+                # === STRONG TREE-LIKE TIE-BREAKER: closest to current partial tree ===
+                dists_to_tree = self.haversine_vec(
+                    candidates[best_candidates_idx],
+                    np.array(current_tree_points)
+                )
+                min_dists_to_tree = np.min(dists_to_tree, axis=1)
+                chosen_sub_idx = np.argmin(min_dists_to_tree)
+                chosen_idx = best_candidates_idx[chosen_sub_idx]
 
-                # Tertiary tie-breaker: closest to source
-                # Prefer candidate closest to any already-selected disk center
-                # (encourages compact clustering → shorter backbone trunk)
-                if len(best_candidates_idx) > 1:
-                    if len(selected_centers) == 0:
-                        # First center: still fall back to source bias
-                        dists = self.haversine_vec(
-                            candidates[best_candidates_idx],
-                            np.array([source_coord])
-                        ).flatten()
-                    else:
-                        # Distance to the nearest existing center
-                        dists_to_existing = self.haversine_vec(
-                            candidates[best_candidates_idx],
-                            np.array(selected_centers)
-                        )
-                        dists = np.min(dists_to_existing, axis=1)  # min distance to any center
-
-                    chosen_idx = best_candidates_idx[np.argmin(dists)]
-                else:
-                    chosen_idx = best_candidates_idx[0]
+                if self.request.debug >= 2:
+                    print(f"    Tie-breaker (tree distance): chose candidate {chosen_idx} "
+                          f"(dist to tree = {min_dists_to_tree[chosen_sub_idx]:.1f}m)")
 
             best_center = candidates[chosen_idx].copy()
 
+            # Jiggle (your improved version with revert-if-no-gain)
             best_center = self._jiggle_disk_center(
                 best_center,
                 term_coords,
@@ -413,35 +370,33 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                 uncovered_mask=uncovered_mask.copy()  # focus on still-uncovered terminals
             )
 
-            # Re-compute coverage using the jiggled position (precomputed matrix is now stale)
+            # Re-compute coverage using the (possibly jiggled) position
             new_covers = self._compute_coverage_mask(best_center, term_coords, R)
             newly_covered = new_covers & uncovered_mask
 
             selected_centers.append(best_center)
             uncovered_mask[newly_covered] = False
 
-            if self.request.debug >= 2:
-                print(f"    Selected + jiggled center {chosen_idx} → covers {np.sum(newly_covered)} new terminals")
-
-            newly_covered = covers[chosen_idx] & uncovered_mask
-            uncovered_mask[newly_covered] = False
+            # Add this center to the growing tree for future bias
+            current_tree_points.append(best_center.copy())
 
             if self.request.debug >= 2:
+                print(f"    Selected + jiggled center {chosen_idx} → covers {np.sum(newly_covered)} new terminals "
+                      f"({np.sum(uncovered_mask)} remaining)")
+
+                # ─── STEP-BY-STEP DEBUG PLOT (so you can watch selection happen) ───
                 self._plot_disk_cover(
                     term_coords=term_coords,
                     disk_centers=np.array(selected_centers),
                     R=R,
                     candidates=candidates,
-                    title=f"New Candidate Selected disk Cover – {n_term} terminals → {len(selected_centers)} disks (R={R:.1f}m)"
+                    title=f"Tree-Biased Disk Cover – Step {step} "
+                          f"({n_term} terminals → {len(selected_centers)} disks, R={R:.1f}m)"
                 )
-
-            if self.request.debug >= 2:
-                print(f"    Selected center {chosen_idx} → covers {max_new} new terminals "
-                      f"({np.sum(uncovered_mask)} remaining)")
 
         selected_centers = np.array(selected_centers)
 
-        # Debug plots
+        # ─── FINAL DEBUG PLOTS (exactly like original) ─────────────────────
         if self.request.debug >= 2:
             self._plot_disk_cover(
                 term_coords=term_coords,
@@ -451,7 +406,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                 title=f"Before filtered disk Cover – {n_term} terminals → {len(selected_centers)} disks (R={R:.1f}m)"
             )
 
-        if self.request.debug >= 2:
             self._plot_disk_cover(
                 term_coords=term_coords,
                 disk_centers=selected_centers,
@@ -460,20 +414,17 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                 title=f"Filtered disk Cover – {n_term} terminals → {len(selected_centers)} disks (R={R:.1f}m)"
             )
 
-        if self.request.debug >= 2:
             self._plot_disk_cover(
                 term_coords=term_coords,
                 disk_centers=selected_centers,
                 R=R,
                 candidates=candidates,
-                title=f"FINAL Disk Cover (source-biased) – {n_term} terminals → {len(selected_centers)} disks (R={R:.1f}m)"
+                title=f"FINAL Tree-Biased Disk Cover – {n_term} terminals → {len(selected_centers)} disks (R={R:.1f}m)"
             )
 
         if self.request.debug >= 1:
-            print(f"  Disk cover complete: {len(selected_centers)} disks cover "
+            print(f"  Tree-biased disk cover complete: {len(selected_centers)} disks cover "
                   f"{n_term} terminals (R = {R:.1f} m)")
-
-        if self.request.debug >= 1:
             print(f"   → Selected {len(selected_centers)} disk-center poles")
 
         if len(selected_centers) == 0:
@@ -512,7 +463,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             return []
 
         mid_lat = (p1[0] + p2[0]) / 2.0
-        METERS_PER_DEG_LAT = 111111.0
         METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(mid_lat))
 
         dlat_m = (p2[0] - p1[0]) * METERS_PER_DEG_LAT
@@ -563,12 +513,10 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         if dist < 1e-6:
             # fallback - two arbitrary points
-            METERS_PER_DEG_LAT = 111111.0
             points.append(np.array([terminal[0] + R / METERS_PER_DEG_LAT, terminal[1]]))
             points.append(np.array([terminal[0] - R / METERS_PER_DEG_LAT, terminal[1]]))
             return points
 
-        METERS_PER_DEG_LAT = 111111.0
         METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(terminal[0]))
 
         # unit vector toward source (in meter space)
@@ -598,29 +546,44 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return dists[0] <= R + 0.1
 
     def _jiggle_disk_center(
-        self,
-        initial_center_ll: np.ndarray,
-        term_coords: np.ndarray,
-        R: float,
-        uncovered_mask: Optional[np.ndarray] = None,
-        max_steps: int = 8,
-        step_size_m: float = 25.0
+            self,
+            initial_center_ll: np.ndarray,
+            term_coords: np.ndarray,
+            R: float,
+            uncovered_mask: Optional[np.ndarray] = None,
+            max_steps: int = 8,
+            step_size_m: float = 25.0
     ) -> np.ndarray:
         """
         Jiggle the selected disk center (after greedy choice) to potentially cover MORE terminals,
         while STRICTLY respecting the min_pole_to_term distance to ALL terminals.
+
+        NEW BEHAVIOR (as requested): If the final jiggled position does **not** strictly increase
+        the number of terminals covered (considering only the still-uncovered terminals via the mask),
+        revert back to the original initial_center_ll.
+
+        This prevents any regression in coverage caused by jiggling.
         """
         if len(term_coords) == 0:
             return initial_center_ll.copy()
 
+        # ─── INITIAL COVERAGE COUNT (before any jiggling) ─────────────────────
+        initial_center_ll = np.asarray(initial_center_ll, dtype=float).copy()
+        initial_covered_mask = self._compute_coverage_mask(initial_center_ll, term_coords, R)
+        if uncovered_mask is not None:
+            initial_count = np.sum(initial_covered_mask & uncovered_mask)
+        else:
+            initial_count = np.sum(initial_covered_mask)
+
         min_dist = self.get_min_pole_to_term()
 
-        current_ll = np.asarray(initial_center_ll, dtype=float).copy()
+        current_ll = initial_center_ll.copy()
         ref_lat = float(current_ll[0])
         ref_lon = float(current_ll[1])
 
         term_m = self._latlon_to_meters(term_coords, ref_lat, ref_lon)
-        center_m = np.zeros(2, dtype=float)
+        # FIXED: start from the actual initial center in meter space (original code started at [0,0]!)
+        center_m = self._latlon_to_meters(current_ll.reshape(1, 2), ref_lat, ref_lon)[0].copy()
 
         for _ in range(max_steps):
             dists_m = np.linalg.norm(term_m - center_m[None, :], axis=1)
@@ -646,7 +609,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             proposed_m = center_m + (direction / dist_to_centroid) * move_dist
 
             # ─── ENFORCE min_pole_to_term CONSTRAINT ───
-            # Convert proposed position back to lat/lon temporarily for distance check (or stay in meters)
             proposed_ll = self._meters_to_latlon(proposed_m.reshape(1, 2), ref_lat, ref_lon)[0]
             dists_to_terms = self.haversine_vec(proposed_ll.reshape(1, 2), term_coords).flatten()
             min_achieved = float(np.min(dists_to_terms))
@@ -665,9 +627,23 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             # Accept the (possibly corrected) position
             center_m = proposed_m
 
-        # Final conversion back to lat/lon
+        # ─── FINAL CONVERSION + COVERAGE CHECK ─────────────────────────────
         new_center_ll = self._meters_to_latlon(center_m.reshape(1, 2), ref_lat, ref_lon)[0]
-        return new_center_ll
+
+        final_covered_mask = self._compute_coverage_mask(new_center_ll, term_coords, R)
+        if uncovered_mask is not None:
+            final_count = np.sum(final_covered_mask & uncovered_mask)
+        else:
+            final_count = np.sum(final_covered_mask)
+
+        if final_count > initial_count:
+            if self.request.debug >= 2:
+                print(f"    Jiggle improved coverage: {initial_count} → {final_count}")
+            return new_center_ll
+        else:
+            if self.request.debug >= 2:
+                print(f"    Jiggle did not increase coverage ({final_count} <= {initial_count}), reverting to original")
+            return initial_center_ll
 
     def generate_candidates(self,
                             coords,
@@ -863,7 +839,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         return DG
 
-    def greedy_steiner(self, disk_center_pole_coords, disk_center_names):
+    def greedy_steiner_for_backbone(self, disk_center_pole_coords, disk_center_names):
         """
         Optimize disk-center pole placement using a greedy iterative approach.
 
@@ -998,6 +974,8 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         # Restore original terminal indices for the caller
         self._terminal_indices = original_terminal_indices
 
+        current_mst = self.rename_poles(current_mst)
+
         if self.request.debug >= 1:
             print(f"Greedy backbone converged – {len(current_coords) - 1} poles, final cost {current_cost:.2f} $")
             self._plot_current_graph(current_mst, title="Final Greedy Backbone MST")
@@ -1043,11 +1021,6 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         # ── Step B: Split long backbone edges FIRST ────────────────────────
         if self.request.debug >= 1:
             print("   Splitting long backbone edges first...")
-        # best_graph = self.split_long_edges_w_poles(best_graph)
-
-        if self.request.debug >= 2:
-            self._plot_current_graph(best_graph,
-                                     title="Backbone after splitting long edges (before attaching terminals)")
 
         # ── IMPORTANT: Update backbone_coords to include the new split poles ──
         # Extract current coordinates of ALL backbone nodes (source + poles)
@@ -1142,7 +1115,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         disk_center_pole_coords, disk_center_names = self._minimum_disk_cover(term_coords, R=R)
 
-        final_mst, backbone_coords, backbone_names = self.greedy_steiner(
+        final_mst, backbone_coords, backbone_names = self.greedy_steiner_for_backbone(
             disk_center_pole_coords, disk_center_names
         )
 
