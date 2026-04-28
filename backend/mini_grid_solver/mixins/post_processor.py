@@ -209,9 +209,14 @@ class PostProcessingMixin:
             return
 
         # Group nodes by type (preserving original relative order within groups)
-        source_nodes = [n for n in self._nodes if n.type == "source"]
-        terminal_nodes = [n for n in self._nodes if n.type == "terminal"]
-        pole_nodes = [n for n in self._nodes if n.type == "pole"]
+        source_nodes, terminal_nodes, pole_nodes = [], [], []
+        for n in self._nodes:
+            if n.type == "source":
+                source_nodes.append(n)
+            elif n.type == "terminal":
+                terminal_nodes.append(n)
+            elif n.type == "pole":
+                pole_nodes.append(n)
 
         # Rebuild in the desired order
         ordered_nodes = source_nodes + terminal_nodes + pole_nodes
@@ -294,39 +299,33 @@ class PostProcessingMixin:
 
     def prune_dead_end_pole_branches(self, graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
         """
-        Prunes dead-end pole branches in a Directed Graph (DiGraph).
-
-        This function removes leaf nodes in the provided graph that represent poles and do not serve
-        any terminal nodes in their subtree. The pruning process continues iteratively until no such
-        dead-end poles remain in the graph. It modifies a copy of the input graph without affecting
-        the original.
+        Removes all dead-end branches comprised of nodes labeled as 'pole' from a given
+        graph or directed graph. Dead-end branches are identified as those starting at
+        nodes with no outgoing edges. This process is performed iteratively until no
+        more such dead ends exist in the graph.
 
         Args:
-            graph: A directed graph representing the network structure.
+            graph (Union[nx.Graph, nx.DiGraph]): The input graph or directed graph
+                containing nodes and edges where some nodes are labeled with a
+                'type' attribute.
 
         Returns:
-            A new graph with dead-end pole branches removed.
+            Union[nx.Graph, nx.DiGraph]: A modified copy of the input graph with
+            dead-end 'pole' branches removed.
         """
         graph = graph.copy()
+        out_degrees = dict(graph.out_degree())
+        leaves = [n for n, deg in out_degrees.items() if deg == 0]
 
-        removed = True
-        while removed:
-            removed = False
-            leaves = [n for n in graph.nodes(data=True) if graph.out_degree(n[0]) == 0]
-            for leaf in leaves:
-                if leaf[1]['type'] == "pole":
-                    # Check if this leaf (or its subtree) serves any terminal
-                    descendants = nx.descendants(graph, leaf[0]) | {leaf[0]}
-                    if not any(graph.nodes(data=True)[d]['type'] == 'terminal' for d in descendants):
-                        # No terminal served → safe to remove
-                        predecessors = list(graph.predecessors(leaf[0]))
-                        for pred in predecessors:
-                            graph.remove_edge(pred, leaf[0])
-                        graph.remove_node(leaf[0])
-                        removed = True
-
-        graph = self.rename_poles(graph)
-
+        while leaves:
+            leaf = leaves.pop()
+            if leaf in graph and graph.nodes[leaf].get('type') == 'pole':
+                preds = list(graph.predecessors(leaf))
+                graph.remove_node(leaf)
+                for pred in preds:
+                    out_degrees[pred] -= 1
+                    if out_degrees[pred] == 0:
+                        leaves.append(pred)
         return graph
 
     def _recompute_edges_for_node(self, graph: Union[nx.DiGraph, nx.Graph], node_idx: int):
@@ -469,168 +468,187 @@ class PostProcessingMixin:
 
         return graph
 
-    def _post_solver_local_opt(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
-        """
-        Performs a local optimization on the given graph to reduce the total cost by
-        iteratively applying optimization techniques. This process includes splitting
-        long edges, renaming poles, and optimizing pole positions. The function
-        terminates when no significant improvement is observed or when a predefined
-        maximum number of iterations is reached.
-
-        Args:
-            graph (Union[nx.DiGraph, nx.Graph]): The input graph representing the
-                structure to be optimized. The graph may be directed or undirected
-                and should conform to the assumptions made by the optimization
-                algorithms.
-
-        Returns:
-            Union[nx.DiGraph, nx.Graph]: The optimized graph after local adjustments
-            to minimize the total cost.
-        """
-        # Initial cleanup
-        graph = self.rename_poles(graph)
-
-        previous_cost = self._compute_total_cost(graph)
-        best_cost = previous_cost
-        best_graph = graph  # optional: for reversion
-
-        iteration = 0
-        max_iterations = 12
-        convergence_tol = 1e-3
-        stagnant_count = 0
-        max_stagnant = 1
-
-        if self.request.debug >= 1:
-            print(f"\n=== Starting Post-Solver Local Optimization ===")
-            print(f"Initial cost: {previous_cost:.2f} | Nodes: {graph.number_of_nodes()}")
-
-        while iteration < max_iterations:
-            iteration += 1
-            if self.request.debug >= 1:
-                print(f"\n--- Iteration {iteration} ---")
-
-            graph = self._pole_gradient_optimizer(graph)
-            graph = self._merge_collinear_pole_chains(graph)
-            graph = self._drop_redundant_poles(graph)
-            graph = self.split_long_edges_w_poles(graph)
-
-            # rebuild graph to refresh attributes and ensure consistency and shortest path
-            nodes = [Node(index=x[0], **x[1]) for x in graph.nodes(data=True)]
-            graph = self.build_graph_from_nodes(nodes, directed=True)
-            graph = self._minimum_spanning_arborescence_w_attrs(graph)
-            graph = self.prune_dead_end_pole_branches(graph)
-
-            graph = self.split_long_edges_w_poles(graph)
-
-            if self.request.debug >= 2:
-                print(f"Nodes: {graph.number_of_nodes()}")
-                self._plot_current_graph(graph, title=f"After iteration {iteration}")
-
-            current_cost = self._compute_total_cost(graph)
-            delta = current_cost - previous_cost
-            is_close = math.isclose(current_cost, previous_cost, abs_tol=convergence_tol)
-
-            if self.request.debug >= 1:
-                print(f"   Cost: {previous_cost:.2f} → {current_cost:.2f} (Δ = {delta:+.2f})")
-
-            # Stopping conditions
-            if current_cost > previous_cost + convergence_tol:
-                if self.request.debug >= 1:
-                    print("   Cost increased significantly → stopping")
-                graph = best_graph  # revert
-                break
-
-            if is_close:
-                stagnant_count += 1
-                if stagnant_count >= max_stagnant:
-                    if self.request.debug >= 1:
-                        print(f"   No meaningful improvement for {max_stagnant} iterations → stopping")
-                    break
-            else:
-                stagnant_count = 0
-
-            previous_cost = current_cost
-            if current_cost < best_cost:
-                best_cost = current_cost
-                best_graph = graph.copy()
-
-        graph = self._enforce_min_pole_terminal_distances(graph)
-
-        final_cost = self._compute_total_cost(graph)
-
-        if self.request.debug >= 1:
-            print(f"\n=== Post-opt finished after {iteration} iteration(s). "
-                  f"Final cost: {final_cost:.2f} ===\n")
-
-        return graph
-
     def _drop_redundant_poles(self, pruned_graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
         """
-        Removes redundant pole nodes from the graph that do not contribute to connecting
-        terminals. A pole is considered redundant if its removal does not disconnect any
-        terminal from the source, and doing so reduces the total cost.
+        Drops redundant poles from the graph, iteratively testing whether their removal results in a
+        lower cost while maintaining necessary connectivity.
 
-        Args:
-            pruned_graph (nx.DiGraph): The directed graph representing the current network
-                structure, with nodes containing 'type' and positional attributes.
-
-        Returns:
-            nx.DiGraph: A new directed graph with redundant poles removed and poles renamed.
-
+        Optimized version: Mutates the graph in-place and reverts local changes if the cost
+        does not improve, avoiding expensive O(V+E) deep copy operations in tight loops.
         """
         if self.request.debug >= 1:
-            print("\n--- Starting Fast Drop Phase (with proper reconnection) ---")
+            print("\n--- Starting _drop_redundant_poles (pred→succ + terminal→nearest-pole) ---")
 
+        # Copy exactly once to avoid mutating the caller's graph
         current_graph = pruned_graph.copy()
         cur_cost = self._compute_total_cost(current_graph)
 
-        pole_indices = sorted(
-            [idx for idx, data in current_graph.nodes(data=True)
-             if data.get('type') == 'pole'],
-            reverse=True
-        )
+        iteration = 0
+        max_drop_iterations = 50
+        changed = False
 
-        for pole_to_drop in pole_indices:
-            if self.request.debug >= 2:
-                print(f"  Trying to drop pole {pole_to_drop}...")
+        while iteration < max_drop_iterations:
+            iteration += 1
 
-            # === Build reduced coordinates (without the pole) ===
-            coords_list = []
-            names_list = []
-            for idx, data in sorted(current_graph.nodes(data=True)):
-                if idx == pole_to_drop:
+            pole_indices = sorted(
+                [idx for idx, data in current_graph.nodes(data=True)
+                 if data.get('type') == 'pole'],
+                reverse=True
+            )
+
+            if not pole_indices:
+                break
+
+            dropped_this_pass = False
+
+            for pole_to_drop in pole_indices:
+                if pole_to_drop not in current_graph:
                     continue
-                coords_list.append([data['lat'], data['lng']])
-                names_list.append(data.get('name', f"Node {len(coords_list)}"))
 
-            coords_array = np.array(coords_list, dtype=float) if coords_list else np.empty((0, 2))
-
-            # Fast cost check
-            trial_cost = self._fast_total_cost_for_coords(coords_array)
-
-            if trial_cost <= cur_cost + 1e-3:
-                # === ACCEPTED DROP → rebuild the correct graph ===
-                if self.request.debug >= 1:
-                    print(f"Drop Phase: Removed pole {pole_to_drop} (cost {cur_cost:.2f} → {trial_cost:.2f})")
-
-                trial_nodes = self._build_nodes(coords_array, np.empty((0, 2)), names_list)
-
-                DG = self.build_directed_graph_for_arborescence(trial_nodes)
-                arbo_graph = self._minimum_spanning_arborescence_w_attrs(DG)
-                new_graph = self.prune_dead_end_pole_branches(arbo_graph)
-
-                current_graph = new_graph
-                cur_cost = trial_cost
-            else:
                 if self.request.debug >= 2:
-                    print(f"Drop Phase: Kept pole {pole_to_drop} (would increase cost to {trial_cost:.2f})")
+                    print(f"  Trying to drop pole {pole_to_drop}...")
+
+                # --- 1. SAVE ORIGINAL STATE FOR POTENTIAL REVERT ---
+                is_directed = current_graph.is_directed()
+
+                try:
+                    upstream = list(current_graph.predecessors(pole_to_drop))
+                    downstream = list(current_graph.successors(pole_to_drop))
+                except AttributeError:
+                    # Robust fallback for undirected nx.Graph
+                    upstream = list(current_graph.neighbors(pole_to_drop))
+                    downstream = list(current_graph.neighbors(pole_to_drop))
+
+                if not upstream or not downstream:
+                    continue
+
+                original_node_data = current_graph.nodes[pole_to_drop].copy()
+
+                if is_directed:
+                    original_in_edges = list(current_graph.in_edges(pole_to_drop, data=True))
+                    original_out_edges = list(current_graph.out_edges(pole_to_drop, data=True))
+                else:
+                    original_edges = list(current_graph.edges(pole_to_drop, data=True))
+
+                direct_terminals = [
+                    n for n in set(upstream + downstream)
+                    if current_graph.nodes[n].get('type') == 'terminal'
+                ]
+
+                # --- 2. APPLY TRIAL MODIFICATIONS IN-PLACE ---
+                current_graph.remove_node(pole_to_drop)
+                added_edges = []
+
+                # 2a. Bypass: upstream -> downstream
+                for pred in upstream:
+                    if pred not in current_graph:
+                        continue
+                    for succ in downstream:
+                        if current_graph.nodes[succ].get('type') == 'terminal':
+                            continue
+                        if succ not in current_graph or pred == succ:
+                            continue
+                        if current_graph.has_edge(pred, succ):
+                            continue
+
+                        dist = self.haversine_meters(
+                            current_graph.nodes[pred]['lat'], current_graph.nodes[pred]['lng'],
+                            current_graph.nodes[succ]['lat'], current_graph.nodes[succ]['lng']
+                        )
+                        voltage = current_graph.nodes[pred].get('voltage', self.request.voltageLevel)
+
+                        current_graph.add_edge(
+                            pred, succ,
+                            length=round(dist, 4),
+                            voltage=voltage,
+                            weight=self.calc_edge_weight(dist, to_terminal=False)
+                        )
+                        added_edges.append((pred, succ))
+
+                # 2b. Reconnect orphans: terminal -> nearest remaining pole
+                for term in direct_terminals:
+                    if term not in current_graph:
+                        continue
+
+                    other_poles = [
+                        n for n in current_graph.nodes
+                        if current_graph.nodes[n].get('type') == 'pole'
+                    ]
+                    if not other_poles:
+                        continue
+
+                    best_target = None
+                    best_dist = float('inf')
+
+                    for target in other_poles:
+                        if (current_graph.has_edge(target, term) or
+                                current_graph.has_edge(term, target)):
+                            continue
+
+                        d = self.haversine_meters(
+                            current_graph.nodes[term]['lat'], current_graph.nodes[term]['lng'],
+                            current_graph.nodes[target]['lat'], current_graph.nodes[target]['lng']
+                        )
+                        if d < best_dist:
+                            best_dist = d
+                            best_target = target
+
+                    if best_target is not None:
+                        voltage = current_graph.nodes[best_target].get('voltage', self.request.voltageLevel)
+                        current_graph.add_edge(
+                            best_target, term,
+                            length=round(best_dist, 4),
+                            voltage=voltage,
+                            weight=self.calc_edge_weight(best_dist, to_terminal=True)
+                        )
+                        added_edges.append((best_target, term))
+
+                # --- 3. EVALUATE & COMMIT OR REVERT ---
+                trial_cost = self._compute_total_cost(current_graph)
+
+                if trial_cost <= cur_cost + 1e-3:
+                    # SUCCESS: Keep modifications and move on
+                    if self.request.debug >= 1:
+                        print(f"Drop Phase: Removed pole {pole_to_drop} "
+                              f"(cost {cur_cost:.2f} → {trial_cost:.2f})")
+                    cur_cost = trial_cost
+                    dropped_this_pass = True
+                    changed = True
+                    break  # Restart loop to catch cascading improvements
+
+                else:
+                    # FAIL: Revert to exact original state
+                    if self.request.debug >= 2:
+                        print(f"  → Drop would increase cost to {trial_cost:.2f} → kept pole")
+
+                    # Remove trial bypass/serving edges
+                    current_graph.remove_edges_from(added_edges)
+
+                    # Re-insert pole and original edges
+                    current_graph.add_node(pole_to_drop, **original_node_data)
+
+                    if is_directed:
+                        current_graph.add_edges_from([(u, v, d) for u, v, d in original_in_edges])
+                        current_graph.add_edges_from([(u, v, d) for u, v, d in original_out_edges])
+                    else:
+                        current_graph.add_edges_from([(u, v, d) for u, v, d in original_edges])
+
+            if not dropped_this_pass:
+                # No improvements were found across all poles; terminate
+                break
+
+        if not changed:
+            if self.request.debug >= 1:
+                print("No redundant poles dropped - returning original graph unchanged")
+            return pruned_graph
 
         if self.request.debug >= 1:
-            print("--- Fast Drop Phase Complete ---\n")
-            self._plot_current_graph(current_graph, added_points=None, title="After Drop Phase")
+            print(f"--- _drop_redundant_poles Complete after {iteration} pass(es) ---")
+            self._plot_current_graph(current_graph, title="After Targeted Drop Phase (pred→succ + terminal nearest)")
 
-        current_graph = self.rename_poles(current_graph)
-        current_graph = self.rename_poles(current_graph)
+        # Final cleanup pass
+        current_graph = self.prune_dead_end_pole_branches(current_graph)
+
         return current_graph
 
     def _pole_gradient_optimizer(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
@@ -699,7 +717,7 @@ class PostProcessingMixin:
                     # Temporarily move pole
                     graph.nodes[node_idx]['lat'] = float(lat)
                     graph.nodes[node_idx]['lng'] = float(lon)
-                    self._recompute_all_edges(graph)
+                    self._recompute_edges_for_node(graph, node_idx)
 
                     return self._compute_total_cost(graph)
 
@@ -867,8 +885,6 @@ class PostProcessingMixin:
             # Mark all nodes in this chain as visited
             visited.update(chain)
 
-        graph = self.rename_poles(graph)
-
         if self.request.debug >= 1 and merged_count > 0:
             print(f"  _merge_collinear_pole_chains: merged {merged_count} intermediate poles "
                   f"into long straight segments (terminal-first, stop at branch points)")
@@ -889,29 +905,46 @@ class PostProcessingMixin:
             is_terminal_segment: bool = False,
     ) -> Tuple[int, int]:
         """
-        Places intermediate nodes and edges in a graph to create evenly spaced segments between a
-        start node and an end node. The function prioritizes spacing close to the maximum segment
-        length, but the last two segments are spaced equally to evenly distribute the remainder of
-        the distance.
+        Divides a long electrical segment into smaller segments based on the maximum spacing
+        limitations and places stretched poles at calculated positions in a graph.
+
+        This method ensures that a long segment is divided into equal or near-equal subsegments,
+        and that poles are added to the graph at appropriate locations. The final subsegments
+        are processed such that they are equally divided toward the start and end to avoid
+        unequal spacing.
 
         Args:
-            new_graph: A directed graph to which new nodes and edges will be added.
-            start_idx: Index of the start node in the segment.
-            end_idx: Index of the end node in the segment.
-            segment_length: Total length of the segment to be divided, in meters.
-            max_spacing: Maximum allowable distance between two consecutive intermediate nodes.
-            node_data: A dictionary containing node attributes such as latitude, longitude, and type.
-            next_index: The next available index for new nodes in the graph.
-            voltage: Voltage level of the power line or edge being created.
-            is_terminal_segment: A boolean indicating whether this segment ends at a terminal node.
-                Defaults to False.
+            new_graph: The graph where poles and edges will be added. Can be a networkx Graph or
+                DiGraph.
+            start_idx: The index of the starting node for the segment.
+            end_idx: The index of the ending node for the segment.
+            segment_length: The total length of the segment in meters.
+            max_spacing: The maximum allowed spacing between nodes in meters.
+            node_data: A dictionary mapping node indices to their metadata, specifically their
+                geographic coordinates and type.
+            next_index: The next available index for adding new nodes in the graph.
+            voltage: The voltage level identifier for the edge being processed.
+            is_terminal_segment: Whether the segment is at the terminal end of the network. Default
+                is False.
 
         Returns:
-            tuple[int, int]: A tuple containing the updated next available index for new nodes and
-            the index of the last intermediate node added.
+            A tuple containing:
+                - The next available node index after processing.
+                - The previous node index added before the last segment.
+
+        Raises:
+            ValueError: If invalid arguments are provided, e.g., segment_length <= 0 or
+                max_spacing <= 0.
         """
         if segment_length <= max_spacing + 0.1:
-            # Nothing to split — direct edge already exists or will be added outside
+            # CRITICAL FIX: short segment → just add the direct edge back
+            new_graph.add_edge(
+                start_idx,
+                end_idx,
+                length=segment_length,
+                voltage=voltage,
+                weight=self.calc_edge_weight(segment_length, to_terminal=is_terminal_segment),
+            )
             return next_index, start_idx
 
         import math
@@ -947,6 +980,7 @@ class PostProcessingMixin:
                 "type": "pole",
             }
 
+            # CRITICAL FIX: Ensure edge points strictly outward (prev -> current)
             new_graph.add_edge(
                 prev_idx,
                 current_next,
@@ -962,7 +996,7 @@ class PostProcessingMixin:
         remaining_length = segment_length - num_full * max_spacing
         last_segment_length = remaining_length / 2.0
 
-        # Place the penultimate pole (start of the two equal segments)
+        # Place the penultimate pole
         frac = last_segment_length / segment_length
         current_pos += frac * (end_pos - start_pos)
 
@@ -1003,28 +1037,25 @@ class PostProcessingMixin:
 
     def split_long_edges_w_poles(self, graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
         """
-        Splits long edges in the given graph with new pole nodes if their length exceeds
-        the allowable distance for either pole-to-terminal or pole-to-pole connections.
+        Splits long edges in a graph into smaller segments by introducing intermediate poles, ensuring that
+        maximum allowed spacing between poles or poles and terminals is not exceeded.
 
-        This method modifies edges in the graph to make sure that no edge has a length
-        greater than the maximum allowable distance for its type. For terminal edges, a
-        serving pole is added at the maximum allowable distance, and for pole-to-pole
-        edges, additional poles are added at regular intervals.
+        The method ensures that for terminal edges (edges connected to terminal nodes), serving poles are
+        placed correctly to facilitate precise connectivity. For non-terminal edges, poles are spaced
+        based on a predefined maximum distance between consecutive poles. The placement of poles is such that
+        the directionality (upstream to downstream) is maintained.
 
         Args:
-            graph (Union[nx.Graph, nx.DiGraph]): The input network graph, where edges
-                represent segments between nodes and their attributes contain details
-                such as length, voltage, and type.
+            graph (Union[nx.Graph, nx.DiGraph]): The input network graph where edges are potentially split into
+                smaller segments defined by intermediate poles.
 
         Returns:
-            nx.DiGraph: A directed graph that includes newly added poles to ensure that
-                all edges comply with maximum allowable lengths, depending on their type.
+            Union[nx.Graph, nx.DiGraph]: A modified version of the input graph with additional nodes (poles)
+                inserted and edges updated to reflect the splitting into smaller segments.
 
         Raises:
-            nx.NetworkXError: If shortest-path calculations fail for the given graph.
-            KeyError: If expected graph attributes for node positions or edge properties
-                are missing during processing.
-
+            NetworkXError: If the input graph is invalid or operations on the graph fail.
+            KeyError: If there are issues with missing node or edge attributes during processing.
         """
         new_graph = graph.copy()
 
@@ -1034,7 +1065,7 @@ class PostProcessingMixin:
 
         next_index = max(new_graph.nodes) + 1
 
-        # Pre-compute source distances for pole-pole direction heuristic
+        # Pre-compute source distances to guarantee strict upstream -> downstream directionality
         source_dist = {}
         try:
             source_dist = nx.single_source_dijkstra_path_length(
@@ -1062,23 +1093,13 @@ class PostProcessingMixin:
             if length_m <= max_allowed + 0.1:
                 continue
 
-            # Determine start/end of the segment
-            if is_terminal_edge:
-                term_idx = u if u_type == "terminal" else v
-                far_idx = v if u_type == "terminal" else u
-                start_idx = term_idx
-                end_idx = far_idx
-                to_terminal_for_serving = True
-            else:
-                # Pole-pole: bias toward source
-                d_u = source_dist.get(u, self._distance_from_source(new_graph, u))
-                d_v = source_dist.get(v, self._distance_from_source(new_graph, v))
-                start_idx, end_idx = (u, v) if d_u <= d_v else (v, u)
-                to_terminal_for_serving = False
+            # CRITICAL FIX: Always ensure start_idx is upstream, end_idx is downstream.
+            # Terminals are leaves, so they will always naturally become the end_idx.
+            d_u = source_dist.get(u, self._distance_from_source(new_graph, u))
+            d_v = source_dist.get(v, self._distance_from_source(new_graph, v))
+            start_idx, end_idx = (u, v) if d_u <= d_v else (v, u)
 
             new_graph.remove_edge(u, v)
-
-            prev_idx = start_idx
             remaining_m = length_m
 
             # ── Terminal edge special case: exact serving pole ──
@@ -1086,7 +1107,8 @@ class PostProcessingMixin:
                 start_pos = np.array([node_data[start_idx]["lat"], node_data[start_idx]["lng"]])
                 end_pos = np.array([node_data[end_idx]["lat"], node_data[end_idx]["lng"]])
 
-                frac = max_allowed / length_m
+                # We know end_idx is the terminal. Place serving pole exactly max_allowed away from it.
+                frac = (length_m - max_allowed) / length_m
                 serving_pos = start_pos + frac * (end_pos - start_pos)
 
                 new_graph.add_node(
@@ -1102,30 +1124,32 @@ class PostProcessingMixin:
                     "type": "pole",
                 }
 
+                # Add final serving edge pointing outward (Serving Pole -> Terminal)
                 new_graph.add_edge(
-                    start_idx,
                     next_index,
+                    end_idx,
                     length=max_allowed,
                     voltage=voltage,
                     weight=self.calc_edge_weight(max_allowed, to_terminal=True),
                 )
 
-                prev_idx = next_index
+                # The upstream trunk now ends at the new serving pole
+                end_idx = next_index
                 next_index += 1
                 remaining_m = length_m - max_allowed
-                max_allowed = self.get_max_pole_to_pole()  # now treat trunk as pole-pole
+                max_allowed = self.get_max_pole_to_pole()  # Treat the upstream trunk as pole-pole
 
             # ── Main trunk (pole-pole): fully stretched + last stretch divided in two ──
             next_index, _ = self._place_max_stretched_last_divided(
                 new_graph=new_graph,
-                start_idx=prev_idx,
+                start_idx=start_idx,
                 end_idx=end_idx,
                 segment_length=remaining_m,
                 max_spacing=max_allowed,
                 node_data=node_data,
                 next_index=next_index,
                 voltage=voltage,
-                is_terminal_segment=to_terminal_for_serving and (prev_idx != end_idx),
+                is_terminal_segment=False, # Serving weight was already applied if it was a terminal edge
             )
 
         new_graph = self.rename_poles(new_graph)
@@ -1137,3 +1161,87 @@ class PostProcessingMixin:
             self._plot_current_graph(new_graph, title="After Max-Stretched + Last-Divided Splitting")
 
         return new_graph
+
+    def _post_solver_opt(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
+        """
+        Performs a local optimization on the given graph to reduce the total cost by
+        iteratively applying optimization techniques. This process includes splitting
+        long edges, renaming poles, and optimizing pole positions. The function
+        terminates when no significant improvement is observed or when a predefined
+        maximum number of iterations is reached.
+
+        Args:
+            graph (Union[nx.DiGraph, nx.Graph]): The input graph representing the
+                structure to be optimized. The graph may be directed or undirected
+                and should conform to the assumptions made by the optimization
+                algorithms.
+
+        Returns:
+            Union[nx.DiGraph, nx.Graph]: The optimized graph after local adjustments
+            to minimize the total cost.
+        """
+        previous_cost = self._compute_total_cost(graph)
+        best_cost = previous_cost
+        best_graph = graph  # optional: for reversion
+
+        iteration = 0
+        max_iterations = 12
+        convergence_tol = 1e-3
+        stagnant_count = 0
+        max_stagnant = 1
+
+        if self.request.debug >= 1:
+            print(f"\n=== Starting Post-Solver Local Optimization ===")
+            print(f"Initial cost: {previous_cost:.2f} | Nodes: {graph.number_of_nodes()}")
+
+        while iteration < max_iterations:
+            iteration += 1
+            if self.request.debug >= 1:
+                print(f"\n--- Iteration {iteration} ---")
+
+            graph = self._pole_gradient_optimizer(graph)
+            graph = self._merge_collinear_pole_chains(graph)
+            graph = self.split_long_edges_w_poles(graph)
+            graph = self._drop_redundant_poles(graph)
+
+            if self.request.debug >= 2:
+                print(f"Nodes: {graph.number_of_nodes()}")
+                self._plot_current_graph(graph, title=f"After iteration {iteration}")
+
+            current_cost = self._compute_total_cost(graph)
+            delta = current_cost - previous_cost
+            is_close = math.isclose(current_cost, previous_cost, abs_tol=convergence_tol)
+
+            if self.request.debug >= 1:
+                print(f"   Cost: {previous_cost:.2f} → {current_cost:.2f} (Δ = {delta:+.2f})")
+
+            # Stopping conditions
+            if current_cost > previous_cost + convergence_tol:
+                if self.request.debug >= 1:
+                    print("   Cost increased significantly → stopping")
+                graph = best_graph  # revert
+                break
+
+            if is_close:
+                stagnant_count += 1
+                if stagnant_count >= max_stagnant:
+                    if self.request.debug >= 1:
+                        print(f"   No meaningful improvement for {max_stagnant} iterations → stopping")
+                    break
+            else:
+                stagnant_count = 0
+
+            previous_cost = current_cost
+            if current_cost < best_cost:
+                best_cost = current_cost
+                best_graph = graph.copy()
+
+        graph = self._enforce_min_pole_terminal_distances(graph)
+
+        final_cost = self._compute_total_cost(graph)
+
+        if self.request.debug >= 1:
+            print(f"\n=== Post-opt finished after {iteration} iteration(s). "
+                  f"Final cost: {final_cost:.2f} ===\n")
+
+        return graph
