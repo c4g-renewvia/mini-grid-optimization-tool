@@ -653,6 +653,6 @@ class GreedyIterSteinerSolver(CandidateGeneration):
                                          title=f"Iteration {iteration} (Δ {improvement:+.2f} m)")
 
         # Finally Gradient Decent each pole placement to ensure not local optimization is left on the table
-        final_graph = self._post_solver_local_opt(best_pruned_graph)
+        final_graph = self._post_solver_opt(best_pruned_graph)
 
         return final_graph
