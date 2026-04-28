@@ -984,31 +984,25 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
     def attach_terminals(self, backbone_coords, backbone_names):
         """
-        Attaches terminal nodes to the closest backbone nodes in the graph.
-
-        The method enhances an existing graph representing a backbone network
-        by connecting terminal points to it. It involves several sequential steps:
-        1. Builds an initial directed graph for arborescence generation.
-        2. Modifies the graph by splitting long backbone edges.
-        3. Updates backbone node coordinates after graph modifications.
-        4. Attaches terminal nodes to the closest available backbone nodes
-           using updated coordinates.
+        Attaches terminal nodes to the closest backbone nodes in a given graph. The process ensures that
+        the backbone structure is prepared and adjusted before terminals are connected. Various steps
+        such as splitting long backbone edges, computing distances, and pruning unnecessary branches
+        are also executed during this process. The final graph contains the adjusted backbone and the attached
+        terminals.
 
         Args:
-            backbone_coords: numpy.ndarray
-                A 2D array containing coordinates of the backbone nodes in the format
-                [[latitude, longitude], ...].
-            backbone_names: list[str]
-                A list of names corresponding to the backbone nodes.
+            backbone_coords (np.ndarray): Coordinates of the backbone nodes, with each entry being a
+                tuple or array representing latitude and longitude.
+            backbone_names (List[str]): List of names corresponding to the backbone nodes.
 
         Returns:
-            networkx.DiGraph
-                A directed graph with the terminal nodes attached to the backbone network.
+            networkx.DiGraph: The updated directed graph with terminals attached to the backbone,
+            including adjustments made to the structure such as added intermediate poles and pruned branches.
         """
         if self.request.debug >= 1:
-            print(f"Attaching {len(self._terminal_indices)} terminals to closest backbone poles...")
+            print(f"\nAttaching {len(self._terminal_indices)} terminals to closest backbone poles...")
 
-        # ── Step A: Build proper arborescence (one-way edges from source) ──
+        # Step 1: Build initial arborescence from backbone (source + disk/steiner poles)
         backbone_nodes = self._build_nodes(
             backbone_coords,
             np.empty((0, 2)),
@@ -1018,24 +1012,35 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         temp_DG = self.build_directed_graph_for_arborescence(backbone_nodes)
         best_graph = self._minimum_spanning_arborescence_w_attrs(temp_DG)
 
-        # ── Step B: Split long backbone edges FIRST ────────────────────────
         if self.request.debug >= 1:
-            print("   Splitting long backbone edges first...")
+            print(f"   Initial backbone has {best_graph.number_of_nodes()} nodes "
+                  f"({sum(1 for _, d in best_graph.nodes(data=True) if d['type'] == 'pole')} poles)")
 
-        # ── IMPORTANT: Update backbone_coords to include the new split poles ──
-        # Extract current coordinates of ALL backbone nodes (source + poles)
-        # backbone_coords_updated = []
-        # for node_id, data in best_graph.nodes(data=True):
-        #     if data['type'] in ('source', 'pole'):
-        #         backbone_coords_updated.append([data['lat'], data['lng']])
-        # backbone_coords_updated = np.array(backbone_coords_updated, dtype=float)
-        #
-        # if self.request.debug >= 1:
-        #     print(f"   Backbone now has {len(backbone_coords_updated)} nodes after splitting "
-        #           f"({len(backbone_coords_updated) - len(backbone_coords)} new intermediate poles)")
+        # ── CRITICAL FIX: Split long backbone edges FIRST ─────────────────────
+        if self.request.debug >= 1:
+            print("   Splitting long backbone edges (pole-to-pole and source-to-pole)...")
 
-        # ── Step C: Attach terminals using the UPDATED coordinates ─────────
-        for i, term_idx in enumerate(self._terminal_indices):
+        best_graph = self.split_long_edges_w_poles(best_graph)
+
+        # ── Extract UPDATED backbone coordinates after splitting ─────────────
+        # (source + poles only — terminals not added yet)
+        current_backbone_coords = []
+        current_backbone_node_ids = []
+
+        for node_id, data in list(best_graph.nodes(data=True)):
+            if data.get('type') in ('source', 'pole'):
+                current_backbone_coords.append([data['lat'], data['lng']])
+                current_backbone_node_ids.append(node_id)
+
+        current_backbone_coords = np.array(current_backbone_coords, dtype=float)
+
+        if self.request.debug >= 1:
+            added_poles = len(current_backbone_coords) - len(backbone_coords)
+            print(f"   Backbone after splitting: {len(current_backbone_coords)} nodes "
+                  f"(+{added_poles} new intermediate poles)")
+
+        # ── Attach each terminal to the closest backbone node ───────────
+        for term_idx in self._terminal_indices:
             term_coord = self._coords[term_idx]
             term_name = self._names[term_idx]
 
@@ -1050,17 +1055,20 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                 lng=float(term_coord[1])
             )
 
-            # Find closest backbone node using the UPDATED coordinates
+            # Find closest backbone node using the *updated* coordinates
             dists = self.haversine_vec(
                 np.array([term_coord]),
-                backbone_coords
+                current_backbone_coords
             ).flatten()
-            closest_idx = int(np.argmin(dists))
-            dist = float(dists[closest_idx])
+
+            closest_local_idx = int(np.argmin(dists))
+            closest_node_id = current_backbone_node_ids[closest_local_idx]
+            dist = float(dists[closest_local_idx])
 
             weight = self.calc_edge_weight(dist, to_terminal=True)
+
             best_graph.add_edge(
-                closest_idx,
+                closest_node_id,
                 term_node_id,
                 weight=weight,
                 length=dist,
@@ -1068,16 +1076,22 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             )
 
             if self.request.debug >= 2:
-                print(f"  Terminal {term_name} attached to node {closest_idx} "
+                print(f"  Terminal {term_name} attached to node {closest_node_id} "
                       f"(dist {dist:.1f}m)")
 
-        if self.request.debug >= 1:
-            print(f"   → Added {len(self._terminal_indices)} service-drop edges. "
-                  f"Final graph has {best_graph.number_of_nodes()} nodes.")
+        # Final cleanup to keep the graph clean
+        best_graph = self.prune_dead_end_pole_branches(best_graph)
+        best_graph = self.rename_poles(best_graph)
 
-            self._plot_current_graph(best_graph,
-                                     added_points=self._coords[self._terminal_indices],
-                                     title=f"Backbone + Terminals Attached (${self._compute_total_cost(best_graph):.2f})  + {self.print_min_max_edge_len(best_graph)}")
+        if self.request.debug >= 1:
+            total_poles = sum(1 for _, d in best_graph.nodes(data=True) if d['type'] == 'pole')
+            print(f"   → Attached {len(self._terminal_indices)} terminals. "
+                  f"Final graph: {best_graph.number_of_nodes()} nodes, {total_poles} poles")
+            self._plot_current_graph(
+                best_graph,
+                added_points=self._coords[self._terminal_indices],
+                title=f"Backbone + Terminals Attached (${self._compute_total_cost(best_graph):.2f})"
+            )
 
         return best_graph
 
@@ -1125,7 +1139,7 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         # ── Step 3: Post-solve gradient descent optimization ────────────────
         if self.request.debug >= 1:
             print("Step 3: Post-solve gradient descent optimization")
-        final_graph = self._post_solver_local_opt(best_graph)
+        final_graph = self._post_solver_opt(best_graph)
 
         if self.request.debug >= 1:
             n_poles = sum(1 for _, d in final_graph.nodes(data=True) if d['type'] == 'pole')
