@@ -6,6 +6,9 @@ model User {
   image            String?
   role             String?
   pushSubscription String?
+  mapsApiKeyCipher String?
+  mapsApiKeyIv     String?
+  mapsApiKeyTag    String?
   accounts         Account[]
   sessions         Session[]
 

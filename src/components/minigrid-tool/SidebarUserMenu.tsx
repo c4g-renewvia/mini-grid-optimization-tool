@@ -10,19 +10,21 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LogOut, UserCog, Bell } from 'lucide-react';
+import { Bell, KeyRound, LogOut, UserCog } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-import { EditProfileDialog } from '@/components/layout/edit-profile-dialog';           // adjust path if needed
-import { NotificationSettings } from '@/components/layout/notification-settings';     // adjust path if needed
-import { ThemeSwitcher } from '@/components/layout/theme-switcher';                   // adjust path if needed
+import { EditProfileDialog } from '@/components/layout/edit-profile-dialog';
+import { GoogleMapsApiKeyDialog } from '@/components/layout/google-maps-api-key-dialog';
+import { NotificationSettings } from '@/components/layout/notification-settings';
+import { ThemeSwitcher } from '@/components/layout/theme-switcher';
 
 export function SidebarUserMenu() {
   const { data: session } = useSession();
   const { toast } = useToast();
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
+  const [isMapsApiKeyOpen, setIsMapsApiKeyOpen] = useState(false);
 
   if (session?.user?.id === 'anonymous-user') {
     return <ThemeSwitcher />;
@@ -91,6 +93,14 @@ export function SidebarUserMenu() {
             Notifications
           </DropdownMenuItem>
 
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onSelect={() => setIsMapsApiKeyOpen(true)}
+          >
+            <KeyRound className="h-4 w-4 mr-2" />
+            Google Maps API Key
+          </DropdownMenuItem>
+
           <DropdownMenuSeparator />
 
           <DropdownMenuItem>
@@ -122,6 +132,10 @@ export function SidebarUserMenu() {
       <NotificationSettings
         isOpen={isNotificationSettingsOpen}
         onOpenChange={setIsNotificationSettingsOpen}
+      />
+      <GoogleMapsApiKeyDialog
+        isOpen={isMapsApiKeyOpen}
+        onOpenChangeAction={setIsMapsApiKeyOpen}
       />
     </>
   );

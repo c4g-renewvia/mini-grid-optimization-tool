@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import Script from 'next/script';
 import Papa from 'papaparse';
-import { useSession } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 
 import { useMiniGridHistory } from '@/hooks/useMiniGridHistory';
 
@@ -35,13 +35,15 @@ import type {
 } from '@/types/minigrid';
 import { SidebarUserMenu } from '@/components/minigrid-tool/SidebarUserMenu';
 
-// Runtime config from layout.tsx, then build-time NEXT_PUBLIC_ fallback.
-const GOOGLE_MAPS_API_KEY =
-  (typeof window !== 'undefined' &&
-    (window as unknown as { __APP_CONFIG__?: { mapsKey?: string } })
-      .__APP_CONFIG__?.mapsKey) ||
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-  'YOUR_GOOGLE_MAPS_API_KEY';
+function getFallbackMapsKey() {
+  const runtimeKey =
+    typeof window !== 'undefined'
+      ? (window as unknown as { __APP_CONFIG__?: { mapsKey?: string } })
+          .__APP_CONFIG__?.mapsKey
+      : '';
+
+  return runtimeKey || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+}
 
 function toLiteral(
   pos: google.maps.marker.AdvancedMarkerElement['position']
@@ -315,6 +317,59 @@ export default function MiniGridToolPage() {
   }, [canUndo, canRedo, undo, redo]); // Keep dependencies updated
 
   const { data: session } = useSession();
+  const shouldShowMapsKeyLoginPrompt =
+    !session || session.user?.id === 'anonymous-user';
+  const [mapsApiKey, setMapsApiKey] = useState<string>(() =>
+    getFallbackMapsKey()
+  );
+
+  const loadMapsApiKey = useCallback(async () => {
+    const fallback = getFallbackMapsKey();
+
+    if (!session?.user?.id || session.user.id === 'anonymous-user') {
+      setMapsApiKey(fallback);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/users/maps-key', {
+        method: 'GET',
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        setMapsApiKey(fallback);
+        return;
+      }
+
+      const data = (await response.json()) as { hasKey: boolean; apiKey?: string };
+      setMapsApiKey(data.apiKey || fallback);
+    } catch {
+      setMapsApiKey(fallback);
+    }
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    void loadMapsApiKey();
+  }, [loadMapsApiKey]);
+
+  useEffect(() => {
+    const onMapsKeyUpdated = (event: Event) => {
+      const fallback = getFallbackMapsKey();
+      const detail = (event as CustomEvent<{ apiKey?: string }>).detail;
+      const providedApiKey = detail?.apiKey?.trim();
+
+      if (providedApiKey !== undefined) {
+        setMapsApiKey(providedApiKey || fallback);
+      }
+      void loadMapsApiKey();
+    };
+
+    window.addEventListener('maps-api-key-updated', onMapsKeyUpdated);
+    return () => {
+      window.removeEventListener('maps-api-key-updated', onMapsKeyUpdated);
+    };
+  }, [loadMapsApiKey]);
 
   useEffect(() => {
     allowDragTerminalsRef.current = allowDragTerminals;
@@ -2741,6 +2796,20 @@ export default function MiniGridToolPage() {
           {/* Scrollable Content */}
           <div className='h-[calc(100%-4rem)] overflow-y-auto p-6'>
             <div className='space-y-12'>
+              {shouldShowMapsKeyLoginPrompt && (
+                <div className='rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm dark:border-emerald-900/70 dark:bg-emerald-950/40'>
+                  <p className='text-zinc-800 dark:text-zinc-100'>
+                    Sign in to set your Google Maps API key.
+                  </p>
+                  <button
+                    type='button'
+                    onClick={() => signIn()}
+                    className='mt-3 inline-flex rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700'
+                  >
+                    Sign In
+                  </button>
+                </div>
+              )}
               {/* 1. Define Marker Section */}
               <DefineMarkersSection
                 isExpanded={expandedSections.markers}
@@ -2966,11 +3035,14 @@ export default function MiniGridToolPage() {
           © 2026 • CS 6150 Computing For Good • Mini-Grid Solver Tool
         </footer>
 
-        <Script
-          src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=marker,places`}
-          strategy='afterInteractive'
-          onLoad={initMap}
-        />
+        {mapsApiKey && (
+          <Script
+            key={mapsApiKey}
+            src={`https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=marker,places`}
+            strategy='afterInteractive'
+            onLoad={initMap}
+          />
+        )}
       </div>
       {/* Dialog for adding a point via map click */}
       <AddPointDialog

@@ -46,6 +46,7 @@ const seedUser = async (
         providerAccountId,
         access_token,
         token_type: 'bearer',
+
         scope:
           'https://www.googleapis.com/auth/userinfo.email openid https://www.googleapis.com/auth/userinfo.profile',
         expires_at: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,

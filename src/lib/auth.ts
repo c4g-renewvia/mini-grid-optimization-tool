@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { PrismaAdapter } from '@auth/prisma-adapter';
-import type { User } from '@prisma/client';
+import type { User } from '../../prisma/generated/prisma/client';
 import NextAuth, { type NextAuthConfig, type Session } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { cookies } from 'next/headers';

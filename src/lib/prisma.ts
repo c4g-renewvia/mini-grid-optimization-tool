@@ -1,6 +1,13 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../prisma/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { config as loadEnv } from 'dotenv';
+
+if (process.env.NODE_ENV !== 'production') {
+  // vercel dev injects cloud env vars; force local env files for local development.
+  loadEnv({ path: '.env.local', override: true });
+  loadEnv({ override: true });
+}
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
