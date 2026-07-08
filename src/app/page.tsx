@@ -2721,6 +2721,8 @@ export default function MiniGridToolPage() {
     }
   };
 
+  console.log(mapsApiKey)
+
   // For space, I'll note: Paste all remaining functions from your original file here
   // (handleAddManualPoint, handleDragOver, handleDrop, handleResetMap, generateRandomCosts, etc.)
 
