@@ -316,15 +316,17 @@ export default function MiniGridToolPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [canUndo, canRedo, undo, redo]); // Keep dependencies updated
 
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const shouldShowMapsKeyLoginPrompt =
     !session || session.user?.id === 'anonymous-user';
-  const [mapsApiKey, setMapsApiKey] = useState<string>(() =>
-    getFallbackMapsKey()
-  );
+  const [mapsApiKey, setMapsApiKey] = useState<string>('');
 
   const loadMapsApiKey = useCallback(async () => {
     const fallback = getFallbackMapsKey();
+
+    if (sessionStatus === 'loading') {
+      return;
+    }
 
     if (!session?.user?.id || session.user.id === 'anonymous-user') {
       setMapsApiKey(fallback);
@@ -347,7 +349,7 @@ export default function MiniGridToolPage() {
     } catch {
       setMapsApiKey(fallback);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, sessionStatus]);
 
   useEffect(() => {
     void loadMapsApiKey();
@@ -2720,8 +2722,6 @@ export default function MiniGridToolPage() {
       );
     }
   };
-
-  console.log(mapsApiKey)
 
   // For space, I'll note: Paste all remaining functions from your original file here
   // (handleAddManualPoint, handleDragOver, handleDrop, handleResetMap, generateRandomCosts, etc.)
