@@ -420,14 +420,14 @@ export default function MiniGridToolPage() {
       // 1. Get the latest state from the Ref to avoid stale closures
       const current = stateRef.current;
 
-      console.log(
-        'number of nodes before deletion',
-        current.miniGridNodes.length
-      );
-      console.log(
-        'number of edges before deletion',
-        current.miniGridEdges.length
-      );
+      // console.log(
+      //   'number of nodes before deletion',
+      //   current.miniGridNodes.length
+      // );
+      // console.log(
+      //   'number of edges before deletion',
+      //   current.miniGridEdges.length
+      // );
 
       // 2. Filter out the point
       const updatedNodes = current.miniGridNodes.filter(
@@ -483,9 +483,6 @@ export default function MiniGridToolPage() {
       setMiniGridNodes(updatedNodes);
       setMiniGridEdges(updatedEdges);
       setCostBreakdown(newCostBreakdown);
-
-      console.log('number of nodes after deletion', updatedNodes.length);
-      console.log('number of edges after deletion', updatedEdges.length);
 
       // 5. Push to History (with freshly calculated costs)
       current.saveState({
@@ -2550,14 +2547,14 @@ export default function MiniGridToolPage() {
   };
 
   const loadSavedRun = (run: MiniGridRun) => {
-    console.log('Loading saved mini-grid:', run.id, run.name || '(no name)');
+    // console.log('Loading saved mini-grid:', run.id, run.name || '(no name)');
 
     // Log what we actually received (for debugging)
-    console.log('Saved solver:', {
-      poleCost: run.poleCost,
-      lowVoltageCost: run.lowVoltageCost,
-      highVoltageCost: run.highVoltageCost,
-    });
+    // console.log('Saved solver:', {
+    //   poleCost: run.poleCost,
+    //   lowVoltageCost: run.lowVoltageCost,
+    //   highVoltageCost: run.highVoltageCost,
+    // });
 
     // Reset and load core data
     setMiniGridNodes(run.miniGridNodes || []);
@@ -2707,7 +2704,7 @@ export default function MiniGridToolPage() {
       if (refreshRes.ok) {
         const updatedRuns = await refreshRes.json();
         setSavedRuns(updatedRuns);
-        console.log('Saved runs refreshed:', updatedRuns.length, 'items');
+        // console.log('Saved runs refreshed:', updatedRuns.length, 'items');
       } else {
         console.warn(
           'Could not refresh saved runs after save',
