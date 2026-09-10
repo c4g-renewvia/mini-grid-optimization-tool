@@ -87,6 +87,7 @@ class SolverResult(BaseModel):
     totalLowVoltageMeters: float = 0.0
     totalHighVoltageMeters: float = 0.0
     numPolesUsed: int = 0
+    totalEdgeLengthMeters: float = 0.0
     poleCostEstimate: float = 0.0
     lowWireCostEstimate: float = 0.0
     highWireCostEstimate: float = 0.0

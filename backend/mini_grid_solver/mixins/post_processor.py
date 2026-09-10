@@ -748,7 +748,7 @@ class PostProcessingMixin:
                         print(f"   Pole {node_idx:3d} improved by {new_cost - old_cost:+.2f} $ "
                               f"(moved {move_m:.3f}m)")
                     if self.request.debug >= 3:
-                        self._plot_current_graph(graph, added_points=[(res.x[0], res.x[1])], )
+                        self._plot_current_graph(graph, added_points=[(res.x[0], res.x[1])], title="Optimized Point Candidate")
                 else:
                     # Revert to original position
                     graph.nodes[node_idx]['lat'] = lat0

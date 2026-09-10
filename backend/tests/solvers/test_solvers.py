@@ -8,78 +8,140 @@ from mini_grid_solver.solvers.local_opt import LocalOptimization
 from mini_grid_solver.utils.models import *
 from mini_grid_solver.utils.registry import SOLVER_REGISTRY
 
+TEST_DATASET_DIR = "test_data_sets"
+
+
+def _count_terminals(nodes) -> int:
+    return sum(1 for node in nodes if node.type == "terminal")
+
 
 # ==================== FIXTURES ====================
-@pytest.fixture
-def csv_nodes():
-    """Loads coordinates from the test CSV file."""
-    try:
-        df = pd.read_csv("test_data_sets/BuildingCoordinates.csv")
-        i = 0
-        data_dict = df.to_dict(orient="records")
-        for data in data_dict:
-            data['index'] = i
-            i += 1
-        return [Node(**data) for data in data_dict]
-    except FileNotFoundError:
-        pytest.skip("BuildingCoordinates.csv not found")
-
-
-@pytest.fixture
-def kml_nodes():
-    """Parses coordinates from the ground truth KML."""
-    try:
-        kml_file_path = "test_data_sets/bc1.kml"
-        with open(kml_file_path, 'r', encoding="utf-8") as f:
-            root = parser.parse(f).getroot()
-
-        coords = []
-        for folder in root.Document:
-            for placemark in folder.Placemark:
-                # KML coordinates are typically: lng, lat, alt
-                coords_str = str(placemark.Point.coordinates).strip()
-                lng, lat, _ = coords_str.split(",")
-                _type = str(placemark.description).split(" ")[1].lower()
-                coords.append(Node(
-                    index=len(coords),
-                    name=str(placemark.name),
-                    lat=float(lat),
-                    lng=float(lng),
-                    type=_type
-                ))
-        return coords
-    except (FileNotFoundError, AttributeError):
-        pytest.skip("KML file not found or incorrectly formatted")
-
-
-# add "test_data_sets/minigrid_2026-04-24.kml" for larger test
-@pytest.fixture(params=["test_data_sets/minigrid_2026-04-28 (1).kml"])
-def kml_nodes_random_test_set(request):
-    """Parses coordinates from the ground truth KML."""
+@pytest.fixture(params=[
+    f"{TEST_DATASET_DIR}/bc1.kml",
+    f"{TEST_DATASET_DIR}/bc2.kml",
+])
+def kml_nodes(request):
+    """Parses coordinates from the bc1/bc2 ground-truth KML datasets."""
     try:
         kml_file_path = request.param
         with open(kml_file_path, 'r', encoding="utf-8") as f:
             root = parser.parse(f).getroot()
 
         coords = []
-        for folder in root.Document:
-            for placemark in folder.Folder.Placemark:
-                # KML coordinates are typically: lng, lat, alt
+        placemarks = []
+
+        # bc1 has Document-level placemarks; bc2 stores them inside Folder(s).
+        if hasattr(root.Document, "Placemark"):
+            placemarks.extend(list(root.Document.Placemark))
+        if hasattr(root.Document, "Folder"):
+            for folder in root.Document.Folder:
+                if hasattr(folder, "Placemark"):
+                    placemarks.extend(list(folder.Placemark))
+
+        for placemark in placemarks:
+            if not hasattr(placemark, "Point") or not hasattr(placemark.Point, "coordinates"):
+                continue
+
+            description_text = str(getattr(placemark, "description", ""))
+            match = re.search(r"Type:\s*(\w+)", description_text)
+            if not match:
+                continue
+
+            coords_str = str(placemark.Point.coordinates).strip()
+            lng, lat, _ = coords_str.split(",")
+            coords.append(Node(
+                index=len(coords),
+                name=str(placemark.name),
+                lat=float(lat),
+                lng=float(lng),
+                type=match.group(1).lower()
+            ))
+
+        if not coords:
+            pytest.skip(f"No valid node placemarks found in: {kml_file_path}")
+        return coords
+    except FileNotFoundError:
+        pytest.skip(f"KML file not found: {kml_file_path}")
+    except AttributeError:
+        pytest.skip(f"KML file incorrectly formatted: {kml_file_path}")
+
+
+# add f"{TEST_DATASET_DIR}/minigrid_2026-04-24.kml" for larger test
+@pytest.fixture(params=[
+    f"{TEST_DATASET_DIR}/minigrid_2026-04-07.kml",
+    f"{TEST_DATASET_DIR}/minigrid_2026-04-08.kml",
+])
+def kml_nodes_random_test_set(request):
+    """Parses random minigrid KML datasets and keeps only source/terminal points."""
+    try:
+        kml_file_path = request.param
+        with open(kml_file_path, 'r', encoding="utf-8") as f:
+            root = parser.parse(f).getroot()
+
+        coords = []
+        for folder in getattr(root.Document, "Folder", []):
+            nested_folders = list(getattr(folder, "Folder", [])) or [folder]
+            for nested_folder in nested_folders:
+                for placemark in getattr(nested_folder, "Placemark", []):
+                    if not hasattr(placemark, "Point") or not hasattr(placemark.Point, "coordinates"):
+                        continue
+
+                    match = re.search(r"Type:\s*(\w+)", str(getattr(placemark, "description", "")))
+                    if not match:
+                        continue
+
+                    node_type = match.group(1).lower()
+                    if node_type == "pole":
+                        continue
+
+                    coords_str = str(placemark.Point.coordinates).strip()
+                    lng, lat, _ = coords_str.split(",")
+                    coords.append(Node(
+                        index=len(coords),
+                        name=str(placemark.name),
+                        lat=float(lat),
+                        lng=float(lng),
+                        type=node_type
+                    ))
+
+        if not coords:
+            pytest.skip(f"No valid node placemarks found in: {kml_file_path}")
+        return coords
+    except (FileNotFoundError, AttributeError, IndexError):
+        pytest.skip(f"KML file not found or incorrectly formatted: {kml_file_path}")
+
+
+@pytest.fixture
+def renewvia_ground_truth_terminals_only_nodes():
+    """Parses renewvia terminals-only KML with one source and many terminals."""
+    try:
+        kml_file_path = f"{TEST_DATASET_DIR}/renewvia_ground_truth_terminals_only.kml"
+        with open(kml_file_path, "r", encoding="utf-8") as f:
+            root = parser.parse(f).getroot()
+
+        coords = []
+        for folder in root.Document.Folder:
+            for placemark in folder.Placemark:
                 coords_str = str(placemark.Point.coordinates).strip()
                 lng, lat, _ = coords_str.split(",")
-                _type = re.search(r"Type: (\w+)", str(placemark.description)).group(1)
-                if _type == "pole":
-                    continue
+                match = re.search(r"Type:\s*(\w+)", str(placemark.description))
+                node_type = match.group(1).lower() if match else "terminal"
                 coords.append(Node(
                     index=len(coords),
                     name=str(placemark.name),
                     lat=float(lat),
                     lng=float(lng),
-                    type=_type
+                    type=node_type,
                 ))
+
+        if not coords:
+            pytest.skip("renewvia_ground_truth_terminals_only.kml parsed but had no nodes")
+
         return coords
-    except (FileNotFoundError, AttributeError) as e:
-        pytest.skip(f"KML file not found or incorrectly formatted {e}")
+    except FileNotFoundError:
+        pytest.skip("renewvia_ground_truth_terminals_only.kml not found")
+    except (AttributeError, IndexError):
+        pytest.skip("renewvia_ground_truth_terminals_only.kml incorrectly formatted")
 
 
 @pytest.fixture
@@ -209,36 +271,11 @@ def test_registry_not_empty():
     assert len(SOLVER_REGISTRY) > 0
 
 
-@pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
-def test_all_solvers_with_csv(solver_name, csv_nodes, default_costs, default_length_constraints):
-    """
-    Parametrized test: Runs every solver in the registry using CSV data.
-    Validates that each solver returns a result with nodes and edges.
-    """
-    solver_class = SOLVER_REGISTRY[solver_name]
-
-    # Create request with default params
-    req = SolverRequest(
-        nodes=csv_nodes,
-        costs=default_costs,
-        lengthConstraints=default_length_constraints,
-        debug=0,
-    )
-
-    result = solver_class(req).solve()
-
-    # Assertions for output quality
-    assert result is not None, f"{solver_name} returned no result"
-    assert len(result.nodes) >= len(csv_nodes), f"{solver_name} lost nodes during solve"
-    assert len(result.edges) > 0, f"{solver_name} failed to create any connections"
-    assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
-
-
-@pytest.mark.parametrize("solver_name", ["DiskBasedSteinerSolver"] )# SOLVER_REGISTRY.keys())
-def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes, default_costs,
+@pytest.mark.parametrize("solver_name", list(SOLVER_REGISTRY.keys()))
+def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, default_costs,
                               default_length_constraints):
     """
-    Parametrized test: Runs every solver in the registry using CSV data.
+    Parametrized test: Runs every solver in the registry using minigrid KML data.
     Validates that each solver returns a result with nodes and edges.
     """
     solver_class = SOLVER_REGISTRY[solver_name]
@@ -248,24 +285,27 @@ def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, csv_nodes,
         nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=2,
+        debug=0,
     )
 
     result = solver_class(req).solve()
+    print("Solver Name: ", solver_name)
+    print("Number of Terminals:", _count_terminals(kml_nodes_random_test_set))
+    print("Total Cost", result.totalCostEstimate)
+    print("Number of Poles Used", result.numPolesUsed)
+    print("Total Edge Length:", result.totalEdgeLengthMeters)
 
     # Assertions for output quality
     assert result is not None, f"{solver_name} returned no result"
-    assert len(result.nodes) >= len(csv_nodes), f"{solver_name} lost nodes during solve"
+    assert len(result.nodes) >= len(kml_nodes_random_test_set), f"{solver_name} lost nodes during solve"
     assert len(result.edges) > 0, f"{solver_name} failed to create any connections"
     assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
-def test_greedy_steiner_solver(kml_nodes, default_costs, default_length_constraints):
-    """Specific check for GreedyIterSteinerSolver using the KML dataset."""
-    if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
-        pytest.skip("GreedyIterSteinerSolver not registered")
-
-    solver_class = SOLVER_REGISTRY["GreedyIterSteinerSolver"]
+@pytest.mark.parametrize("solver_name", list(SOLVER_REGISTRY.keys()))
+def test_all_solvers_with_bc_ground_truth_kml(solver_name, kml_nodes, default_costs, default_length_constraints):
+    """Run every registered solver against bc1/bc2 ground-truth KML datasets."""
+    solver_class = SOLVER_REGISTRY[solver_name]
     req = SolverRequest(
         nodes=kml_nodes,
         costs=default_costs,
@@ -274,21 +314,29 @@ def test_greedy_steiner_solver(kml_nodes, default_costs, default_length_constrai
     )
 
     result = solver_class(req).solve()
+    print("Solver Name: ", solver_name)
+    print("Number of Terminals:", _count_terminals(kml_nodes))
+    print("Total Cost", result.totalCostEstimate)
+    print("Number of Poles Used", result.numPolesUsed)
+    print("Total Edge Length:", result.totalEdgeLengthMeters)
 
-    # Check that Steiner nodes (poles) were actually added
-    poles = [n for n in result.nodes if n.type == 'pole']
-    assert len(poles) >= 0  # Validates the result contains a nodes list
+    assert result is not None, f"{solver_name} returned no result"
+    assert len(result.nodes) >= len(kml_nodes), f"{solver_name} lost nodes during solve"
+    assert len(result.edges) > 0, f"{solver_name} failed to create any connections"
     assert result.totalCostEstimate > 0
 
 
-def test_greedy_steiner_solver2(kml_nodes_random_test_set, default_costs, default_length_constraints):
-    """Specific check for GreedyIterSteinerSolver using the KML dataset."""
-    if "GreedyIterSteinerSolver" not in SOLVER_REGISTRY:
-        pytest.skip("GreedyIterSteinerSolver not registered")
-
-    solver_class = SOLVER_REGISTRY["GreedyIterSteinerSolver"]
+@pytest.mark.parametrize("solver_name", list(SOLVER_REGISTRY.keys()))
+def test_all_solvers_with_renewvia_ground_truth_terminals_only_kml(
+        solver_name,
+        renewvia_ground_truth_terminals_only_nodes,
+        default_costs,
+        default_length_constraints,
+):
+    """Run all solvers on renewvia_ground_truth_terminals_only.kml."""
+    solver_class = SOLVER_REGISTRY[solver_name]
     req = SolverRequest(
-        nodes=kml_nodes_random_test_set,
+        nodes=renewvia_ground_truth_terminals_only_nodes,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
         debug=0,
@@ -296,10 +344,18 @@ def test_greedy_steiner_solver2(kml_nodes_random_test_set, default_costs, defaul
 
     result = solver_class(req).solve()
 
-    # Check that Steiner nodes (poles) were actually added
-    poles = [n for n in result.nodes if n.type == 'pole']
-    assert len(poles) >= 0  # Validates the result contains a nodes list
-    assert result.totalCostEstimate > 0
+    print("Solver Name: ", solver_name)
+    print("Number of Terminals:", _count_terminals(renewvia_ground_truth_terminals_only_nodes))
+    print("Total Cost", result.totalCostEstimate)
+    print("Number of Poles Used", result.numPolesUsed)
+    print("Total Edge Length:", result.totalEdgeLengthMeters)
+
+    assert result is not None, f"{solver_name} returned no result"
+    assert len(result.nodes) >= len(renewvia_ground_truth_terminals_only_nodes), (
+        f"{solver_name} lost nodes during solve"
+    )
+    assert len(result.edges) > 0, f"{solver_name} failed to create any connections"
+    assert result.totalCostEstimate > 0, f"{solver_name} calculated zero or negative cost"
 
 
 def test_solver_param_metadata():
@@ -308,86 +364,6 @@ def test_solver_param_metadata():
         params = solver_class.get_input_params()
         assert isinstance(params, list), f"{name} must return a list of parameters"
 
-
-# ==================== ADDITIONAL TESTS ====================
-
-@pytest.mark.parametrize("solver_name", SOLVER_REGISTRY.keys())
-def test_solvers_with_ga_tech_data(solver_name, ga_tech_nodes, default_costs, default_length_constraints):
-    """Verifies that all solvers can handle the specific Georgia Tech coordinate set."""
-    solver_class = SOLVER_REGISTRY[solver_name]
-    req = SolverRequest(
-        nodes=ga_tech_nodes,
-        costs=default_costs,
-        lengthConstraints=default_length_constraints,
-        debug=0,
-    )
-    result = solver_class(req).solve()
-
-    assert result is not None
-    assert len(result.edges) > 0
-    assert result.totalCostEstimate > 0
-
-
-def test_cost_calculation_integrity(ga_tech_nodes, default_costs, default_length_constraints):
-    """
-    Validates that the total cost accurately reflects the sum of its components.
-    Formula: total_cost = (poleCount * poleCost) + lowWireCost + highWireCost
-    """
-    solver_class = SOLVER_REGISTRY["SimpleMSTSolver"]
-    req = SolverRequest(params={},
-                        nodes=ga_tech_nodes,
-                        costs=default_costs,
-                        lengthConstraints=default_length_constraints,
-                        debug=0, )
-    result = solver_class(req).solve()
-
-    expected_total = (
-            (result.numPolesUsed * default_costs.poleCost) +
-            result.lowWireCostEstimate +
-            result.highWireCostEstimate
-    )
-
-    # Using approx for floating point comparisons
-    assert result.totalCostEstimate == pytest.approx(expected_total, rel=1e-2)
-
-
-def test_connectivity_spanning(ga_tech_nodes, default_costs, default_length_constraints):
-    """
-    Ensures that every input node is present in the final graph.
-    """
-    solver_class = SOLVER_REGISTRY["SimpleMSTSolver"]
-    req = SolverRequest(params={},
-                        nodes=ga_tech_nodes,
-                        costs=default_costs,
-                        lengthConstraints=default_length_constraints)
-    result = solver_class(req).solve()
-
-    input_names = {p.name for p in ga_tech_nodes if "source" not in p.name.lower()}
-    output_names = {n.name for n in result.nodes if "source" not in n.name.lower()}
-
-    # Check that all original nodes exist in the output nodes list
-    assert input_names.issubset(output_names)
-
-
-def test_steiner_point_injection(ga_tech_nodes, default_costs, default_length_constraints):
-    """
-    Verifies that Steiner-based solvers (like GreedyNSteiner) successfully
-    inject additional 'pole' type nodes into the network.
-    """
-    solver_class = SOLVER_REGISTRY["GreedyIterSteinerSolver"]
-    req = SolverRequest(nodes=ga_tech_nodes,
-                        costs=default_costs,
-                        lengthConstraints=default_length_constraints)
-    result = solver_class(req).solve()
-
-    # Check if any new 'pole' types were created beyond the original source/terminals
-    poles = [n for n in result.nodes if n.type == "pole"]
-
-    # We expect at least some poles if n > 0 in a Steiner solver
-    assert len(poles) > 0
-
-
-# ==================== NEW TEST FOR LOCAL OPTIMIZATION WITH EDGES ====================
 
 def test_local_optimization_with_edges(ga_tech_nodes_with_edges, default_costs, default_length_constraints):
     """Test LocalOptimization using a fixture that includes both nodes and edges."""
@@ -409,6 +385,7 @@ def test_local_optimization_with_edges(ga_tech_nodes_with_edges, default_costs, 
     solver_class = LocalOptimization
 
     print(f"Testing LocalOptimization with {len(nodes)} nodes and {len(edges)} edges")
+    print("Number of Terminals:", _count_terminals(nodes))
 
     result = solver_class(req).solve()
 

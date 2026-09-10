@@ -203,6 +203,7 @@ class BaseMiniGridSolver(
             totalLowVoltageMeters=round(total_low_m, 2),
             totalHighVoltageMeters=round(total_high_m, 2),
             numPolesUsed=num_poles,
+            totalEdgeLengthMeters=round(total_low_m + total_high_m, 2),
             poleCostEstimate=round(num_poles * pole_cost, 2),
             lowWireCostEstimate=round(low_wire_cost, 2),
             highWireCostEstimate=round(high_wire_cost, 2),

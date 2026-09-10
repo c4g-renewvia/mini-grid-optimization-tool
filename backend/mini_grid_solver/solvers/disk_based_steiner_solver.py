@@ -1129,11 +1129,11 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
         disk_center_pole_coords, disk_center_names = self._minimum_disk_cover(term_coords, R=R)
 
+        # ── Step 2: Attach terminals to closest poles (FIXED node indexing) ────────
         final_mst, backbone_coords, backbone_names = self.greedy_steiner_for_backbone(
             disk_center_pole_coords, disk_center_names
         )
 
-        # ── Attach terminals to closest poles (FIXED node indexing) ────────
         best_graph = self.attach_terminals(backbone_coords, backbone_names)
 
         # ── Step 3: Post-solve gradient descent optimization ────────────────
