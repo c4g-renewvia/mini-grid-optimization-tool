@@ -285,7 +285,7 @@ def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, default_co
         nodes=kml_nodes_random_test_set,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=0,
+        debug=2,
     )
 
     result = solver_class(req).solve()
@@ -310,7 +310,7 @@ def test_all_solvers_with_bc_ground_truth_kml(solver_name, kml_nodes, default_co
         nodes=kml_nodes,
         costs=default_costs,
         lengthConstraints=default_length_constraints,
-        debug=0,
+        debug=2,
     )
 
     result = solver_class(req).solve()

@@ -1002,29 +1002,6 @@ export default function MiniGridToolPage() {
     };
   });
   // ==================== SOLVERS & PARAMETERS ====================
-  useEffect(() => {
-    fetch(
-      process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers'
-    )
-      .then((res) => res.json())
-      .then((data) => setSolvers(data.solvers || []));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedSolver) {
-      setParamValues({});
-      return;
-    }
-
-    // Changed from Record<string, number> to Record<string, any>
-    const initial: Record<string, any> = {};
-    selectedSolver.params.forEach((p) => {
-      initial[p.name] = p.default;
-    });
-
-    setParamValues(initial);
-  }, [selectedSolverName, selectedSolver]);
-
   const updateParam = (paramName: string, value: any) => {
     const paramDef = selectedSolver?.params.find((p) => p.name === paramName);
     if (!paramDef) return;
@@ -1122,8 +1099,7 @@ export default function MiniGridToolPage() {
   }, []);
 
   // ==================== FILE HANDLING, SOLVER, etc. ====================
-  const getSolversURL =
-    process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers';
+  const getSolversURL = 'http://localhost:8000/solvers';
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -1262,7 +1238,7 @@ export default function MiniGridToolPage() {
             ],
           },
           { name: 'DiskBasedSteinerSolver', params: [] },
-          { name: 'GreedyIterSteinerSolver', params: [] },
+          { name: 'TheoreticalBoundSteinerSolver', params: [] },
         ]);
       }
     };
@@ -1989,8 +1965,7 @@ export default function MiniGridToolPage() {
     setComputingMiniGrid(true);
     setCalcError(null);
 
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/solve';
+    const backendUrl = 'http://localhost:8000/solve';
 
     const payload: SolverRequest = {
       solver: 'SimpleMSTSolver',
@@ -2087,9 +2062,7 @@ export default function MiniGridToolPage() {
     setComputingMiniGrid(true);
     setCalcError(null);
 
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_LOCAL_OPT_URL ||
-      'http://localhost:8000/local_optimization';
+    const backendUrl = 'http://localhost:8000/local_optimization';
 
     const payload: SolverRequest = {
       solver: 'SimpleMSTSolver',
@@ -2208,8 +2181,7 @@ export default function MiniGridToolPage() {
     }); //  clear previous breakdown
     setCalcError(null);
 
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/solve';
+    const backendUrl = 'http://localhost:8000/solve';
 
     const startTime = performance.now();
     const debug = 0;
