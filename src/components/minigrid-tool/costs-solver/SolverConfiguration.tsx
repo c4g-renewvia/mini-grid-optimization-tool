@@ -31,6 +31,7 @@ interface SolverConfigurationProps {
   computing: boolean;
   calcError?: string | null;
   miniGridNodes: MiniGridNode[];
+  solverElapsedSeconds: number | null;
 }
 
 export default function SolverConfiguration({
@@ -46,7 +47,15 @@ export default function SolverConfiguration({
   computing,
   calcError,
   miniGridNodes,
+  solverElapsedSeconds,
 }: SolverConfigurationProps) {
+  const formatElapsed = (seconds: number) => {
+    const wholeSeconds = Math.floor(seconds);
+    const minutes = Math.floor(wholeSeconds / 60);
+    const remainingSeconds = wholeSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+  };
+
   const selectedSolver = solvers.find((s) => s.name === selectedSolverName);
 
   return (
@@ -220,7 +229,9 @@ export default function SolverConfiguration({
           >
             <div className='flex items-center gap-3'>
               <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent' />
-              <span>Solving...</span>
+              <span>
+                Solving... {formatElapsed(solverElapsedSeconds ?? 0)}
+              </span>
             </div>
           </span>
         </button>
@@ -231,6 +242,11 @@ export default function SolverConfiguration({
         <p className='mt-4 text-center text-xs text-zinc-500 dark:text-zinc-400'>
           Beta • Low Voltage Only • Limited to Single Power Source
         </p>
+        {solverElapsedSeconds !== null && !computing && (
+          <p className='mt-2 text-center text-sm font-medium text-zinc-700 dark:text-zinc-300'>
+            Solver completed in {formatElapsed(solverElapsedSeconds)} seconds
+          </p>
+        )}
       </div>
 
       {calcError && (

@@ -191,6 +191,11 @@ export default function MiniGridToolPage() {
   const [useExistingPoles, setUseExistingPoles] = useState(false);
 
   const [calcError, setCalcError] = useState<string | null>(null);
+  const [solverElapsedSeconds, setSolverElapsedSeconds] = useState<number | null>(
+    null
+  );
+  const [solverElapsedDisplaySeconds, setSolverElapsedDisplaySeconds] =
+    useState<number>(0);
 
   const [manualPoint, setManualPoint] = useState({
     name: '',
@@ -2180,6 +2185,9 @@ export default function MiniGridToolPage() {
       grandTotal: 0,
     }); //  clear previous breakdown
     setCalcError(null);
+    setSolverElapsedSeconds(null);
+    const solverTimerStart = performance.now();
+    setSolverElapsedDisplaySeconds(0);
 
     const backendUrl = 'http://localhost:8000/solve';
 
@@ -2217,6 +2225,11 @@ export default function MiniGridToolPage() {
     };
 
     try {
+      const intervalId = window.setInterval(() => {
+        const elapsed = (performance.now() - solverTimerStart) / 1000;
+        setSolverElapsedDisplaySeconds(elapsed);
+      }, 100);
+
       const res = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2231,6 +2244,10 @@ export default function MiniGridToolPage() {
       const endTime = performance.now();
       const durationMs = endTime - startTime;
       const durationSec = (durationMs / 1000).toFixed(2);
+      const elapsedSeconds = (endTime - solverTimerStart) / 1000;
+      setSolverElapsedSeconds(elapsedSeconds);
+      setSolverElapsedDisplaySeconds(elapsedSeconds);
+      window.clearInterval(intervalId);
 
       console.log(
         `%c[API Request] Solve took ${durationMs.toFixed(0)} ms (${durationSec} sec)`,
@@ -2302,6 +2319,7 @@ export default function MiniGridToolPage() {
 
       shouldAutoFit.current = true;
     } catch (err: unknown) {
+      setSolverElapsedSeconds((performance.now() - solverTimerStart) / 1000);
       const message =
         err instanceof Error ? err.message : 'Failed to run solver';
       setCalcError(message);
@@ -2911,6 +2929,11 @@ export default function MiniGridToolPage() {
                 computing={computingMiniGrid}
                 calcError={calcError}
                 miniGridNodes={miniGridNodes}
+                solverElapsedSeconds={
+                  computingMiniGrid
+                    ? solverElapsedDisplaySeconds
+                    : solverElapsedSeconds
+                }
               />
 
               {/* 3. Export & Summary Section */}
