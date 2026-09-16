@@ -1200,6 +1200,7 @@ class PostProcessingMixin:
                 print(f"\n--- Iteration {iteration} ---")
 
             graph = self._pole_gradient_optimizer(graph)
+            graph = self._pole_block_coordinate_pass(graph)
             graph = self._merge_collinear_pole_chains(graph)
             graph = self.split_long_edges_w_poles(graph)
             graph = self._drop_redundant_poles(graph)
@@ -1243,5 +1244,105 @@ class PostProcessingMixin:
         if self.request.debug >= 1:
             print(f"\n=== Post-opt finished after {iteration} iteration(s). "
                   f"Final cost: {final_cost:.2f} ===\n")
+
+        return graph
+
+    def _pole_block_coordinate_pass(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
+        """
+        Block-coordinate pole optimization: optimize small connected pole neighborhoods together.
+        This helps escape single-pole local minima left by sequential updates.
+        """
+        if graph.number_of_nodes() == 0:
+            return graph
+
+        pole_nodes = [n for n, d in graph.nodes(data=True) if d.get("type") == "pole"]
+        if not pole_nodes:
+            return graph
+
+        und = graph.to_undirected() if isinstance(graph, nx.DiGraph) else graph
+        nbr_map = {}
+        for p in pole_nodes:
+            nbrs = [q for q in und.neighbors(p) if und.nodes[q].get("type") == "pole"]
+            nbr_map[p] = nbrs
+
+        seen_blocks = set()
+        blocks = []
+        for p in pole_nodes:
+            deg = len(nbr_map[p])
+            if deg == 0:
+                continue
+            if deg == 1:
+                q = nbr_map[p][0]
+                block = tuple(sorted((p, q)))
+            else:
+                # 3-node local neighborhood around branching/chain points
+                nbrs = sorted(nbr_map[p], key=lambda n: n)
+                block = tuple(sorted((p, nbrs[0], nbrs[-1])))
+            if block not in seen_blocks:
+                seen_blocks.add(block)
+                blocks.append(list(block))
+
+        if not blocks:
+            return graph
+
+        base_cost = self._compute_total_cost(graph)
+        accepted = 0
+        max_shift_m = 35.0
+        shift_grid = [-max_shift_m, -max_shift_m / 2, 0.0, max_shift_m / 2, max_shift_m]
+
+        for block in blocks:
+            # Keep runtime bounded on large instances
+            if len(pole_nodes) >= 60 and len(block) > 2:
+                continue
+
+            trial = graph.copy()
+            original = {n: (trial.nodes[n]["lat"], trial.nodes[n]["lng"]) for n in block if n in trial}
+            if len(original) != len(block):
+                continue
+
+            ref_lat = float(np.mean([lat for lat, _ in original.values()]))
+            m_per_deg_lon = 111111.0 * np.cos(np.radians(ref_lat))
+            if abs(m_per_deg_lon) < 1e-6:
+                m_per_deg_lon = 1e-6
+
+            best_local_cost = base_cost
+            best_assign = None
+
+            # Shared translation search (block move together), then edge constraints prune.
+            for dn in shift_grid:
+                for de in shift_grid:
+                    dlat = dn / 111111.0
+                    dlon = de / m_per_deg_lon
+
+                    for n in block:
+                        lat0, lon0 = original[n]
+                        trial.nodes[n]["lat"] = float(lat0 + dlat)
+                        trial.nodes[n]["lng"] = float(lon0 + dlon)
+
+                    invalid = False
+                    for n in block:
+                        self._recompute_edges_for_node(trial, n)
+                        if not self._all_edges_valid(trial, n):
+                            invalid = True
+                            break
+                    if invalid:
+                        continue
+
+                    cost = self._compute_total_cost(trial)
+                    if cost < best_local_cost - 1e-3:
+                        best_local_cost = cost
+                        best_assign = {n: (trial.nodes[n]["lat"], trial.nodes[n]["lng"]) for n in block}
+
+            if best_assign is not None:
+                for n, (lat, lon) in best_assign.items():
+                    graph.nodes[n]["lat"] = float(lat)
+                    graph.nodes[n]["lng"] = float(lon)
+                base_cost = best_local_cost
+                accepted += 1
+
+        if self.request.debug >= 1:
+            print(f"  _pole_block_coordinate_pass: accepted {accepted}/{len(blocks)} block moves")
+        if self.request.debug >= 2 and accepted > 0:
+            self._plot_current_graph(graph, title="After block-coordinate pole pass")
 
         return graph

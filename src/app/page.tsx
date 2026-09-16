@@ -1379,6 +1379,7 @@ export default function MiniGridToolPage() {
     }
 
     const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
+    const folders = Array.from(xml.getElementsByTagName('Folder'));
     const nodes: MiniGridNode[] = [];
     const edges: MiniGridEdge[] = [];
 
@@ -1402,9 +1403,20 @@ export default function MiniGridToolPage() {
       usedHighCostPerMeter: undefined,
     };
 
+    const folderNameByPlacemark = new Map<Element, string>();
+    folders.forEach((folder) => {
+      const folderName =
+        folder.getElementsByTagName('name')[0]?.textContent?.trim().toLowerCase() ||
+        '';
+      Array.from(folder.getElementsByTagName('Placemark')).forEach((pm) => {
+        if (!folderNameByPlacemark.has(pm)) folderNameByPlacemark.set(pm, folderName);
+      });
+    });
+
     placemarks.forEach((pm) => {
       const nameEl = pm.getElementsByTagName('name')[0];
       const name = nameEl?.textContent?.trim() || '';
+      const folderName = folderNameByPlacemark.get(pm) || '';
 
       const descEl = pm.getElementsByTagName('description')[0];
       let descText = descEl?.textContent?.trim() || '';
@@ -1494,7 +1506,7 @@ export default function MiniGridToolPage() {
           return; // done with summary
         }
 
-        // Regular node (source/terminal/pole)
+        // Regular node (source/terminal/pole) + folder-based fallback typing
         const descLines = descText.split(/\n+/).map((l) => l.trim());
         let type: 'source' | 'terminal' | 'pole' = 'terminal';
         let index = -1;
@@ -1508,33 +1520,38 @@ export default function MiniGridToolPage() {
           }
         });
 
+        if (
+          folderName.includes('poles') ||
+          /^p\d+$/i.test(name) ||
+          name.toLowerCase().startsWith('pole')
+        ) {
+          type = 'pole';
+        } else if (
+          folderName.includes('power generation point') ||
+          name.toLowerCase().includes('generation site')
+        ) {
+          type = 'source';
+        }
+
         nodes.push({ index, lat, lng, name, type });
       } else if (lineEl) {
-        // Edge parsing (unchanged – your existing code)
+        // Edge parsing
         const coordsText =
           lineEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() ||
           '';
         const coords = coordsText.split(/\s+/).filter((c) => c);
         if (coords.length < 2) return;
 
-        const [startLngStr, startLatStr] = coords[0].split(',');
-        const [endLngStr, endLatStr] = coords[1].split(',');
-
         const findNode = (lat: number, lng: number) =>
           nodes.find(
             (n) => Math.abs(n.lat - lat) < 1e-9 && Math.abs(n.lng - lng) < 1e-9
           );
 
-        const start = findNode(
-          parseFloat(startLatStr),
-          parseFloat(startLngStr)
-        );
-        const end = findNode(parseFloat(endLatStr), parseFloat(endLngStr));
-
-        if (!start || !end) return;
-
         let voltage: 'low' | 'high' = 'low';
-        if (name.toLowerCase().includes('(high)')) voltage = 'high';
+        const lineScope = `${name.toLowerCase()} ${folderName}`;
+        if (lineScope.includes('(high)') || lineScope.includes('hv') || lineScope.includes('high')) {
+          voltage = 'high';
+        }
 
         let lengthMeters = 0;
         const descLines = descText.split(/\n+/).map((l) => l.trim());
@@ -1545,7 +1562,21 @@ export default function MiniGridToolPage() {
           }
         });
 
-        edges.push({ start, end, lengthMeters, voltage });
+        for (let i = 0; i < coords.length - 1; i++) {
+          const [startLngStr, startLatStr] = coords[i].split(',');
+          const [endLngStr, endLatStr] = coords[i + 1].split(',');
+          const start = findNode(parseFloat(startLatStr), parseFloat(startLngStr));
+          const end = findNode(parseFloat(endLatStr), parseFloat(endLngStr));
+          if (!start || !end) continue;
+
+          edges.push({
+            start,
+            end,
+            lengthMeters:
+              lengthMeters > 0 ? lengthMeters / (coords.length - 1) : 0,
+            voltage,
+          });
+        }
       }
     });
 
