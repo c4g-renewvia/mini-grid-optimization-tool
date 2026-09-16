@@ -23,6 +23,7 @@ dependencies = [
     "optype==0.17.0",
     "packaging==26.0",
     "pandas==3.0.2",
+    "pandas-stubs~=3.0.2",
     "pillow==12.2.0",
     "platformdirs>=4.0",
     "pluggy==1.6.0",

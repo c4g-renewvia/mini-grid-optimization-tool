@@ -4,6 +4,7 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+import mini_grid_solver.solvers  # noqa: F401 - import for solver registration side effects
 from mini_grid_solver.solvers.local_opt import LocalOptimization
 from mini_grid_solver.utils.registry import SOLVER_REGISTRY
 from mini_grid_solver.utils.models import SolverRequest, Solver, SolverResult

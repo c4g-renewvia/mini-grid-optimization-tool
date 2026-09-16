@@ -21,6 +21,7 @@ interface SolverSectionProps {
   computing: boolean;
   calcError: string | null;
   miniGridNodes: MiniGridNode[];
+  solverElapsedSeconds: number | null;
 }
 
 export default function SolverSection({
@@ -38,6 +39,7 @@ export default function SolverSection({
                                         computing,
                                         calcError,
                                         miniGridNodes,
+                                        solverElapsedSeconds,
                                       }: SolverSectionProps) {
   return (
     <section>
@@ -79,6 +81,7 @@ export default function SolverSection({
           computing={computing}
           calcError={calcError}
           miniGridNodes={miniGridNodes}
+          solverElapsedSeconds={solverElapsedSeconds}
         />
       )}
     </section>

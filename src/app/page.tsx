@@ -191,6 +191,11 @@ export default function MiniGridToolPage() {
   const [useExistingPoles, setUseExistingPoles] = useState(false);
 
   const [calcError, setCalcError] = useState<string | null>(null);
+  const [solverElapsedSeconds, setSolverElapsedSeconds] = useState<number | null>(
+    null
+  );
+  const [solverElapsedDisplaySeconds, setSolverElapsedDisplaySeconds] =
+    useState<number>(0);
 
   const [manualPoint, setManualPoint] = useState({
     name: '',
@@ -1002,29 +1007,6 @@ export default function MiniGridToolPage() {
     };
   });
   // ==================== SOLVERS & PARAMETERS ====================
-  useEffect(() => {
-    fetch(
-      process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers'
-    )
-      .then((res) => res.json())
-      .then((data) => setSolvers(data.solvers || []));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedSolver) {
-      setParamValues({});
-      return;
-    }
-
-    // Changed from Record<string, number> to Record<string, any>
-    const initial: Record<string, any> = {};
-    selectedSolver.params.forEach((p) => {
-      initial[p.name] = p.default;
-    });
-
-    setParamValues(initial);
-  }, [selectedSolverName, selectedSolver]);
-
   const updateParam = (paramName: string, value: any) => {
     const paramDef = selectedSolver?.params.find((p) => p.name === paramName);
     if (!paramDef) return;
@@ -1122,8 +1104,7 @@ export default function MiniGridToolPage() {
   }, []);
 
   // ==================== FILE HANDLING, SOLVER, etc. ====================
-  const getSolversURL =
-    process.env.NEXT_PUBLIC_GET_SOLVERS || 'http://localhost:8000/solvers';
+  const getSolversURL = 'http://localhost:8000/solvers';
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -1262,7 +1243,7 @@ export default function MiniGridToolPage() {
             ],
           },
           { name: 'DiskBasedSteinerSolver', params: [] },
-          { name: 'GreedyIterSteinerSolver', params: [] },
+          { name: 'TheoreticalBoundSteinerSolver', params: [] },
         ]);
       }
     };
@@ -1398,6 +1379,7 @@ export default function MiniGridToolPage() {
     }
 
     const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
+    const folders = Array.from(xml.getElementsByTagName('Folder'));
     const nodes: MiniGridNode[] = [];
     const edges: MiniGridEdge[] = [];
 
@@ -1421,9 +1403,20 @@ export default function MiniGridToolPage() {
       usedHighCostPerMeter: undefined,
     };
 
+    const folderNameByPlacemark = new Map<Element, string>();
+    folders.forEach((folder) => {
+      const folderName =
+        folder.getElementsByTagName('name')[0]?.textContent?.trim().toLowerCase() ||
+        '';
+      Array.from(folder.getElementsByTagName('Placemark')).forEach((pm) => {
+        if (!folderNameByPlacemark.has(pm)) folderNameByPlacemark.set(pm, folderName);
+      });
+    });
+
     placemarks.forEach((pm) => {
       const nameEl = pm.getElementsByTagName('name')[0];
       const name = nameEl?.textContent?.trim() || '';
+      const folderName = folderNameByPlacemark.get(pm) || '';
 
       const descEl = pm.getElementsByTagName('description')[0];
       let descText = descEl?.textContent?.trim() || '';
@@ -1513,7 +1506,7 @@ export default function MiniGridToolPage() {
           return; // done with summary
         }
 
-        // Regular node (source/terminal/pole)
+        // Regular node (source/terminal/pole) + folder-based fallback typing
         const descLines = descText.split(/\n+/).map((l) => l.trim());
         let type: 'source' | 'terminal' | 'pole' = 'terminal';
         let index = -1;
@@ -1527,33 +1520,38 @@ export default function MiniGridToolPage() {
           }
         });
 
+        if (
+          folderName.includes('poles') ||
+          /^p\d+$/i.test(name) ||
+          name.toLowerCase().startsWith('pole')
+        ) {
+          type = 'pole';
+        } else if (
+          folderName.includes('power generation point') ||
+          name.toLowerCase().includes('generation site')
+        ) {
+          type = 'source';
+        }
+
         nodes.push({ index, lat, lng, name, type });
       } else if (lineEl) {
-        // Edge parsing (unchanged – your existing code)
+        // Edge parsing
         const coordsText =
           lineEl.getElementsByTagName('coordinates')[0]?.textContent?.trim() ||
           '';
         const coords = coordsText.split(/\s+/).filter((c) => c);
         if (coords.length < 2) return;
 
-        const [startLngStr, startLatStr] = coords[0].split(',');
-        const [endLngStr, endLatStr] = coords[1].split(',');
-
         const findNode = (lat: number, lng: number) =>
           nodes.find(
             (n) => Math.abs(n.lat - lat) < 1e-9 && Math.abs(n.lng - lng) < 1e-9
           );
 
-        const start = findNode(
-          parseFloat(startLatStr),
-          parseFloat(startLngStr)
-        );
-        const end = findNode(parseFloat(endLatStr), parseFloat(endLngStr));
-
-        if (!start || !end) return;
-
         let voltage: 'low' | 'high' = 'low';
-        if (name.toLowerCase().includes('(high)')) voltage = 'high';
+        const lineScope = `${name.toLowerCase()} ${folderName}`;
+        if (lineScope.includes('(high)') || lineScope.includes('hv') || lineScope.includes('high')) {
+          voltage = 'high';
+        }
 
         let lengthMeters = 0;
         const descLines = descText.split(/\n+/).map((l) => l.trim());
@@ -1564,7 +1562,21 @@ export default function MiniGridToolPage() {
           }
         });
 
-        edges.push({ start, end, lengthMeters, voltage });
+        for (let i = 0; i < coords.length - 1; i++) {
+          const [startLngStr, startLatStr] = coords[i].split(',');
+          const [endLngStr, endLatStr] = coords[i + 1].split(',');
+          const start = findNode(parseFloat(startLatStr), parseFloat(startLngStr));
+          const end = findNode(parseFloat(endLatStr), parseFloat(endLngStr));
+          if (!start || !end) continue;
+
+          edges.push({
+            start,
+            end,
+            lengthMeters:
+              lengthMeters > 0 ? lengthMeters / (coords.length - 1) : 0,
+            voltage,
+          });
+        }
       }
     });
 
@@ -1989,8 +2001,7 @@ export default function MiniGridToolPage() {
     setComputingMiniGrid(true);
     setCalcError(null);
 
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/solve';
+    const backendUrl = 'http://localhost:8000/solve';
 
     const payload: SolverRequest = {
       solver: 'SimpleMSTSolver',
@@ -2087,9 +2098,7 @@ export default function MiniGridToolPage() {
     setComputingMiniGrid(true);
     setCalcError(null);
 
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_LOCAL_OPT_URL ||
-      'http://localhost:8000/local_optimization';
+    const backendUrl = 'http://localhost:8000/local_optimization';
 
     const payload: SolverRequest = {
       solver: 'SimpleMSTSolver',
@@ -2207,9 +2216,11 @@ export default function MiniGridToolPage() {
       grandTotal: 0,
     }); //  clear previous breakdown
     setCalcError(null);
+    setSolverElapsedSeconds(null);
+    const solverTimerStart = performance.now();
+    setSolverElapsedDisplaySeconds(0);
 
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/solve';
+    const backendUrl = 'http://localhost:8000/solve';
 
     const startTime = performance.now();
     const debug = 0;
@@ -2245,6 +2256,11 @@ export default function MiniGridToolPage() {
     };
 
     try {
+      const intervalId = window.setInterval(() => {
+        const elapsed = (performance.now() - solverTimerStart) / 1000;
+        setSolverElapsedDisplaySeconds(elapsed);
+      }, 100);
+
       const res = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2259,6 +2275,10 @@ export default function MiniGridToolPage() {
       const endTime = performance.now();
       const durationMs = endTime - startTime;
       const durationSec = (durationMs / 1000).toFixed(2);
+      const elapsedSeconds = (endTime - solverTimerStart) / 1000;
+      setSolverElapsedSeconds(elapsedSeconds);
+      setSolverElapsedDisplaySeconds(elapsedSeconds);
+      window.clearInterval(intervalId);
 
       console.log(
         `%c[API Request] Solve took ${durationMs.toFixed(0)} ms (${durationSec} sec)`,
@@ -2330,6 +2350,7 @@ export default function MiniGridToolPage() {
 
       shouldAutoFit.current = true;
     } catch (err: unknown) {
+      setSolverElapsedSeconds((performance.now() - solverTimerStart) / 1000);
       const message =
         err instanceof Error ? err.message : 'Failed to run solver';
       setCalcError(message);
@@ -2939,6 +2960,11 @@ export default function MiniGridToolPage() {
                 computing={computingMiniGrid}
                 calcError={calcError}
                 miniGridNodes={miniGridNodes}
+                solverElapsedSeconds={
+                  computingMiniGrid
+                    ? solverElapsedDisplaySeconds
+                    : solverElapsedSeconds
+                }
               />
 
               {/* 3. Export & Summary Section */}
