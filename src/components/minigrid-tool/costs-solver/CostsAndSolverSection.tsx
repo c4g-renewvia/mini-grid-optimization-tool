@@ -45,6 +45,7 @@ interface CostsAndSolverSectionProps {
   computing: boolean;
   calcError: string | null;
   miniGridNodes: MiniGridNode[];
+  solverElapsedSeconds: number | null;
 }
 
 export default function CostsAndSolverSection({
@@ -81,6 +82,7 @@ export default function CostsAndSolverSection({
   computing,
   calcError,
   miniGridNodes,
+  solverElapsedSeconds,
 }: CostsAndSolverSectionProps) {
   return (
     <section>
@@ -119,9 +121,7 @@ export default function CostsAndSolverSection({
             onLowVoltageCostChange={onLowVoltageCostChange}
             onHighVoltageCostChange={onHighVoltageCostChange}
             onRandomCosts={onRandomCosts}
-            lowVoltagePoleToPoleMaxLength={
-              lowVoltagePoleToPoleMaxLength
-            }
+            lowVoltagePoleToPoleMaxLength={lowVoltagePoleToPoleMaxLength}
             lowVoltagePoleToTerminalMaxLength={
               lowVoltagePoleToTerminalMaxLength
             }
@@ -164,6 +164,7 @@ export default function CostsAndSolverSection({
             computing={computing}
             calcError={calcError}
             miniGridNodes={miniGridNodes}
+            solverElapsedSeconds={solverElapsedSeconds}
           />
         </div>
       )}
