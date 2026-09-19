@@ -14,12 +14,12 @@ export interface MiniGridNode {
   name: string;
   lat: number;
   lng: number;
-  type: 'source' | 'terminal' | 'pole';
+  type: 'source' | 'terminal' | 'pole' | 'info';
 }
 
 // ====================== SERVER / BACKEND CONTRACT TYPES ======================
 
-export type NodeType = 'source' | 'terminal' | 'pole';
+export type NodeType = 'source' | 'terminal' | 'pole' | 'info';
 
 export interface LengthConstraintsBase {
   poleToPoleMaxLength: number;
@@ -138,7 +138,7 @@ export interface ManualPoint {
   name: string;
   lat: string;
   lng: string;
-  type: 'source' | 'terminal' | 'pole';
+  type: 'source' | 'terminal' | 'pole' | 'info';
 }
 
 export interface PendingPoint {
@@ -148,7 +148,7 @@ export interface PendingPoint {
 
 export interface NewPointDetails {
   name: string;
-  type: 'source' | 'terminal' | 'pole';
+  type: 'source' | 'terminal' | 'pole' | 'info';
 }
 
 // ====================== STATE SNAPSHOT FOR HISTORY ======================
