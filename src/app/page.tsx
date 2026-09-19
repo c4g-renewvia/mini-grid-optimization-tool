@@ -565,7 +565,7 @@ export default function MiniGridToolPage() {
         lat: number;
         lng: number;
         name: string;
-        type?: 'source' | 'terminal' | 'pole';
+        type?: 'source' | 'terminal' | 'pole' | 'info' | 'pme';
       },
       map: google.maps.Map
     ) => {
@@ -1355,11 +1355,22 @@ export default function MiniGridToolPage() {
     edges: MiniGridEdge[];
     costBreakdown: CostBreakdown;
   } => {
+    const sanitizeKml = (raw: string): string =>
+      raw
+        // Fix common malformed gx payloads seen in field exports.
+        .replace(/<\s*gx:drawOrder[^<]*<\/\s*gx:drawOrder\s*>/gi, '')
+        .replace(/<\s*gx:altitudeMode[^<]*<\/\s*gx:altitudeMode\s*>/gi, '')
+        // Remove remaining gx namespaced tags (open/close/self-closing).
+        .replace(/<\s*\/?\s*gx:[^>]*>/gi, '');
+
     const parser = new DOMParser();
-    const xml = parser.parseFromString(text, 'application/xml');
+    const xml = parser.parseFromString(sanitizeKml(text), 'application/xml');
+    console.log('XML:', xml);
 
     if (xml.getElementsByTagName('parsererror').length > 0) {
-      console.error('KML parsing error');
+      const parserErrorText =
+        parserErrors[0]?.textContent?.trim() || 'Unknown XML parser error';
+      console.error('KML parsing error:', parserErrorText);
       return {
         nodes: [],
         edges: [],
@@ -1506,29 +1517,46 @@ export default function MiniGridToolPage() {
           return; // done with summary
         }
 
-        // Regular node (source/terminal/pole) + folder-based fallback typing
+        // Regular node (source/terminal/pole/info) + folder-based fallback typing
         const descLines = descText.split(/\n+/).map((l) => l.trim());
-        let type: 'source' | 'terminal' | 'pole' = 'terminal';
+        let type: 'source' | 'terminal' | 'pole' | 'info' | 'pme' = 'terminal';
         let index = -1;
 
         descLines.forEach((l) => {
           if (l.startsWith('Type:')) {
-            type = l.split(':')[1].trim() as 'source' | 'terminal' | 'pole';
+            const parsedType = l.split(':')[1].trim().toLowerCase();
+            if (
+              parsedType === 'source' ||
+              parsedType === 'terminal' ||
+              parsedType === 'pole' ||
+              parsedType === 'info' ||
+              parsedType === 'pme'
+            ) {
+              type = parsedType;
+            }
           }
           if (l.startsWith('Index:')) {
             index = parseInt(l.split(':')[1].trim());
           }
         });
 
-        if (
+        const lowerName = name.toLowerCase();
+        const sourceContext = `${folderName} ${lowerName}`;
+
+        if (folderName.includes('design information')) {
+          type = 'info';
+        }
+        else if (folderName.includes('pme')) {
+          type = 'pme';
+        } else if (
           folderName.includes('poles') ||
           /^p\d+$/i.test(name) ||
-          name.toLowerCase().startsWith('pole')
+          lowerName.startsWith('pole')
         ) {
           type = 'pole';
         } else if (
-          folderName.includes('power generation point') ||
-          name.toLowerCase().includes('generation site')
+          lowerName.includes('power') ||
+          lowerName.includes('generation site')
         ) {
           type = 'source';
         }
