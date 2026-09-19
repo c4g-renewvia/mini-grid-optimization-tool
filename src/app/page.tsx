@@ -1365,11 +1365,10 @@ export default function MiniGridToolPage() {
 
     const parser = new DOMParser();
     const xml = parser.parseFromString(sanitizeKml(text), 'application/xml');
-    console.log('XML:', xml);
 
     if (xml.getElementsByTagName('parsererror').length > 0) {
       const parserErrorText =
-        parserErrors[0]?.textContent?.trim() || 'Unknown XML parser error';
+        xml.getElementsByTagName('parsererror')[0]?.textContent?.trim() || 'Unknown XML parser error';
       console.error('KML parsing error:', parserErrorText);
       return {
         nodes: [],
