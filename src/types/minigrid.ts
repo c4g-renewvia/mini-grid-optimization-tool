@@ -14,12 +14,12 @@ export interface MiniGridNode {
   name: string;
   lat: number;
   lng: number;
-  type: 'source' | 'terminal' | 'pole' | 'info';
+  type: 'source' | 'terminal' | 'pole' | 'info' | 'pme';
 }
 
 // ====================== SERVER / BACKEND CONTRACT TYPES ======================
 
-export type NodeType = 'source' | 'terminal' | 'pole' | 'info';
+export type NodeType = 'source' | 'terminal' | 'pole' | 'info' | 'pme';
 
 export interface LengthConstraintsBase {
   poleToPoleMaxLength: number;
