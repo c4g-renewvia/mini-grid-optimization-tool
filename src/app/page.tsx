@@ -1549,15 +1549,17 @@ export default function MiniGridToolPage() {
           type = 'pme';
         } else if (
           folderName.includes('poles') ||
-          /^p\d+$/i.test(name) ||
-          lowerName.startsWith('pole')
+          folderName.includes('nodes') ||
+          /^p\d+$/i.test(name)
         ) {
-          type = 'pole';
-        } else if (
-          lowerName.includes('power') ||
-          lowerName.includes('generation site')
-        ) {
-          type = 'source';
+          if (lowerName.startsWith('pole')) {
+            type = 'pole';
+          } else if (
+            lowerName.includes('power') ||
+            lowerName.includes('generation site')
+          ) {
+            type = 'source';
+          }
         }
 
         nodes.push({ index, lat, lng, name, type });
