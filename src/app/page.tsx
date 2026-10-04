@@ -1578,15 +1578,16 @@ export default function MiniGridToolPage() {
         } else if (
           folderName.includes('poles') ||
           folderName.includes('nodes') ||
+          folderName.includes('power') ||
           /^p\d+$/i.test(name)
         ) {
-          if (lowerName.startsWith('pole')) {
-            type = 'pole';
-          } else if (
+          if (
             lowerName.includes('power') ||
-            lowerName.includes('generation site')
+            lowerName.includes('generation')
           ) {
             type = 'source';
+          } else if (lowerName.startsWith('p')) {
+            type = 'pole';
           }
         }
 
