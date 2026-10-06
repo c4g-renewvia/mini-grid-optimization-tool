@@ -2,7 +2,6 @@ import { PrismaClient } from '../../prisma/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { config as loadEnv } from 'dotenv';
-import { getPostgresConnectionString } from './postgres-connection-string';
 
 if (process.env.NODE_ENV !== 'production') {
   // vercel dev injects cloud env vars; force local env files for local development.
@@ -13,6 +12,25 @@ if (process.env.NODE_ENV !== 'production') {
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 const isOffline = process.env.OFFLINE_MODE === 'true';
+
+function getPostgresConnectionString() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) return undefined;
+
+  const url = new URL(connectionString);
+  const sslMode = url.searchParams.get('sslmode')?.toLowerCase();
+
+  if (
+    sslMode === 'prefer' ||
+    sslMode === 'require' ||
+    sslMode === 'verify-ca'
+  ) {
+    url.searchParams.set('sslmode', 'verify-full');
+    return url.toString();
+  }
+
+  return connectionString;
+}
 
 function offlineAdapter() {
   const url = process.env.DATABASE_URL;
