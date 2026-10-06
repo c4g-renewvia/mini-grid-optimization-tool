@@ -13,6 +13,25 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 const isOffline = process.env.OFFLINE_MODE === 'true';
 
+function getPostgresConnectionString() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) return undefined;
+
+  const url = new URL(connectionString);
+  const sslMode = url.searchParams.get('sslmode')?.toLowerCase();
+
+  if (
+    sslMode === 'prefer' ||
+    sslMode === 'require' ||
+    sslMode === 'verify-ca'
+  ) {
+    url.searchParams.set('sslmode', 'verify-full');
+    return url.toString();
+  }
+
+  return connectionString;
+}
+
 function offlineAdapter() {
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -25,9 +44,8 @@ function offlineAdapter() {
 
 const adapter = isOffline
   ? offlineAdapter()
-  : new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  : new PrismaPg({ connectionString: getPostgresConnectionString() });
 
-export const prisma =
-  globalForPrisma.prisma || new PrismaClient({ adapter });
+export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

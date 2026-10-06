@@ -48,25 +48,6 @@ export default function AddPointDialog({
           <div className='grid gap-4 py-4'>
             <div className='grid grid-cols-4 items-center gap-4'>
               <label
-                htmlFor='new-point-name'
-                className='text-right text-sm text-zinc-700 dark:text-zinc-300'
-              >
-                Name
-              </label>
-              <input
-                id='new-point-name'
-                value={newPointDetails.name}
-                onChange={(e) =>
-                  onNewPointDetailsChange({
-                    ...newPointDetails,
-                    name: e.target.value,
-                  })
-                }
-                className='col-span-3 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:focus:border-emerald-500'
-              />
-            </div>
-            <div className='grid grid-cols-4 items-center gap-4'>
-              <label
                 htmlFor='new-point-type'
                 className='text-right text-sm text-zinc-700 dark:text-zinc-300'
               >
@@ -88,6 +69,26 @@ export default function AddPointDialog({
                 <option value='pole'>Pole</option>
               </select>
             </div>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='new-point-name'
+                className='text-right text-sm text-zinc-700 dark:text-zinc-300'
+              >
+                Name
+              </label>
+              <input
+                id='new-point-name'
+                value={newPointDetails.name}
+                onChange={(e) =>
+                  onNewPointDetailsChange({
+                    ...newPointDetails,
+                    name: e.target.value,
+                  })
+                }
+                className='col-span-3 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:focus:border-emerald-500'
+              />
+            </div>
+
           </div>
           <DialogFooter>
             <button

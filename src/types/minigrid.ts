@@ -44,14 +44,14 @@ export interface Costs {
  */
 export interface SolverRequest {
   solver: string;
-  params: Record<string, any>;           // matches Python Dict[str, Any]
-  nodes: MiniGridNode[];                 // reuse your existing type
-  edges?: MiniGridEdge[];                // optional, defaults to []
+  params: Record<string, any>; // matches Python Dict[str, Any]
+  nodes: MiniGridNode[]; // reuse your existing type
+  edges?: MiniGridEdge[]; // optional, defaults to []
   voltageLevel: 'low' | 'high';
   lengthConstraints: LengthConstraints;
   costs: Costs;
-  usePoles?: boolean;                    // defaults to true in Python
-  debug?: number;                        // defaults to 0
+  usePoles?: boolean; // defaults to true in Python
+  debug?: number; // defaults to 0
 }
 
 // Optional: If you want a stricter version that matches the defaults
@@ -119,7 +119,7 @@ export interface MiniGridRun {
 
 export interface SolverParam {
   name: string;
-  type?: 'int' | 'str' | "bool" | "float";
+  type?: 'int' | 'str' | 'bool' | 'float';
   default: number | string | boolean;
   min?: number;
   max?: number;
@@ -133,13 +133,6 @@ export interface Solvers {
 }
 
 // ====================== HELPER TYPES ======================
-
-export interface ManualPoint {
-  name: string;
-  lat: string;
-  lng: string;
-  type: 'source' | 'terminal' | 'pole' | 'info';
-}
 
 export interface PendingPoint {
   lat: number;
