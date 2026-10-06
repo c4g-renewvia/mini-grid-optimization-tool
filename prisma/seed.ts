@@ -1,9 +1,10 @@
 import { PrismaClient } from './generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { seedUsers } from './seed/users.mjs';
+import { getPostgresConnectionString } from '../src/lib/postgres-connection-string';
 
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: getPostgresConnectionString(),
 });
 
 const prisma = new PrismaClient({ adapter });
