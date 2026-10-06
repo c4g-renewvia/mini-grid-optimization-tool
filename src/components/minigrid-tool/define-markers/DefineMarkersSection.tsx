@@ -3,7 +3,6 @@
 import React from 'react';
 import TestDataGenerator from './TestDataGenerator';
 import FileUploadArea from './FileUploadArea';
-import ManualPointInput from './ManualPointInput';
 import MapSearchBar from './MapSearchBar';
 
 interface DefineMarkersSectionProps {
@@ -29,16 +28,6 @@ interface DefineMarkersSectionProps {
 
   // MapSearchBar
   onPlaceSelected: (lat: number, lng: number, name: string) => void;
-
-  // ManualPointInput
-  manualPoint: {
-    name: string;
-    lat: string;
-    lng: string;
-    type: 'source' | 'terminal' | 'pole';
-  };
-  onManualPointChange: (point: any) => void;
-  onAddManualPoint: (e: React.FormEvent) => void;
 }
 
 export default function DefineMarkersSection({
@@ -58,9 +47,6 @@ export default function DefineMarkersSection({
   onDrop,
   onFileSelect,
   onPlaceSelected,
-  manualPoint,
-  onManualPointChange,
-  onAddManualPoint,
 }: DefineMarkersSectionProps) {
   return (
     <section>
@@ -98,7 +84,7 @@ export default function DefineMarkersSection({
               <li className='flex items-start gap-3'>
                 <span className='mt-1 text-emerald-500'>•</span>
                 <span>
-                  <strong>Click on the map</strong> to place a marker. Click the{' '}
+                  <strong>Click</strong> on the map or use the methods below to place a marker(s). Click the{' '}
                   <strong>×</strong> button to delete a marker.
                 </span>
               </li>
@@ -119,16 +105,7 @@ export default function DefineMarkersSection({
           </div>
 
           {/* Google Maps Search Bar */}
-          <MapSearchBar map={map} onPlaceSelected={onPlaceSelected}/>
-
-          {/* Test Data Generator */}
-          <TestDataGenerator
-            selectedCount={selectedCount}
-            onCountChange={onCountChange}
-            onGenerate={onGenerate}
-            loading={loading}
-            error={error}
-          />
+          <MapSearchBar map={map} onPlaceSelected={onPlaceSelected} />
 
           {/* File Upload */}
           <FileUploadArea
@@ -143,11 +120,13 @@ export default function DefineMarkersSection({
             onFileSelect={onFileSelect}
           />
 
-          {/* Manual Coordinate Input */}
-          <ManualPointInput
-            manualPoint={manualPoint}
-            onManualPointChange={onManualPointChange}
-            onAddPoint={onAddManualPoint}
+          {/* Test Data Generator */}
+          <TestDataGenerator
+            selectedCount={selectedCount}
+            onCountChange={onCountChange}
+            onGenerate={onGenerate}
+            loading={loading}
+            error={error}
           />
         </div>
       )}

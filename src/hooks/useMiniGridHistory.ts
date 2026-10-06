@@ -6,11 +6,26 @@ import {
   MiniGridEdge,
 } from '@/types/minigrid';
 
-interface HistoryState {
+export interface HistoryState {
   miniGridNodes: MiniGridNode[];
   miniGridEdges: MiniGridEdge[];
   costBreakdown: CostBreakdown;
   solverOriginalCost: number;
+  mapView?: {
+    center: { lat: number; lng: number };
+    zoom: number;
+    tilt: number;
+    heading: number;
+  };
+  workspace?: {
+    originalMiniGridNodes: MiniGridNode[];
+    originalFileName: string | null;
+    fileName: string | null;
+    error: string | null;
+    calcError: string | null;
+    solverElapsedSeconds: number | null;
+    solverElapsedDisplaySeconds: number;
+  };
 }
 
 export function useMiniGridHistory(
@@ -21,10 +36,15 @@ export function useMiniGridHistory(
   const [index, setIndex] = useState(0);
 
   const saveState = useCallback(
-    (newState: HistoryState) => {
+    (newState: HistoryState, currentState?: HistoryState) => {
       setHistory((prev) => {
         // 1. Truncate any redo-stack if we perform a new action while in the past
         const currentTimeline = prev.slice(0, index + 1);
+
+        // Capture live state before destructive actions, including unsaved metadata.
+        if (currentState) {
+          currentTimeline[index] = JSON.parse(JSON.stringify(currentState));
+        }
 
         // 2. Create a deep copy to prevent reference sharing bugs
         const stateToSave = JSON.parse(JSON.stringify(newState));

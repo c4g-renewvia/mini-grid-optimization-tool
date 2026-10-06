@@ -10,6 +10,8 @@ interface MapControlsProps {
   onLocalOptimize: () => void;
   onReconnectGraph: () => void;   // ← NEW
   onReset: () => void;
+  onClear: () => void;
+  canClear: boolean;
   hasData: boolean;
   sidebarOpen?: boolean;
   isOptimizing?: boolean;
@@ -23,6 +25,8 @@ export default function MapControls({
                                       onLocalOptimize,
                                       onReconnectGraph,   // ← NEW
                                       onReset,
+                                      onClear,
+                                      canClear,
                                       hasData,
                                       sidebarOpen = false,
                                       isOptimizing = false,
@@ -140,12 +144,24 @@ export default function MapControls({
         onClick={onReset}
         disabled={!hasData}
         className='flex w-full items-center justify-center gap-1.5 rounded-2xl bg-red-600 px-3 py-2 text-[11px] font-medium text-white shadow-2xl transition-all hover:bg-red-500 active:scale-95 disabled:opacity-50 md:px-6 md:py-3 md:text-sm md:gap-2 md:w-auto dark:text-white'
-        title='Reset everything'
+        title='Restore original markers and remove calculated lines and costs'
       >
         <svg xmlns='http://www.w3.org/2000/svg' className='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24' strokeWidth={2.5}>
           <path strokeLinecap='round' strokeLinejoin='round' d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' />
         </svg>
         <span>Reset</span>
+      </button>
+
+      <button
+        onClick={onClear}
+        disabled={!canClear || isOptimizing}
+        className='flex w-full items-center justify-center gap-1.5 rounded-2xl bg-red-600 px-3 py-2 text-[11px] font-medium text-white shadow-2xl transition-all hover:bg-red-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:px-6 md:py-3 md:text-sm md:gap-2 md:w-auto dark:text-white'
+        title='Clear all markers, lines, and calculated costs (can be undone)'
+      >
+        <svg xmlns='http://www.w3.org/2000/svg' className='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24' strokeWidth={2.5}>
+          <path strokeLinecap='round' strokeLinejoin='round' d='M6 7h12M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5m4-5v5' />
+        </svg>
+        <span>Clear</span>
       </button>
     </div>
   );

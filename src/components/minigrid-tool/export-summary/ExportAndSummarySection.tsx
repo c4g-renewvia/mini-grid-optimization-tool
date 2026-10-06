@@ -53,7 +53,7 @@ export default function ExportAndSummarySection({
         className='mb-6 flex w-full items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 transition-all hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-900/20 dark:hover:bg-blue-900/30'
       >
         <h2 className='text-xl font-bold text-blue-700 dark:text-blue-300'>
-          3. Export & Summary
+          3. Export & Cost Summary
         </h2>
         <svg
           className={`h-5 w-5 text-blue-600 transition-transform dark:text-blue-400 ${

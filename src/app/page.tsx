@@ -11,7 +11,10 @@ import Script from 'next/script';
 import Papa from 'papaparse';
 import { signIn, useSession } from 'next-auth/react';
 
-import { useMiniGridHistory } from '@/hooks/useMiniGridHistory';
+import {
+  useMiniGridHistory,
+  type HistoryState,
+} from '@/hooks/useMiniGridHistory';
 
 import AddPointDialog from '@/components/minigrid-tool/define-markers/AddPointDialog';
 import DefineMarkersSection from '@/components/minigrid-tool/define-markers/DefineMarkersSection';
@@ -34,6 +37,12 @@ import type {
   Solvers,
 } from '@/types/minigrid';
 import { SidebarUserMenu } from '@/components/minigrid-tool/SidebarUserMenu';
+
+declare global {
+  interface Window {
+    __initMiniGridMap?: () => void;
+  }
+}
 
 function getFallbackMapsKey() {
   const runtimeKey =
@@ -80,6 +89,12 @@ const formatMeters = (m: number) =>
 
 const highVoltageColor = '#8B5CF6';
 const lowVoltageColor = '#3B82F6';
+const initialMapView = {
+  center: { lat: 39.8283, lng: -98.5795 },
+  zoom: 4,
+  tilt: 0,
+  heading: 0,
+};
 
 // ==================== MAIN COMPONENT ====================
 export default function MiniGridToolPage() {
@@ -88,6 +103,7 @@ export default function MiniGridToolPage() {
   const polylinesRef = useRef<google.maps.Polyline[]>([]);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const markerDragRef = useRef<string | null>(null);
+  const shouldAutoFit = useRef(true);
 
   const [miniGridEdges, setMiniGridEdges] = useState<MiniGridEdge[]>([]);
   const [miniGridNodes, setMiniGridNodes] = useState<MiniGridNode[]>([]);
@@ -191,18 +207,11 @@ export default function MiniGridToolPage() {
   const [useExistingPoles, setUseExistingPoles] = useState(false);
 
   const [calcError, setCalcError] = useState<string | null>(null);
-  const [solverElapsedSeconds, setSolverElapsedSeconds] = useState<number | null>(
-    null
-  );
+  const [solverElapsedSeconds, setSolverElapsedSeconds] = useState<
+    number | null
+  >(null);
   const [solverElapsedDisplaySeconds, setSolverElapsedDisplaySeconds] =
     useState<number>(0);
-
-  const [manualPoint, setManualPoint] = useState({
-    name: '',
-    lat: '',
-    lng: '',
-    type: 'terminal' as 'source' | 'terminal' | 'pole',
-  });
 
   const lengthLabelsRef = useRef<google.maps.marker.AdvancedMarkerElement[]>(
     []
@@ -274,12 +283,50 @@ export default function MiniGridToolPage() {
     ...overrides,
   });
 
+  const applyHistoryState = useCallback(
+    (state: HistoryState) => {
+      setMiniGridNodes(state.miniGridNodes);
+      setMiniGridEdges(state.miniGridEdges);
+      setCostBreakdown(state.costBreakdown);
+      setSolverOriginalCost(state.solverOriginalCost ?? 0);
+      if (state.workspace) {
+        setOriginalMiniGridNodes(state.workspace.originalMiniGridNodes);
+        setOriginalFileName(state.workspace.originalFileName);
+        setFileName(state.workspace.fileName);
+        setError(state.workspace.error);
+        setCalcError(state.workspace.calcError);
+        setSolverElapsedSeconds(state.workspace.solverElapsedSeconds);
+        setSolverElapsedDisplaySeconds(
+          state.workspace.solverElapsedDisplaySeconds
+        );
+      }
+      if (state.mapView) {
+        shouldAutoFit.current = state.miniGridNodes.length === 0;
+        map?.moveCamera(state.mapView);
+      }
+    },
+    [map]
+  );
+
   // ==================== KEYBOARD SHORTCUTS ====================
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 1. Guard: Do not trigger if the user is typing inside an input box
-      const target = e.target as HTMLElement;
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+      if (
+        e
+          .composedPath()
+          .some(
+            (target) =>
+              target instanceof HTMLElement &&
+              ([
+                'INPUT',
+                'TEXTAREA',
+                'SELECT',
+                'GMP-PLACE-AUTOCOMPLETE',
+              ].includes(target.tagName) ||
+                target.isContentEditable)
+          )
+      ) {
         return;
       }
 
@@ -294,10 +341,7 @@ export default function MiniGridToolPage() {
           if (canRedo) {
             const s = redo();
             if (s) {
-              setMiniGridNodes(s.miniGridNodes);
-              setMiniGridEdges(s.miniGridEdges);
-              setCostBreakdown(s.costBreakdown);
-              setSolverOriginalCost(s.solverOriginalCost ?? 0);
+              applyHistoryState(s);
             }
           }
         } else {
@@ -305,10 +349,7 @@ export default function MiniGridToolPage() {
           if (canUndo) {
             const s = undo();
             if (s) {
-              setMiniGridNodes(s.miniGridNodes);
-              setMiniGridEdges(s.miniGridEdges);
-              setCostBreakdown(s.costBreakdown);
-              setSolverOriginalCost(s.solverOriginalCost ?? 0);
+              applyHistoryState(s);
             }
           }
         }
@@ -319,7 +360,7 @@ export default function MiniGridToolPage() {
 
     // Cleanup the event listener when the component unmounts or state changes
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, undo, redo]); // Keep dependencies updated
+  }, [canUndo, canRedo, undo, redo, applyHistoryState]); // Keep dependencies updated
 
   const { data: session, status: sessionStatus } = useSession();
   const shouldShowMapsKeyLoginPrompt =
@@ -369,7 +410,10 @@ export default function MiniGridToolPage() {
         return;
       }
 
-      const data = (await response.json()) as { hasKey: boolean; apiKey?: string };
+      const data = (await response.json()) as {
+        hasKey: boolean;
+        apiKey?: string;
+      };
       applyMapsApiKey(data.apiKey || fallback);
     } catch {
       applyMapsApiKey(fallback);
@@ -717,14 +761,14 @@ export default function MiniGridToolPage() {
       // === Drag logic remains mostly the same ===
       // (your existing dragstart, drag, dragend listeners go here)
 
-      marker.addListener('dragstart', () => {
+      marker.addEventListener('gmp-dragstart', () => {
         const literal = toLiteral(marker.position);
         if (literal) {
           markerDragRef.current = `${literal.lat},${literal.lng}`;
         }
       });
 
-      marker.addListener('drag', () => {
+      marker.addEventListener('gmp-drag', () => {
         const currentPos = toLiteral(marker.position);
         const prevStr = markerDragRef.current;
         if (!currentPos || !prevStr) return;
@@ -864,7 +908,7 @@ export default function MiniGridToolPage() {
       });
 
       // 5. Enforce final snap back when the user lets go of the mouse
-      marker.addListener('dragend', () => {
+      marker.addEventListener('gmp-dragend', () => {
         const prevStr = markerDragRef.current;
 
         // 1. GUARD: Prevent phantom events from destroying the undo stack
@@ -988,20 +1032,23 @@ export default function MiniGridToolPage() {
   }, [isAddPointDialogOpen, newPointDetails.type, miniGridNodes]);
 
   // 1. Wrap initMap in useCallback to stabilize it
-  const initMap = useCallback(() => {
-    // Only initialize if the global object exists, the ref is ready, and we haven't already set a map state
-    if (!window.google?.maps || !mapRef.current || map) return;
+  const initMap = useCallback(async () => {
+    if (!window.google?.maps?.importLibrary || !mapRef.current || map) return;
 
-    const googleMap = new window.google.maps.Map(mapRef.current, {
-      center: { lat: 39.8283, lng: -98.5795 },
-      zoom: 4,
+    const { Map, MapTypeControlStyle } =
+      await google.maps.importLibrary('maps');
+
+    if (!mapRef.current || map) return;
+
+    const googleMap = new Map(mapRef.current, {
+      ...initialMapView,
       mapTypeId: 'satellite' as google.maps.MapTypeId,
       fullscreenControl: false,
       streetViewControl: false,
       mapId: 'DEMO_MAP_ID',
       mapTypeControl: true, // ensure it's visible
       mapTypeControlOptions: {
-        style: google.maps.MapTypeControlStyle.DEFAULT, // or HORIZONTAL_BAR, DROPDOWN_MENU
+        style: MapTypeControlStyle.DEFAULT, // or HORIZONTAL_BAR, DROPDOWN_MENU
         position: google.maps.ControlPosition.TOP_RIGHT,
       },
     });
@@ -1009,10 +1056,20 @@ export default function MiniGridToolPage() {
     setMap(googleMap);
   }, [map]);
 
+  useEffect(() => {
+    window.__initMiniGridMap = () => {
+      void initMap();
+    };
+
+    return () => {
+      delete window.__initMiniGridMap;
+    };
+  }, [initMap]);
+
   // 2. Add this effect to catch cases where the script is already loaded (navigation back)
   useEffect(() => {
     if (window.google?.maps && mapRef.current && !map) {
-      initMap();
+      void initMap();
     }
   }, [initMap, map]);
 
@@ -1153,8 +1210,6 @@ export default function MiniGridToolPage() {
   }, [session?.user?.id]);
 
   // ==================== MARKER RENDERING ====================
-  const shouldAutoFit = useRef(true);
-
   useEffect(() => {
     if (!map || !(map instanceof google.maps.Map)) return;
 
@@ -1199,9 +1254,9 @@ export default function MiniGridToolPage() {
     });
 
     // Auto-fit when appropriate
+    let autoFitTimeout: ReturnType<typeof setTimeout> | undefined;
     if (hasValidPoints && shouldAutoFit.current) {
-      // ← add a ref
-      setTimeout(() => {
+      autoFitTimeout = setTimeout(() => {
         map.fitBounds(bounds, { bottom: 80, left: 250, right: 20, top: 80 });
         map.setTilt(0); // force flat view (no 3D tilt)
         map.setHeading(0); // force north-up (no rotation)
@@ -1209,6 +1264,9 @@ export default function MiniGridToolPage() {
     }
 
     shouldAutoFit.current = false;
+    return () => {
+      if (autoFitTimeout !== undefined) clearTimeout(autoFitTimeout);
+    };
   }, [map, miniGridNodes, createMarker]);
 
   // ==================== FETCH SOLVERS ====================
@@ -1341,34 +1399,6 @@ export default function MiniGridToolPage() {
     setPendingPoint(null);
   };
 
-  const handleAddCoordinatesManually = (e: React.FormEvent) => {
-    e.preventDefault();
-    const lat = parseFloat(manualPoint.lat);
-    const lng = parseFloat(manualPoint.lng);
-
-    if (isNaN(lat) || isNaN(lng)) {
-      alert('Please enter valid latitude and longitude numbers.');
-      return;
-    }
-
-    const newPoint: MiniGridNode = {
-      index: miniGridNodes.length + 1,
-      name: manualPoint.name || `Manual Point ${miniGridNodes.length + 1}`,
-      type: manualPoint.type,
-      lat: lat,
-      lng: lng,
-    };
-
-    setMiniGridNodes((prev) => [...prev, newPoint]);
-
-    // Reset form
-    setManualPoint({ name: '', lat: '', lng: '', type: 'terminal' });
-
-    setAllowDragTerminals(true);
-
-    saveState(captureState({}));
-  };
-
   // ====================== parseKml FUNCTION ======================
 
   const parseKml = (
@@ -1391,7 +1421,8 @@ export default function MiniGridToolPage() {
 
     if (xml.getElementsByTagName('parsererror').length > 0) {
       const parserErrorText =
-        xml.getElementsByTagName('parsererror')[0]?.textContent?.trim() || 'Unknown XML parser error';
+        xml.getElementsByTagName('parsererror')[0]?.textContent?.trim() ||
+        'Unknown XML parser error';
       console.error('KML parsing error:', parserErrorText);
       return {
         nodes: [],
@@ -1439,10 +1470,13 @@ export default function MiniGridToolPage() {
     const folderNameByPlacemark = new Map<Element, string>();
     folders.forEach((folder) => {
       const folderName =
-        folder.getElementsByTagName('name')[0]?.textContent?.trim().toLowerCase() ||
-        '';
+        folder
+          .getElementsByTagName('name')[0]
+          ?.textContent?.trim()
+          .toLowerCase() || '';
       Array.from(folder.getElementsByTagName('Placemark')).forEach((pm) => {
-        if (!folderNameByPlacemark.has(pm)) folderNameByPlacemark.set(pm, folderName);
+        if (!folderNameByPlacemark.has(pm))
+          folderNameByPlacemark.set(pm, folderName);
       });
     });
 
@@ -1581,10 +1615,7 @@ export default function MiniGridToolPage() {
           folderName.includes('power') ||
           /^p\d+$/i.test(name)
         ) {
-          if (
-            lowerName.includes('power') ||
-            lowerName.includes('generation')
-          ) {
+          if (lowerName.includes('power') || lowerName.includes('generation')) {
             type = 'source';
           } else if (lowerName.startsWith('p')) {
             type = 'pole';
@@ -2020,6 +2051,79 @@ export default function MiniGridToolPage() {
 
     // Save the CORRECT new state
     saveState(newState);
+  };
+
+  const canClear =
+    miniGridNodes.length > 0 ||
+    miniGridEdges.length > 0 ||
+    originalMiniGridNodes.length > 0 ||
+    Object.values(costBreakdown).some(
+      (value) => value !== undefined && value !== 0
+    ) ||
+    solverOriginalCost !== 0 ||
+    fileName !== null ||
+    originalFileName !== null ||
+    solverElapsedSeconds !== null ||
+    solverElapsedDisplaySeconds !== 0 ||
+    error !== null ||
+    calcError !== null;
+
+  const handleClearMap = () => {
+    const clearedState: HistoryState = {
+      miniGridNodes: [],
+      miniGridEdges: [],
+      costBreakdown: {
+        lowVoltageMeters: 0,
+        highVoltageMeters: 0,
+        totalMeters: 0,
+        lowWireCost: 0,
+        highWireCost: 0,
+        wireCost: 0,
+        poleCount: 0,
+        poleCost: 0,
+        pointCount: 0,
+        grandTotal: 0,
+      },
+      solverOriginalCost: 0,
+      mapView: initialMapView,
+      workspace: {
+        originalMiniGridNodes: [],
+        originalFileName: null,
+        fileName: null,
+        error: null,
+        calcError: null,
+        solverElapsedSeconds: null,
+        solverElapsedDisplaySeconds: 0,
+      },
+    };
+
+    saveState(
+      clearedState,
+      captureState({
+        mapView: {
+          center: map?.getCenter()?.toJSON() ?? initialMapView.center,
+          zoom: map?.getZoom() ?? initialMapView.zoom,
+          tilt: map?.getTilt() ?? initialMapView.tilt,
+          heading: map?.getHeading() ?? initialMapView.heading,
+        },
+        workspace: {
+          originalMiniGridNodes,
+          originalFileName,
+          fileName,
+          error,
+          calcError,
+          solverElapsedSeconds,
+          solverElapsedDisplaySeconds,
+        },
+      })
+    );
+    applyHistoryState(clearedState);
+    markerDragRef.current = null;
+    shouldAutoFit.current = true;
+    setPendingPoint(null);
+    setIsAddPointDialogOpen(false);
+    setNewPointDetails({ name: '', type: 'terminal' });
+    setIsDragOver(false);
   };
 
   const handleResetMap = () => {
@@ -2810,7 +2914,7 @@ export default function MiniGridToolPage() {
   };
 
   // For space, I'll note: Paste all remaining functions from your original file here
-  // (handleAddManualPoint, handleDragOver, handleDrop, handleResetMap, generateRandomCosts, etc.)
+  // (handleDragOver, handleDrop, handleResetMap, generateRandomCosts, etc.)
 
   // ==================== RENDER ====================
   return (
@@ -2955,10 +3059,6 @@ export default function MiniGridToolPage() {
                   });
                   setIsAddPointDialogOpen(true);
                 }}
-                // ManualPointInput
-                manualPoint={manualPoint}
-                onManualPointChange={setManualPoint}
-                onAddManualPoint={handleAddCoordinatesManually}
               />
 
               {/* 2. Costs & Solver Section - (your existing code) */}
@@ -3103,22 +3203,20 @@ export default function MiniGridToolPage() {
           onUndo={() => {
             const s = undo();
             if (s) {
-              setMiniGridNodes(s.miniGridNodes);
-              setMiniGridEdges(s.miniGridEdges);
-              setCostBreakdown(s.costBreakdown);
+              applyHistoryState(s);
             }
           }}
           onRedo={() => {
             const s = redo();
             if (s) {
-              setMiniGridNodes(s.miniGridNodes);
-              setMiniGridEdges(s.miniGridEdges);
-              setCostBreakdown(s.costBreakdown);
+              applyHistoryState(s);
             }
           }}
           onLocalOptimize={handleLocalOptimization}
           onReconnectGraph={handleReconnectGraph}
           onReset={handleResetMap}
+          onClear={handleClearMap}
+          canClear={canClear && !loading}
           hasData={miniGridNodes.length > 0}
           isOptimizing={computingMiniGrid}
         />
@@ -3131,9 +3229,8 @@ export default function MiniGridToolPage() {
         {mapsApiKey && (
           <Script
             key={mapsApiKey}
-            src={`https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=marker,places`}
+            src={`https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=marker,places&v=weekly&loading=async&callback=__initMiniGridMap`}
             strategy='afterInteractive'
-            onLoad={initMap}
           />
         )}
       </div>
