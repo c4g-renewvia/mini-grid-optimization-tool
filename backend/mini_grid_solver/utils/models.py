@@ -41,12 +41,12 @@ class Solver(BaseModel):
 class Node(BaseModel):
     """
     Unified representation of any point in the network:
-    source, terminal, or intermediate pole.
+    source, terminal, intermediate pole, info, or pme.
     """
     index: int
     lat: float
     lng: float
-    type: Literal["source", "terminal", "pole"]
+    type: Literal["source", "terminal", "pole", "info", "pme"]
     name: Optional[str] = None
 
     model_config = ConfigDict(frozen=True)
