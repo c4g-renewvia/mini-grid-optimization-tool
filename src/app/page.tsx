@@ -15,6 +15,10 @@ import {
   useMiniGridHistory,
   type HistoryState,
 } from '@/hooks/useMiniGridHistory';
+import {
+  useMiniGridWorkspacePersistence,
+  type PersistedMiniGridWorkspace,
+} from '@/hooks/useMiniGridWorkspacePersistence';
 
 import AddPointDialog from '@/components/minigrid-tool/define-markers/AddPointDialog';
 import DefineMarkersSection from '@/components/minigrid-tool/define-markers/DefineMarkersSection';
@@ -104,6 +108,7 @@ export default function MiniGridToolPage() {
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const markerDragRef = useRef<string | null>(null);
   const shouldAutoFit = useRef(true);
+  const restoredSolverName = useRef<string | null>(null);
 
   const [miniGridEdges, setMiniGridEdges] = useState<MiniGridEdge[]>([]);
   const [miniGridNodes, setMiniGridNodes] = useState<MiniGridNode[]>([]);
@@ -220,6 +225,78 @@ export default function MiniGridToolPage() {
   const [savedRuns, setSavedRuns] = useState<MiniGridRun[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const restoreWorkspace = useCallback(
+    (workspace: PersistedMiniGridWorkspace) => {
+      setMiniGridNodes(workspace.miniGridNodes);
+      setMiniGridEdges(workspace.miniGridEdges);
+      setOriginalMiniGridNodes(workspace.originalMiniGridNodes);
+      setOriginalFileName(workspace.originalFileName);
+      setFileName(workspace.fileName);
+      setCostBreakdown(workspace.costBreakdown);
+      setSolverOriginalCost(workspace.solverOriginalCost);
+      setPoleCost(workspace.poleCost);
+      setLowVoltageCost(workspace.lowVoltageCost);
+      setHighVoltageCost(workspace.highVoltageCost);
+      setLowVoltagePoleToPoleLengthConstraint(
+        workspace.lowVoltagePoleToPoleMaxLength
+      );
+      setLowVoltagePoleToTerminalLengthConstraint(
+        workspace.lowVoltagePoleToTerminalMaxLength
+      );
+      setLowVoltagePoleToTerminalMinimumLength(
+        workspace.lowVoltagePoleToTerminalMinLength
+      );
+      setHighVoltagePoleToPoleLengthConstraint(
+        workspace.highVoltagePoleToPoleLengthConstraint
+      );
+      setHighVoltagePoleToTerminalLengthConstraint(
+        workspace.highVoltagePoleToTerminalMaxLength
+      );
+      setHighVoltagePoleToTerminalMinimumLength(
+        workspace.highVoltagePoleToTerminalMinLength
+      );
+      setSelectedCount(workspace.selectedCount);
+      setAllowDragTerminals(workspace.allowDragTerminals);
+      setShowEdgeLengths(workspace.showEdgeLengths);
+      restoredSolverName.current = workspace.selectedSolverName;
+      setSelectedSolverName(workspace.selectedSolverName);
+      setParamValues(workspace.paramValues);
+      setUseExistingPoles(workspace.useExistingPoles);
+      shouldAutoFit.current = true;
+    },
+    []
+  );
+
+  useMiniGridWorkspacePersistence({
+    workspace: {
+      version: 1,
+      miniGridNodes,
+      miniGridEdges,
+      originalMiniGridNodes,
+      originalFileName,
+      fileName,
+      costBreakdown,
+      solverOriginalCost,
+      poleCost,
+      lowVoltageCost,
+      highVoltageCost,
+      lowVoltagePoleToPoleMaxLength,
+      lowVoltagePoleToTerminalMaxLength,
+      lowVoltagePoleToTerminalMinLength,
+      highVoltagePoleToPoleLengthConstraint,
+      highVoltagePoleToTerminalMaxLength,
+      highVoltagePoleToTerminalMinLength,
+      selectedCount,
+      allowDragTerminals,
+      showEdgeLengths,
+      selectedSolverName,
+      paramValues,
+      useExistingPoles,
+    },
+    onRestore: restoreWorkspace,
+    onError: setError,
+  });
 
   const { saveState, undo, redo, canUndo, canRedo } = useMiniGridHistory({
     miniGridNodes: [],
@@ -1338,6 +1415,11 @@ export default function MiniGridToolPage() {
   useEffect(() => {
     if (!selectedSolver) {
       setParamValues({});
+      return;
+    }
+
+    if (restoredSolverName.current === selectedSolverName) {
+      restoredSolverName.current = null;
       return;
     }
 
