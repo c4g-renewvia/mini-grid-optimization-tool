@@ -2,6 +2,7 @@ import math
 import numpy as np
 
 MAX_EDGE_DIST_PENALTY = 10000
+EDGE_LENGTH_TOLERANCE_METERS = 0.1
 
 
 class CostMixin:
@@ -71,7 +72,10 @@ class CostMixin:
             pole_to_terminal_constraint = self.get_max_pole_to_term()
             length -= pole_to_terminal_constraint
 
-        extra_poles = max(0, math.ceil(length / pole_to_pole_constraint) - 1)
+        extra_poles = max(
+            0,
+            math.ceil(length / (pole_to_pole_constraint + EDGE_LENGTH_TOLERANCE_METERS)) - 1,
+        )
         weight += extra_poles * pole_cost
 
         return weight
@@ -121,7 +125,7 @@ class CostMixin:
                 min_len = 0.5  # pole-pole has no meaningful minimum
 
             # Too long → massive linear penalty (same as before)
-            if length > max_len + 0.1:
+            if length > max_len + EDGE_LENGTH_TOLERANCE_METERS:
                 excess = length - max_len
                 violation_penalty += MAX_EDGE_DIST_PENALTY * excess
 
@@ -259,5 +263,4 @@ class CostMixin:
         total_wire_and_extra = np.sum(undirected_mst) / 2.0
         num_active_poles = len(poles) - len(pruned_nodes)
         return total_wire_and_extra + (num_active_poles * pole_cost)
-
 
