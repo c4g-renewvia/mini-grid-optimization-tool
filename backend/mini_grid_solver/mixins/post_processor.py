@@ -5,6 +5,7 @@ import networkx as nx
 import numpy as np
 from scipy.optimize import minimize
 
+from .costs import EDGE_LENGTH_TOLERANCE_METERS
 from ..utils.models import Node, Edge, get_node_coord_tuple
 
 
@@ -936,7 +937,7 @@ class PostProcessingMixin:
             ValueError: If invalid arguments are provided, e.g., segment_length <= 0 or
                 max_spacing <= 0.
         """
-        if segment_length <= max_spacing + 0.1:
+        if segment_length <= max_spacing + EDGE_LENGTH_TOLERANCE_METERS:
             # CRITICAL FIX: short segment → just add the direct edge back
             new_graph.add_edge(
                 start_idx,
@@ -1090,7 +1091,7 @@ class PostProcessingMixin:
             else:
                 max_allowed = self.get_max_pole_to_pole()
 
-            if length_m <= max_allowed + 0.1:
+            if length_m <= max_allowed + EDGE_LENGTH_TOLERANCE_METERS:
                 continue
 
             # CRITICAL FIX: Always ensure start_idx is upstream, end_idx is downstream.
@@ -1182,7 +1183,7 @@ class PostProcessingMixin:
         """
         previous_cost = self._compute_total_cost(graph)
         best_cost = previous_cost
-        best_graph = graph  # optional: for reversion
+        best_graph = graph.copy()
 
         iteration = 0
         max_iterations = 12
@@ -1207,7 +1208,7 @@ class PostProcessingMixin:
 
             if self.request.debug >= 2:
                 print(f"Nodes: {graph.number_of_nodes()}")
-                self._plot_current_graph(graph, title=f"After iteration {iteration}")
+                self._plot_current_graph(graph, title=f"Candidate after iteration {iteration} (before acceptance)")
 
             current_cost = self._compute_total_cost(graph)
             delta = current_cost - previous_cost
@@ -1244,6 +1245,9 @@ class PostProcessingMixin:
         if self.request.debug >= 1:
             print(f"\n=== Post-opt finished after {iteration} iteration(s). "
                   f"Final cost: {final_cost:.2f} ===\n")
+
+        if self.request.debug >= 2:
+            self._plot_current_graph(graph, title="Final accepted local optimization graph")
 
         return graph
 
