@@ -10,6 +10,7 @@ interface ExportSummaryProps {
   lowVoltageCost: number;
   highVoltageCost: number;
   miniGridNodes: MiniGridNode[];
+  solverElapsedSeconds: number | null;
   allowDragTerminals: boolean;
   onAllowDragTerminalsChange: (_allow: boolean) => void;
   showEdgeLengths: boolean;
@@ -30,6 +31,13 @@ const formatUSD = (v: number) =>
     maximumFractionDigits: 2,
   });
 
+const formatElapsed = (seconds: number) => {
+  const wholeSeconds = Math.floor(seconds);
+  const minutes = Math.floor(wholeSeconds / 60);
+  const remainingSeconds = wholeSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+};
+
 export default function ExportSummary({
   costBreakdown,
   solverOriginalCost,
@@ -37,6 +45,7 @@ export default function ExportSummary({
   lowVoltageCost,
   highVoltageCost,
   miniGridNodes,
+  solverElapsedSeconds,
   allowDragTerminals,
   onAllowDragTerminalsChange,
   showEdgeLengths, // ← NEW
@@ -48,6 +57,9 @@ export default function ExportSummary({
   computingMiniGrid,
 }: ExportSummaryProps) {
   const poleCount = miniGridNodes.filter((n) => n.type === 'pole').length;
+  const terminalCount = miniGridNodes.filter(
+    (n) => n.type === 'terminal'
+  ).length;
   const costDiff = costBreakdown.grandTotal - solverOriginalCost;
   const isNegative = costDiff <= 0;
 
@@ -73,7 +85,11 @@ export default function ExportSummary({
               <span className='font-semibold text-blue-600 dark:text-blue-400'>
                 Terminals
               </span>{' '}
-              (Poles can always be dragged)
+              (
+              <span className='text-yellow-600 dark:text-yellow-400'>
+                Poles
+              </span>{' '}
+              can always be dragged)
             </label>
           </div>
 
@@ -107,9 +123,18 @@ export default function ExportSummary({
         <p className='mt-1 text-4xl font-extrabold text-purple-700 dark:text-purple-300'>
           ${formatUSD(solverOriginalCost)}
         </p>
+        <p className='mt-2 text-sm text-purple-700 dark:text-purple-300'>
+          Solver Time:{' '}
+          {computingMiniGrid
+            ? 'Solving...'
+            : solverElapsedSeconds === null
+              ? 'Not available'
+              : formatElapsed(solverElapsedSeconds)}{' '}
+          (mm:ss)
+        </p>
         <div className='mt-4 grid grid-cols-2 gap-x-4 border-t border-purple-200 pt-4 text-left text-[10px] text-purple-600/70 dark:border-purple-500/20 dark:text-purple-300/70'>
           <div className='space-y-1'>
-            <p className='text-xs font-semibold text-purple-700 dark:text-purple-400'>
+            <p className='text-xs font-semibold text-yellow-600 dark:text-yellow-400'>
               Poles
             </p>
             <p>
@@ -119,6 +144,10 @@ export default function ExportSummary({
             <p className='pt-1 font-medium text-purple-800 dark:text-purple-200'>
               Total: ${formatUSD(costBreakdown.poleCost)}
             </p>
+            <p className='pt-3 text-xs font-semibold text-blue-600 dark:text-blue-400'>
+              Terminals
+            </p>
+            <p>{(costBreakdown.solverTerminalCount ?? 0).toLocaleString()}</p>
           </div>
           <div className='space-y-3 border-l border-purple-200 pl-4 dark:border-purple-500/10'>
             <div className='space-y-0.5'>
@@ -163,7 +192,7 @@ export default function ExportSummary({
         </p>
         <div className='mt-4 grid grid-cols-2 gap-x-4 border-t border-emerald-200 pt-4 text-left text-[10px] text-emerald-600/70 dark:border-emerald-500/20 dark:text-emerald-400/70'>
           <div className='space-y-1'>
-            <p className='text-xs font-semibold text-emerald-700 dark:text-emerald-500'>
+            <p className='text-xs font-semibold text-yellow-600 dark:text-yellow-400'>
               Poles
             </p>
             <p>
@@ -172,6 +201,10 @@ export default function ExportSummary({
             <p className='pt-1 font-medium text-emerald-800 dark:text-emerald-200'>
               Total: ${formatUSD(poleCount * poleCost)}
             </p>
+            <p className='pt-3 text-xs font-semibold text-blue-600 dark:text-blue-400'>
+              Terminals
+            </p>
+            <p>{terminalCount.toLocaleString()}</p>
           </div>
           <div className='space-y-3 border-l border-emerald-200 pl-4 dark:border-emerald-500/10'>
             <div className='space-y-0.5'>

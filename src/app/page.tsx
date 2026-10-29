@@ -234,7 +234,13 @@ export default function MiniGridToolPage() {
       setOriginalMiniGridNodes(workspace.originalMiniGridNodes);
       setOriginalFileName(workspace.originalFileName);
       setFileName(workspace.fileName);
-      setCostBreakdown(workspace.costBreakdown);
+      setCostBreakdown({
+        ...workspace.costBreakdown,
+        solverTerminalCount:
+          workspace.costBreakdown.solverTerminalCount ??
+          workspace.originalMiniGridNodes.filter((n) => n.type === 'terminal')
+            .length,
+      });
       setSolverOriginalCost(workspace.solverOriginalCost);
       setPoleCost(workspace.poleCost);
       setLowVoltageCost(workspace.lowVoltageCost);
@@ -627,6 +633,7 @@ export default function MiniGridToolPage() {
       const wireCost = lowWireCost + highWireCost;
 
       const newCostBreakdown: CostBreakdown = {
+        solverTerminalCount: current.costBreakdown.solverTerminalCount,
         lowVoltageMeters,
         highVoltageMeters,
         totalMeters,
@@ -1844,7 +1851,7 @@ export default function MiniGridToolPage() {
               lng: n.lng,
             }));
 
-          const newCostBreakdown = parsed.costBreakdown || {
+          const newCostBreakdown: CostBreakdown = parsed.costBreakdown || {
             lowVoltageMeters: 0,
             highVoltageMeters: 0,
             totalMeters: 0,
@@ -1856,6 +1863,9 @@ export default function MiniGridToolPage() {
             pointCount: 0,
             grandTotal: 0,
           };
+          newCostBreakdown.solverTerminalCount = validNodes.filter(
+            (n) => n.type === 'terminal'
+          ).length;
 
           // ─────────────────────────────────────────────────────
           // UPDATE UI STATE
@@ -2312,6 +2322,7 @@ export default function MiniGridToolPage() {
       }));
 
       const newCostBreakdown = {
+        solverTerminalCount: costBreakdown.solverTerminalCount,
         lowVoltageMeters: data.totalLowVoltageMeters || 0,
         highVoltageMeters: data.totalHighVoltageMeters || 0,
         totalMeters:
@@ -2409,6 +2420,7 @@ export default function MiniGridToolPage() {
       }));
 
       const newCostBreakdown = {
+        solverTerminalCount: costBreakdown.solverTerminalCount,
         lowVoltageMeters: data.totalLowVoltageMeters || 0,
         highVoltageMeters: data.totalHighVoltageMeters || 0,
         totalMeters:
@@ -2577,6 +2589,9 @@ export default function MiniGridToolPage() {
       }));
 
       const newCostBreakdown = {
+        solverTerminalCount: miniGridNodes.filter(
+          (n) => n.type === 'terminal'
+        ).length,
         lowVoltageMeters: totalLowVoltageMeters,
         highVoltageMeters: totalHighVoltageMeters,
         totalMeters: totalLowVoltageMeters + totalHighVoltageMeters,
@@ -2828,6 +2843,12 @@ export default function MiniGridToolPage() {
   };
 
   const loadSavedRun = (run: MiniGridRun) => {
+    const savedCostBreakdown = {
+      ...run.costBreakdown,
+      solverTerminalCount:
+        run.costBreakdown.solverTerminalCount ??
+        run.miniGridNodes.filter((n) => n.type === 'terminal').length,
+    };
     // console.log('Loading saved mini-grid:', run.id, run.name || '(no name)');
 
     // Log what we actually received (for debugging)
@@ -2853,7 +2874,7 @@ export default function MiniGridToolPage() {
     setHighVoltageCost(Number(run.highVoltageCost) || 20);
 
     // Load cost breakdown if it exists
-    setCostBreakdown(run.costBreakdown);
+    setCostBreakdown(savedCostBreakdown);
 
     setSolverOriginalCost(run.costBreakdown?.grandTotal || 0);
 
@@ -2872,7 +2893,7 @@ export default function MiniGridToolPage() {
     const newState = {
       miniGridNodes: run.miniGridNodes || [],
       miniGridEdges: run.miniGridEdges || [],
-      costBreakdown: run.costBreakdown,
+      costBreakdown: savedCostBreakdown,
       solverOriginalCost: run.costBreakdown?.grandTotal || 0,
     };
 
@@ -3229,6 +3250,7 @@ export default function MiniGridToolPage() {
                 onToggle={() => toggleSection('export')}
                 // ExportSummary props
                 costBreakdown={costBreakdown}
+                solverElapsedSeconds={solverElapsedSeconds}
                 solverOriginalCost={solverOriginalCost}
                 poleCost={poleCost}
                 lowVoltageCost={lowVoltageCost}

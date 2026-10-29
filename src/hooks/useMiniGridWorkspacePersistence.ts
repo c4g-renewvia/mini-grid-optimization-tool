@@ -99,6 +99,9 @@ function isPersistedWorkspace(
       value.originalFileName === null) &&
     (typeof value.fileName === 'string' || value.fileName === null) &&
     isCostBreakdown(value.costBreakdown) &&
+    (value.costBreakdown.solverTerminalCount === undefined ||
+      (Number.isInteger(value.costBreakdown.solverTerminalCount) &&
+        value.costBreakdown.solverTerminalCount >= 0)) &&
     [
       'solverOriginalCost',
       'poleCost',

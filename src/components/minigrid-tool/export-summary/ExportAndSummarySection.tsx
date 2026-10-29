@@ -15,6 +15,7 @@ interface ExportAndSummarySectionProps {
   lowVoltageCost: number;
   highVoltageCost: number;
   miniGridNodes: MiniGridNode[];
+  solverElapsedSeconds: number | null;
   allowDragTerminals: boolean;
   onAllowDragTerminalsChange: (value: boolean) => void;
   showEdgeLengths: boolean;           // ← NEW
@@ -35,6 +36,7 @@ export default function ExportAndSummarySection({
   lowVoltageCost,
   highVoltageCost,
   miniGridNodes,
+  solverElapsedSeconds,
   allowDragTerminals,
   showEdgeLengths,
   onShowEdgeLengthsChange,
@@ -81,6 +83,7 @@ export default function ExportAndSummarySection({
           lowVoltageCost={lowVoltageCost}
           highVoltageCost={highVoltageCost}
           miniGridNodes={miniGridNodes}
+          solverElapsedSeconds={solverElapsedSeconds}
           allowDragTerminals={allowDragTerminals}
           onAllowDragTerminalsChange={onAllowDragTerminalsChange}
           showEdgeLengths={showEdgeLengths}

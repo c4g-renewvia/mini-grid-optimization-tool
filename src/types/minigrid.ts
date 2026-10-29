@@ -98,6 +98,7 @@ export interface CostBreakdown {
   usedPoleCost?: number;
   usedLowCostPerMeter?: number;
   usedHighCostPerMeter?: number;
+  solverTerminalCount?: number;
 }
 
 // ====================== SAVED RUNS ======================
