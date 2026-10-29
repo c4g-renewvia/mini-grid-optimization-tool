@@ -37,33 +37,19 @@ export async function GET() {
 
     return NextResponse.json({ hasKey: true, apiKey });
   } catch (error) {
-    console.warn(
-      'Discarding an inaccessible encrypted Google Maps API key:',
+    console.error(
+      'Failed to decrypt stored Google Maps API key; encrypted data preserved:',
       error
     );
 
-    try {
-      await prisma.$executeRaw`
-        UPDATE "User"
-        SET
-          "mapsApiKeyCipher" = NULL,
-          "mapsApiKeyIv" = NULL,
-          "mapsApiKeyTag" = NULL,
-          "updatedAt" = ${new Date()}
-        WHERE "id" = ${session.user.id}
-      `;
-    } catch (cleanupError) {
-      console.error(
-        'Failed to clear inaccessible Google Maps API key:',
-        cleanupError
-      );
-      return NextResponse.json(
-        { error: 'Could not reset stored key' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ hasKey: false, keyWasReset: true });
+    return NextResponse.json(
+      {
+        hasKey: true,
+        error:
+          'Your saved Google Maps API key could not be decrypted. It has not been deleted. Ask your administrator to restore the original encryption secret, or save your API key again.',
+      },
+      { status: 500 }
+    );
   }
 }
 

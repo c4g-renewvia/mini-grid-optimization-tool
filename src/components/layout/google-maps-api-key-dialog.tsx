@@ -46,24 +46,33 @@ export function GoogleMapsApiKeyDialog({
           cache: 'no-store',
         });
 
+        const data = (await response.json()) as {
+          hasKey?: boolean;
+          apiKey?: string;
+          error?: string;
+        };
+
         if (!response.ok) {
+          if (data.hasKey !== undefined) {
+            setHasStoredKey(data.hasKey);
+          }
           toast({
             title: 'Could not load key',
-            description: 'Please try again.',
+            description: data.error || 'Please try again.',
             variant: 'destructive',
           });
           return;
         }
 
-        const data = (await response.json()) as {
-          hasKey: boolean;
-          apiKey?: string;
-        };
-
-        setHasStoredKey(data.hasKey);
+        setHasStoredKey(data.hasKey === true);
         setApiKey(data.apiKey ?? '');
       } catch (error) {
         console.error(error);
+        toast({
+          title: 'Could not load key',
+          description: 'Could not retrieve your saved API key. Please try again.',
+          variant: 'destructive',
+        });
       } finally {
         setIsLoading(false);
       }
@@ -236,5 +245,4 @@ export function GoogleMapsApiKeyDialog({
     </Dialog>
   );
 }
-
 
