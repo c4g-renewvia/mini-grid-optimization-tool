@@ -10,6 +10,7 @@ import React, {
 import Script from 'next/script';
 import Papa from 'papaparse';
 import { signIn, useSession } from 'next-auth/react';
+import { useToast } from '@/hooks/use-toast';
 
 import {
   useMiniGridHistory,
@@ -440,6 +441,7 @@ export default function MiniGridToolPage() {
   }, [canUndo, canRedo, undo, redo, applyHistoryState]); // Keep dependencies updated
 
   const { data: session, status: sessionStatus } = useSession();
+  const { toast } = useToast();
   const shouldShowMapsKeyLoginPrompt =
     !session || session.user?.id === 'anonymous-user';
   const [mapsApiKey, setMapsApiKey] = useState<string>('');
@@ -483,6 +485,12 @@ export default function MiniGridToolPage() {
       });
 
       if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        toast({
+          title: 'Could not load Google Maps API key',
+          description: data.error || 'Please try again.',
+          variant: 'destructive',
+        });
         applyMapsApiKey(fallback);
         return;
       }
@@ -492,10 +500,16 @@ export default function MiniGridToolPage() {
         apiKey?: string;
       };
       applyMapsApiKey(data.apiKey || fallback);
-    } catch {
+    } catch (error) {
+      console.error('Failed to load Google Maps API key:', error);
+      toast({
+        title: 'Could not load Google Maps API key',
+        description: 'Could not retrieve your saved API key. Please try again.',
+        variant: 'destructive',
+      });
       applyMapsApiKey(fallback);
     }
-  }, [session?.user?.id, sessionStatus, applyMapsApiKey]);
+  }, [session?.user?.id, sessionStatus, applyMapsApiKey, toast]);
 
   useEffect(() => {
     void loadMapsApiKey();
@@ -1263,7 +1277,7 @@ export default function MiniGridToolPage() {
   }, []);
 
   // ==================== FILE HANDLING, SOLVER, etc. ====================
-  const getSolversURL = 'http://localhost:8000/solvers';
+  const getSolversURL = '/api/solver/solvers';
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -1364,7 +1378,8 @@ export default function MiniGridToolPage() {
         });
 
         if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+          const data = (await res.json()) as { detail?: string };
+          throw new Error(data.detail || `HTTP error! status: ${res.status}`);
         }
 
         const rawData = await res.json();
@@ -1389,27 +1404,18 @@ export default function MiniGridToolPage() {
       } catch (err) {
         console.error('❌ Failed to fetch solvers:', err);
 
-        // Emergency fallback
-        setSolvers([
-          {
-            name: 'SimpleMSTSolver',
-            params: [
-              {
-                name: 'steinerize',
-                type: 'bool',
-                default: false,
-                description: 'Whether to steinerize the MST Edges',
-              },
-            ],
-          },
-          { name: 'DiskBasedSteinerSolver', params: [] },
-          { name: 'TheoreticalBoundSteinerSolver', params: [] },
-        ]);
+        setSolvers([]);
+        toast({
+          title: 'Could not load solvers',
+          description:
+            err instanceof Error ? err.message : 'Solver backend is unavailable.',
+          variant: 'destructive',
+        });
       }
     };
 
     fetchSolvers();
-  }, [getSolversURL]);
+  }, [getSolversURL, toast]);
 
   // ==================== INITIALIZE PARAM VALUES ====================
   useEffect(() => {
@@ -2253,7 +2259,7 @@ export default function MiniGridToolPage() {
     setComputingMiniGrid(true);
     setCalcError(null);
 
-    const backendUrl = 'http://localhost:8000/solve';
+    const backendUrl = '/api/solver/solve';
 
     const payload: SolverRequest = {
       solver: 'SimpleMSTSolver',
@@ -2350,7 +2356,7 @@ export default function MiniGridToolPage() {
     setComputingMiniGrid(true);
     setCalcError(null);
 
-    const backendUrl = 'http://localhost:8000/local_optimization';
+    const backendUrl = '/api/solver/local_optimization';
 
     const payload: SolverRequest = {
       solver: 'SimpleMSTSolver',
@@ -2472,7 +2478,7 @@ export default function MiniGridToolPage() {
     const solverTimerStart = performance.now();
     setSolverElapsedDisplaySeconds(0);
 
-    const backendUrl = 'http://localhost:8000/solve';
+    const backendUrl = '/api/solver/solve';
 
     const startTime = performance.now();
     const debug = 0;

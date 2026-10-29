@@ -110,6 +110,15 @@ Before you begin, ensure you have the following installed:
 
    Enable **Maps JavaScript API** and **Places API (New)** in the Google Cloud project for your Maps key. The location search uses Google Maps' `PlaceAutocompleteElement`, which requires Places API (New).
 
+   Personal Maps API keys saved through the account menu are encrypted in the database
+   using `MAPS_KEY_ENCRYPTION_SECRET`, or `AUTH_SECRET` when no dedicated secret is set.
+   Keep the effective secret stable across restarts, deployments, and all server instances.
+   Adding or changing `MAPS_KEY_ENCRYPTION_SECRET` for existing data requires re-saving
+   personal keys unless it has the same value as the secret previously used.
+   If a saved key cannot be decrypted, it is preserved and an error is shown; restore
+   the original secret or save the API key again. Keys deleted by older versions
+   must be saved again.
+
    (Note: No environment variables are required for Docker Deployment)
 
 ### Local Development
@@ -140,6 +149,21 @@ cd backend
 pip install -e .
 uvicorn server:app --reload --port 8000
 ```
+
+### Hosted Solver Backend
+
+The browser calls same-origin `/api/solver/*` endpoints. Next.js forwards these
+requests to the Python API using the server-only `BACKEND_URL` environment variable.
+For Vercel, deploy the FastAPI backend to a publicly reachable HTTPS service, set
+`BACKEND_URL` to that service's base URL in the Vercel project settings, and redeploy.
+The Next.js deployment does not start the Python backend.
+
+Do not set the hosted backend URL to `localhost`: that would refer to the Vercel
+server, not your development computer. Local development and offline mode default
+to `http://localhost:8000`; Docker's local profile uses `http://backend-local:8000`.
+Production requires an explicit `BACKEND_URL` and reports a configuration error
+when it is missing. Solver requests are subject to the hosting provider's function
+duration limits.
 
 ---
 
