@@ -20,6 +20,11 @@ class LocalOptimization(BaseMiniGridSolver):
     """
 
     def _solve(self) -> Union[nx.DiGraph, List[Node]]:
+        """Build the directed input graph and apply post-solver optimization.
+
+        Returns:
+            The optimized directed graph.
+        """
         graph = self.build_graph_from_nodes(self._nodes, self._edges, directed=True)
 
         final_graph = self._post_solver_opt(graph)

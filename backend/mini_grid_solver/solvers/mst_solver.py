@@ -25,11 +25,21 @@ class SimpleMSTSolver(BaseMiniGridSolver):
     """
 
     def __init__(self, request):
+        """Initialize the solver and load its Steinerization option.
+
+        Args:
+            request: Input data and configuration for the solve operation.
+        """
         super().__init__(request)
         self.steinerize = request.params.get("steinerize", False)
 
     @staticmethod
     def get_input_params():
+        """Return the parameters supported by the solver.
+
+        Returns:
+            The solver's input parameter definitions.
+        """
         return [
             SolverInputParams(
                 name="steinerize",
@@ -41,6 +51,11 @@ class SimpleMSTSolver(BaseMiniGridSolver):
         ]
 
     def _solve(self) -> Union[nx.DiGraph, List[Node]]:
+        """Construct a minimum spanning tree and optionally split long edges.
+
+        Returns:
+            The minimum spanning tree, optionally augmented with intermediate poles.
+        """
 
         if len(self._pole_indices) > 0:
             DG = self.build_graph_from_nodes(self._nodes, directed=True)

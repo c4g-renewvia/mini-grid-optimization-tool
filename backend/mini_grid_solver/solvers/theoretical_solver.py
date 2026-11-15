@@ -20,11 +20,21 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
     """
 
     def __init__(self, request: SolverRequest):
+        """Initialize the theoretical solver and its pole-cost bound.
+
+        Args:
+            request: Input data and configuration for the solve operation.
+        """
         super().__init__(request)
         self._pole_cost_beta = request.params.get('poleCost', 1000.0) if hasattr(request, 'params') and request.params else 1000.0
 
     @staticmethod
     def get_input_params():
+        """Return the parameters supported by the solver.
+
+        Returns:
+            An empty list because this solver exposes no additional parameters.
+        """
         return []
 
     def _plot_cluster_cover(
@@ -34,6 +44,14 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
         R: float,
         title: str
     ) -> None:
+        """Plot terminal locations, disk centers, and their coverage radii.
+
+        Args:
+            term_coords: Coordinates of the terminals to display.
+            disk_center_pole_coords: Coordinates of the selected disk centers.
+            R: Coverage radius in meters.
+            title: Plot title.
+        """
         fig, ax = plt.subplots(figsize=(11, 9))
         ax.set_title(title)
         ax.set_xlabel("Longitude")
@@ -89,43 +107,56 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
 
     def _generate_greedy_clusters(self, coords: np.ndarray, term_indices: List[int], R: float) -> List[
         Tuple[np.ndarray, List[int]]]:
-        """
-        Step 1: Partition terminals into clusters bounded by beta and R.
+        """Grow nearest-first terminal clusters subject to radius and star-cost bounds.
+
+        Args:
+            coords: Coordinates indexed by the solver's node indices.
+            term_indices: Indices of terminal nodes to cluster.
+            R: Maximum cluster radius in meters.
+
+        Returns:
+            Clusters represented by each center coordinate and its terminal indices.
         """
         remaining_term_indices = set(term_indices)
         disk_center_clusters = []
 
-        # Offset to prevent zero-length edges dropping from the graph
-        min_dist = max(self.get_min_pole_to_term(), 1.0)
-        dlat = min_dist / 111111.0
-
         while remaining_term_indices:
-            anchor_term_idx = remaining_term_indices.pop()
+            anchor_term_idx = min(remaining_term_indices)
+            remaining_term_indices.remove(anchor_term_idx)
             anchor_term_coord = coords[anchor_term_idx]
             cluster_term_indices = [anchor_term_idx]
+            star_lengths = np.zeros(1)
 
             if remaining_term_indices:
-                other_term_indices = list(remaining_term_indices)
+                other_term_indices = sorted(remaining_term_indices)
                 other_term_coords = coords[other_term_indices]
 
                 # Vectorized haversine distance array
                 term_distances = self.haversine_vec(np.array([anchor_term_coord]), other_term_coords).flatten()
-                sorted_indices = np.argsort(term_distances)
-
-                cumulative_distance = 0.0
+                sorted_indices = np.argsort(term_distances, kind="stable")
 
                 for i in sorted_indices:
                     candidate_term_idx = other_term_indices[i]
                     candidate_distance = term_distances[i]
 
-                    if cumulative_distance + candidate_distance > self._pole_cost_beta or candidate_distance > R:
+                    if candidate_distance > R:
+                        break
+
+                    distances_to_cluster = self.haversine_vec(
+                        coords[[candidate_term_idx]], coords[cluster_term_indices]
+                    ).flatten()
+                    tentative_star_lengths = np.append(
+                        star_lengths + distances_to_cluster,
+                        distances_to_cluster.sum(),
+                    )
+                    if tentative_star_lengths.min() > self._pole_cost_beta:
                         break
 
                     cluster_term_indices.append(candidate_term_idx)
-                    cumulative_distance += candidate_distance
+                    star_lengths = tentative_star_lengths
                     remaining_term_indices.remove(candidate_term_idx)
 
-            disk_center_pole_coord = np.array([anchor_term_coord[0] + dlat, anchor_term_coord[1]])
+            disk_center_pole_coord = anchor_term_coord.copy()
             disk_center_clusters.append((disk_center_pole_coord, cluster_term_indices))
 
             if self.request.debug >= 2:
@@ -153,8 +184,16 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
                           coords: np.ndarray,
                           term_indices: List[int],
                           source_idx: int) -> Tuple[nx.DiGraph, List[int]]:
-        """
-        Step 3 Setup: Construct base nodes and add star edges from poles to terminals.
+        """Create disk-center poles and connect each to its clustered terminals.
+
+        Args:
+            disk_center_clusters: Center coordinates paired with their terminal indices.
+            coords: Coordinates indexed by the solver's node indices.
+            term_indices: Indices of terminal nodes to add to the graph.
+            source_idx: Index of the source node.
+
+        Returns:
+            The directed star graph and the IDs assigned to its disk-center poles.
         """
         best_graph = nx.DiGraph()
 
@@ -198,8 +237,16 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
 
     def _connect_backbone(self, best_graph: nx.DiGraph, disk_center_pole_node_ids: List[int], coords: np.ndarray,
                           source_idx: int) -> nx.DiGraph:
-        """
-        Step 2 & 3 Execution: Find MST on poles + source, direct outward, and inject into main graph.
+        """Connect the source and disk-center poles with an outward-directed MST.
+
+        Args:
+            best_graph: Graph containing the source and disk-center poles.
+            disk_center_pole_node_ids: Node IDs for the disk-center poles.
+            coords: Coordinates indexed by the solver's node indices.
+            source_idx: Index of the source node.
+
+        Returns:
+            The graph with the directed backbone edges added.
         """
         backbone_node_ids = [source_idx] + disk_center_pole_node_ids
         backbone_graph = nx.Graph()
@@ -237,8 +284,10 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
         return best_graph
 
     def _solve(self) -> Union[nx.Graph, nx.DiGraph]:
-        """
-        Main orchestration of the bounded algorithm.
+        """Build the bounded solution from terminal clusters and their backbone.
+
+        Returns:
+            The directed graph containing the star connections and backbone.
         """
         coords = self._coords
         term_indices = self._terminal_indices

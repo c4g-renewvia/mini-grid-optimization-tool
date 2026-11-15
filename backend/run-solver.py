@@ -13,6 +13,14 @@ import tempfile
 # Must run before any matplotlib import, which happens transitively via
 # server.py.
 def _resolve_mpl_cache_dir() -> str:
+    """Create a writable, persistent Matplotlib cache directory.
+
+    Returns:
+        str: The user cache path, or a temporary-directory fallback.
+
+    Raises:
+        OSError: If the fallback directory cannot be created.
+    """
     try:
         from platformdirs import user_cache_dir
 
@@ -37,6 +45,11 @@ from server import app  # noqa: E402
 
 
 def main() -> None:
+    """Start the API server using SOLVER_HOST and SOLVER_PORT.
+
+    Raises:
+        ValueError: If SOLVER_PORT cannot be parsed as an integer.
+    """
     host = os.environ.get("SOLVER_HOST", "0.0.0.0")
     port = int(os.environ.get("SOLVER_PORT", "8000"))
     uvicorn.run(app, host=host, port=port)

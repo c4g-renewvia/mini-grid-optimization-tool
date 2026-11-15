@@ -52,6 +52,14 @@ class Node(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 def get_node_coord_tuple(node: Node) -> Tuple[float, float]:
+    """Extract a node's geographic coordinates.
+
+    Args:
+        node: The node whose coordinates are requested.
+
+    Returns:
+        Tuple[float, float]: Latitude and longitude, in degrees.
+    """
     return node.lat, node.lng
 
 class Edge(BaseModel):

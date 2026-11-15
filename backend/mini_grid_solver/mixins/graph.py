@@ -25,6 +25,14 @@ class GraphMixin:
 
     @staticmethod
     def _plot_current_graph(graph, added_points=None, title="Current tree after candidate addition", filename=None):
+        """Plot graph nodes and edges, optionally highlighting candidate points.
+
+        Args:
+            graph: Graph containing node types and geographic coordinates.
+            added_points: Optional latitude/longitude coordinates to highlight.
+            title: Plot title.
+            filename: Optional path to save the plot; otherwise display it.
+        """
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.set_title(title)
         ax.set_xlabel("Longitude")
@@ -123,6 +131,14 @@ class GraphMixin:
 
     # ─── Helpful common utilities (can be used or overridden) ────────────────
     def reindex_nodes(self, nodes):
+        """Return copies of nodes with contiguous indices starting at zero.
+
+        Args:
+            nodes: Nodes to reindex.
+
+        Returns:
+            list[Node]: Copies of the nodes with updated indices.
+        """
         new_nodes = []
         for i, node in enumerate(nodes):
             new_nodes.append(Node(
@@ -136,25 +152,15 @@ class GraphMixin:
         return new_nodes
 
     def _build_nodes(self, coords, candidates, names):
-        """
-        Builds a list of Node objects based on the input coordinates, node names,
-        and candidate poles.
+        """Build node objects from coordinates, names, and candidate poles.
 
         Args:
-            coords: numpy.ndarray
-                A 2D array containing latitude and longitude coordinates of original
-                nodes. Each row corresponds to a node, where the first column is the
-                latitude and the second is the longitude.
-            candidates: list[tuple[float, float]]
-                A list of tuples, where each tuple contains the latitude and longitude
-                of candidate pole nodes.
-            names: list[str]
-                A list of names corresponding to the original nodes.
+            coords: Array of original latitude/longitude coordinates.
+            candidates: Latitude/longitude coordinates of candidate poles.
+            names: Names corresponding to the original nodes.
 
         Returns:
-            list[Node]:
-                A list of Node objects created based on the provided input, where each
-                node has its index, coordinates, type, and name assigned.
+            list[Node]: Nodes with indices, coordinates, types, and names.
         """
         nodes = []
         n_orig = len(coords)
@@ -188,32 +194,18 @@ class GraphMixin:
 
     def build_graph_from_nodes(self, nodes, edges=None,
                                include_terminals=False, directed=False) -> Union[nx.DiGraph, nx.Graph]:
-        """
-        Builds a graph representation from the provided nodes and edges.
-
-        This method constructs either a directed or undirected graph based on the
-        specified `directed` flag. Nodes are added to the graph along with their
-        associated attributes, such as `name`, `type`, `lat`, and `lng`. Edges are
-        determined either automatically via distance-based connectivity rules, or
-        manually from the provided edges list. Edge weights and attributes, such as
-        `weight`, `length`, and `voltage`, are calculated and assigned appropriately.
+        """Build a directed or undirected graph from nodes and optional edges.
 
         Args:
-            nodes (List[Node]): List of nodes to add to the graph. Each node includes
-                attributes like `index`, `name`, `type`, `lat`, and `lng`.
-            edges (Optional[List[Edge]]): List of edges to add to the graph. Each
-                edge includes `start` and `end` nodes, along with `lengthMeters`.
-                Defaults to None.
-            include_terminals (bool): Whether to include edges connected to terminal
-                nodes when generating edges automatically. Defaults to False.
-            directed (bool): Whether to construct a directed graph. If True, a
-                directed graph (nx.DiGraph) is created; otherwise, an undirected
-                graph (nx.Graph) is created. Defaults to False.
+            nodes (List[Node]): Nodes to include in the graph.
+            edges (Optional[List[Edge]]): Optional explicit edges; when omitted,
+                eligible edges are generated from distances.
+            include_terminals (bool): Whether automatic generation includes
+                terminal-connected edges.
+            directed (bool): Whether to create a directed graph.
 
         Returns:
-            Union[nx.DiGraph, nx.Graph]: A NetworkX graph representation of the
-            nodes and edges, either directed or undirected based on the `directed`
-            argument.
+            Union[nx.DiGraph, nx.Graph]: Graph with node and edge attributes.
         """
         G = nx.DiGraph() if directed else nx.Graph()
         nodes = self.reindex_nodes(nodes)
@@ -260,20 +252,13 @@ class GraphMixin:
         return G
 
     def build_directed_graph_for_arborescence(self, nodes) -> nx.DiGraph:
-        """
-        Constructs a directed graph representing an arborescence structure. The graph is built
-        based on nodes representing poles and terminals, with specific rules governing connections
-        between the source node, poles, and terminals. The graph edges are weighted based on
-        distance and voltage level.
+        """Build a directed candidate graph for an arborescence.
 
         Args:
-            nodes (list): A list of node objects representing poles and terminals. Each node object
-                should have attributes such as `index`, `type`, `name`, `lat`, `lng`, and
-                `coord_tuple`.
+            nodes (list): Source, pole, and terminal nodes to connect.
 
         Returns:
-            nx.DiGraph: A directed graph (DiGraph) representing the arborescence structure, where
-            nodes represent the input nodes and edges represent connections between them.
+            nx.DiGraph: Directed graph with distance-based edge weights.
         """
 
         DG = nx.DiGraph()
@@ -327,22 +312,11 @@ class GraphMixin:
         return DG
 
     def _recompute_all_edges(self, graph: Union[nx.Graph, nx.DiGraph]):
-        """
-        Recalculates and updates all edges in the given graph with computed lengths and weights.
+        """Recalculate lengths and weights for every graph edge.
 
-        This method iterates through all edges in the provided graph, computes their lengths
-        based on the Haversine distance formula, and updates the edge attributes accordingly.
-        Additionally, it assigns a weight to each edge depending on its length and whether
-        either endpoint of the edge is a terminal node.
-
-        Parameters:
-        graph: Union[nx.Graph, nx.DiGraph]
-            The graph object containing nodes and edges. Nodes must include 'lat' and 'lng'
-            attributes representing their geographic coordinates. Additionally, a node may
-            optionally include a 'type' attribute to signify its role (e.g., 'terminal').
-
-        Raises:
-        None
+        Args:
+            graph (Union[nx.Graph, nx.DiGraph]): Graph whose nodes have geographic
+                coordinates and whose edges receive updated lengths and weights.
         """
         for u, v, data in list(graph.edges(data=True)):
             lat1, lon1 = graph.nodes[u]['lat'], graph.nodes[u]['lng']
@@ -356,23 +330,15 @@ class GraphMixin:
             data['weight'] = self.calc_edge_weight(length, to_terminal=to_terminal)
 
     def _distance_from_source(self, graph: Union[nx.Graph, nx.DiGraph], node_idx: int) -> float:
-        """
-        Calculates the distance from a predefined source node to a specified node in a graph.
-
-        This method attempts to compute the shortest distance using Dijkstra's algorithm with
-        a weight attribute of 'length'. If the 'length' attribute is not present or there is
-        an error, it falls back to computing the unweighted shortest path length. If both
-        attempts fail, it returns a large default value to signify an unreachable node.
+        """Return the shortest distance from the configured source to a node.
 
         Args:
-            graph (Union[nx.Graph, nx.DiGraph]): The graph where the shortest path
-                calculation is performed. It can be either a directed or undirected graph.
-            node_idx (int): The index of the node to which the distance is to be calculated.
+            graph (Union[nx.Graph, nx.DiGraph]): Graph used for path calculation.
+            node_idx (int): Destination node index.
 
         Returns:
-            float: The shortest distance from the source node to the specified node. If
-                the node is unreachable or no valid path is found, returns a large
-                default value of 999999.0.
+            float: Weighted distance, unweighted path length as fallback, or
+                ``999999.0`` when no path can be found.
         """
         try:
             dists = nx.single_source_dijkstra_path_length(graph, self._source_idx, weight='length')
@@ -386,23 +352,16 @@ class GraphMixin:
 
     @staticmethod
     def _minimum_spanning_arborescence_w_attrs(DG, attr="weight", default=1e18, preserve_attrs=True):
-        """
-        Constructs a minimum spanning arborescence (directed tree) from a directed graph
-        while optionally preserving node attributes.
+        """Compute a minimum spanning arborescence with optional node attributes.
 
         Args:
-            DG (networkx.DiGraph): The directed graph to compute the minimum spanning
-                arborescence from.
-            attr (str): Name of the edge attribute to use as the weight for computing
-                the arborescence. Default is "weight".
-            default (float): Default weight assigned to edges if the specified attribute
-                does not exist. Default is 1e18.
-            preserve_attrs (bool): If True, preserves the attributes of nodes from the
-                input graph in the resulting arborescence. Default is True.
+            DG (networkx.DiGraph): Directed graph to process.
+            attr (str): Edge attribute used as the weight.
+            default (float): Weight assigned when the attribute is missing.
+            preserve_attrs (bool): Whether to copy input node attributes.
 
         Returns:
-            networkx.DiGraph: A directed graph representing the minimum spanning
-            arborescence, optionally with preserved node attributes.
+            networkx.DiGraph: Minimum spanning arborescence.
         """
 
         arbo_graph = nx.minimum_spanning_arborescence(DG, attr=attr, default=default, preserve_attrs=preserve_attrs)
@@ -415,27 +374,25 @@ class GraphMixin:
         return arbo_graph
 
     def compute_distance_matrix(self, points: np.ndarray) -> np.ndarray:
-        """Default haversine distance matrix — override if you want Euclidean, etc."""
+        """Compute pairwise Haversine distances between points.
+
+        Args:
+            points (np.ndarray): Latitude/longitude coordinate array.
+
+        Returns:
+            np.ndarray: Matrix of pairwise distances in meters.
+        """
         return self.haversine_vec(points, points)
 
 
     def print_min_max_edge_len(self, graph):
-        """
-        Calculates the minimum and maximum edge lengths from a given graph.
-
-        The method processes the edge data of a graph, specifically extracting
-        the 'length' attribute from each edge, and computes the maximum and
-        minimum lengths among those edges. If the graph contains no edges or
-        if the 'length' attribute is absent, the method defaults the maximum
-        and minimum lengths to 0.0.
+        """Format the maximum and minimum edge lengths in a graph.
 
         Args:
-            graph: A graph structure where edges contain a 'length' attribute
-                in their metadata dictionary.
+            graph: Graph whose edges may contain a ``length`` attribute.
 
         Returns:
-            str: A formatted string indicating the maximum and minimum edge
-                lengths in the graph in meters.
+            str: Formatted maximum and minimum edge lengths in meters.
         """
         edge_lengths = [e[2]['length'] for e in graph.edges(data=True)]
         max_len = max(edge_lengths) if edge_lengths else 0.0

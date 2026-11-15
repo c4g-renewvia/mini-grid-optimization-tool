@@ -29,24 +29,17 @@ app.add_middleware(
 
 @app.post("/solve", response_model=SolverResult)
 async def solve(request: SolverRequest):
-    """
-    Handles the POST request to solve a problem using a specified solver and data input.
+    """Solve a network layout using the requested registered solver.
 
-    This endpoint receives a request payload containing the solver to be
-    used and the required data points. It checks the validity of the
-    input and computes the solution using the selected solver.
-
-    Raises:
-        HTTPException: If the number of provided points is less than 2,
-        a 400 error is raised. If any exception occurs during processing,
-        a 500 error is raised with the exception details.
-
-    Arguments:
-        request (SolverRequest): The request data containing solver information
-        and input points.
+    Args:
+        request: Solver selection, nodes, costs, and length constraints.
 
     Returns:
-        dict: The result of the computation from the selected solver.
+        SolverResult: The computed network layout and cost estimates.
+
+    Raises:
+        HTTPException: With status 400 for fewer than two nodes, or status
+            500 if solver lookup or execution fails.
     """
     if len(request.nodes) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 nodes")
@@ -66,6 +59,17 @@ async def solve(request: SolverRequest):
 
 @app.post("/local_optimization", response_model=SolverResult)
 def local_optimization(request: SolverRequest):
+    """Refine an existing network layout with local optimization.
+
+    Args:
+        request: The layout, costs, and constraints to optimize.
+
+    Returns:
+        SolverResult: The optimized network layout and cost estimates.
+
+    Raises:
+        HTTPException: With status 500 if optimization fails.
+    """
     try:
         result = LocalOptimization(request).solve()
 
@@ -77,19 +81,13 @@ def local_optimization(request: SolverRequest):
 
 @app.get("/solvers", response_model=List[Solver])
 async def get_solvers() -> List[Solver]:
-    """
-    Handles the retrieval of available solvers and their input parameters.
-
-    The endpoint fetches solvers programmatically from the SOLVER_REGISTRY
-    and returns a dictionary containing the list of solvers and their respective
-    input parameters. If no solvers are available, an HTTPException is raised
-    indicating an internal server error.
-
-    Raises:
-        HTTPException: If there are no registered solvers in the SOLVER_REGISTRY.
+    """List registered solvers and their input parameter metadata.
 
     Returns:
-        dict: A dictionary containing a list of solvers with their input parameters.
+        List[Solver]: Available solver names and parameter definitions.
+
+    Raises:
+        HTTPException: With status 500 if no solvers are registered.
     """
     # get solvers programmatically from import
 

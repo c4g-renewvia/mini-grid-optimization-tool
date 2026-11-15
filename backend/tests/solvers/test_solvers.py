@@ -15,6 +15,14 @@ TEST_DATASET_DIR = "test_data_sets"
 
 
 def _count_terminals(nodes) -> int:
+    """Count terminal nodes in a collection.
+
+    Args:
+        nodes: Network nodes to inspect.
+
+    Returns:
+        int: Number of nodes with terminal type.
+    """
     return sum(1 for node in nodes if node.type == "terminal")
 
 
@@ -24,7 +32,14 @@ def _count_terminals(nodes) -> int:
     f"{TEST_DATASET_DIR}/bc2.kml",
 ])
 def kml_nodes(request):
-    """Parses coordinates from the bc1/bc2 ground-truth KML datasets."""
+    """Parse coordinates from the bc1/bc2 ground-truth KML datasets.
+
+    Args:
+        request: Pytest request supplying the KML dataset path.
+
+    Returns:
+        list[Node]: Parsed network nodes.
+    """
     try:
         kml_file_path = request.param
         with open(kml_file_path, 'r', encoding="utf-8") as f:
@@ -75,7 +90,14 @@ def kml_nodes(request):
     f"{TEST_DATASET_DIR}/minigrid_2026-04-08.kml",
 ])
 def kml_nodes_random_test_set(request):
-    """Parses random minigrid KML datasets and keeps only source/terminal points."""
+    """Parse random minigrid KML datasets without pre-existing poles.
+
+    Args:
+        request: Pytest request supplying the KML dataset path.
+
+    Returns:
+        list[Node]: Parsed non-pole network nodes.
+    """
     try:
         kml_file_path = request.param
         with open(kml_file_path, 'r', encoding="utf-8") as f:
@@ -116,7 +138,11 @@ def kml_nodes_random_test_set(request):
 
 @pytest.fixture
 def renewvia_ground_truth_terminals_only_nodes():
-    """Parses renewvia terminals-only KML with one source and many terminals."""
+    """Parse the Renewvia terminals-only KML dataset.
+
+    Returns:
+        list[Node]: The source and terminal nodes.
+    """
     try:
         kml_file_path = f"{TEST_DATASET_DIR}/renewvia_ground_truth_terminals_only.kml"
         with open(kml_file_path, "r", encoding="utf-8") as f:
@@ -149,7 +175,11 @@ def renewvia_ground_truth_terminals_only_nodes():
 
 @pytest.fixture
 def default_costs():
-    """Standard cost parameters used in your main script."""
+    """Create standard pole and wire costs for solver tests.
+
+    Returns:
+        Costs: Pole cost and low/high-voltage wire costs per meter.
+    """
     return Costs(
         poleCost=1000.0,
         lowVoltageCostPerMeter=20.0,
@@ -159,7 +189,11 @@ def default_costs():
 
 @pytest.fixture
 def default_length_constraints():
-    """Standard cost parameters used in your main script."""
+    """Create standard span constraints for solver tests.
+
+    Returns:
+        LengthConstraints: Low- and high-voltage spacing limits.
+    """
     return LengthConstraints(
         low=LengthConstraintsBase(poleToPoleMaxLength=30,
                                   poleToTerminalMaxLength=20,
@@ -172,7 +206,11 @@ def default_length_constraints():
 
 @pytest.fixture
 def ga_tech_nodes():
-    """Fixture containing the manually provided Georgia Tech area nodes."""
+    """Create the manually provided Georgia Tech area nodes.
+
+    Returns:
+        list[Node]: Source and terminals for layout tests.
+    """
     return [
         Node(index=0, name="Source", type="source", lat=33.77679498, lng=-84.39576765),
         Node(index=1, name="Terminal 02", type="terminal", lat=33.7766943, lng=-84.3961707),
@@ -191,7 +229,17 @@ def ga_tech_nodes():
 
 @pytest.fixture
 def local_opt_kml_nodes_with_edges():
-    """Load the existing layout, including poles and directed power lines."""
+    """Load an existing KML layout with poles and directed power lines.
+
+    Returns:
+        tuple[list[Node], list[Edge]]: Nodes and directed edges from the layout.
+
+    Raises:
+        OSError: If the KML file cannot be read.
+        AssertionError: If node or line metadata is missing or malformed.
+        KeyError: If a line endpoint does not match a parsed node.
+        ValueError: If numeric KML values cannot be parsed.
+    """
     kml_path = Path(__file__).resolve().parents[1] / TEST_DATASET_DIR / "local_opt_test.kml"
     with kml_path.open(encoding="utf-8") as f:
         root = parser.parse(f).getroot()
@@ -247,8 +295,11 @@ def local_opt_kml_nodes_with_edges():
 
 @pytest.fixture
 def ga_tech_nodes_with_edges():
-    """Fixture with source, terminals, and some pre-existing poles + edges.
-    This is ideal for testing LocalOptimization, which expects a connected graph."""
+    """Create a connected Georgia Tech layout for local optimization.
+
+    Returns:
+        tuple[list[Node], list[Edge]]: Source, terminals, poles, and existing edges.
+    """
 
     nodes = [
         Node(index=0, name="Source", type="source", lat=33.77679498, lng=-84.39576765),
@@ -326,16 +377,20 @@ def ga_tech_nodes_with_edges():
 # ==================== TESTS ====================
 
 def test_registry_not_empty():
-    """Ensures there are solvers registered to test."""
+    """Verify that the registry contains solvers to test."""
     assert len(SOLVER_REGISTRY) > 0
 
 
 @pytest.mark.parametrize("solver_name", list(SOLVER_REGISTRY.keys()))
 def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, default_costs,
                               default_length_constraints):
-    """
-    Parametrized test: Runs every solver in the registry using minigrid KML data.
-    Validates that each solver returns a result with nodes and edges.
+    """Verify solver output on random minigrid KML data.
+
+    Args:
+        kml_nodes_random_test_set: Parsed source and terminal fixture.
+        solver_name: Registered solver name.
+        default_costs: Standard pole and wire costs.
+        default_length_constraints: Standard span constraints.
     """
     solver_class = SOLVER_REGISTRY[solver_name]
 
@@ -363,7 +418,14 @@ def test_all_solvers_with_kml(kml_nodes_random_test_set, solver_name, default_co
 
 @pytest.mark.parametrize("solver_name", list(SOLVER_REGISTRY.keys()))
 def test_all_solvers_with_bc_ground_truth_kml(solver_name, kml_nodes, default_costs, default_length_constraints):
-    """Run every registered solver against bc1/bc2 ground-truth KML datasets."""
+    """Verify solver output on bc1/bc2 ground-truth KML datasets.
+
+    Args:
+        solver_name: Registered solver name.
+        kml_nodes: Parsed ground-truth node fixture.
+        default_costs: Standard pole and wire costs.
+        default_length_constraints: Standard span constraints.
+    """
     solver_class = SOLVER_REGISTRY[solver_name]
     req = SolverRequest(
         nodes=kml_nodes,
@@ -392,7 +454,14 @@ def test_all_solvers_with_renewvia_ground_truth_terminals_only_kml(
         default_costs,
         default_length_constraints,
 ):
-    """Run all solvers on renewvia_ground_truth_terminals_only.kml."""
+    """Verify solver output on the Renewvia terminals-only dataset.
+
+    Args:
+        solver_name: Registered solver name.
+        renewvia_ground_truth_terminals_only_nodes: Parsed source and terminals.
+        default_costs: Standard pole and wire costs.
+        default_length_constraints: Standard span constraints.
+    """
     solver_class = SOLVER_REGISTRY[solver_name]
     req = SolverRequest(
         nodes=renewvia_ground_truth_terminals_only_nodes,
@@ -418,7 +487,7 @@ def test_all_solvers_with_renewvia_ground_truth_terminals_only_kml(
 
 
 def test_solver_param_metadata():
-    """Checks that get_input_params returns valid data for the UI."""
+    """Verify that solver parameter metadata is a list suitable for the UI."""
     for name, solver_class in SOLVER_REGISTRY.items():
         params = solver_class.get_input_params()
         assert isinstance(params, list), f"{name} must return a list of parameters"
@@ -428,7 +497,14 @@ def test_local_optimization_kml_decreases_total_cost(
         local_opt_kml_nodes_with_edges, default_costs, default_length_constraints,
         monkeypatch,
 ):
-    """Optimize only the existing KML layout and require a strict cost reduction."""
+    """Verify a strict cost reduction when optimizing an existing KML layout.
+
+    Args:
+        local_opt_kml_nodes_with_edges: Existing KML nodes and directed edges.
+        default_costs: Standard pole and wire costs.
+        default_length_constraints: Standard span constraints.
+        monkeypatch: Pytest fixture for observing graph plots.
+    """
     nodes, edges = local_opt_kml_nodes_with_edges
     cost_before = round(
         sum(node.type == "pole" for node in nodes) * default_costs.poleCost
@@ -507,6 +583,16 @@ def test_edge_weight_respects_spacing_tolerance(
         ga_tech_nodes, default_costs, default_length_constraints,
         length, extra_poles, voltage,
 ):
+    """Verify that edge costs honor the pole-spacing tolerance.
+
+    Args:
+        ga_tech_nodes: Source and terminal fixture.
+        default_costs: Standard pole and wire costs.
+        default_length_constraints: Standard span constraints.
+        length: Edge length in meters.
+        extra_poles: Expected number of intermediate poles.
+        voltage: Network voltage level.
+    """
     default_length_constraints.high.poleToPoleMaxLength = 30
     solver = LocalOptimization(SolverRequest(
         nodes=ga_tech_nodes,
@@ -522,6 +608,14 @@ def test_local_optimization_plots_restored_graph_after_rejected_candidate(
         local_opt_kml_nodes_with_edges, default_costs, default_length_constraints,
         monkeypatch,
 ):
+    """Verify that a rejected candidate leaves the accepted graph plotted.
+
+    Args:
+        local_opt_kml_nodes_with_edges: Existing KML nodes and directed edges.
+        default_costs: Standard pole and wire costs.
+        default_length_constraints: Standard span constraints.
+        monkeypatch: Pytest fixture for replacing optimization and plotting.
+    """
     nodes, edges = local_opt_kml_nodes_with_edges
     solver = LocalOptimization(SolverRequest(
         nodes=nodes,
@@ -535,6 +629,14 @@ def test_local_optimization_plots_restored_graph_after_rejected_candidate(
     original = graph.copy()
 
     def worsen_candidate(candidate):
+        """Make a candidate more expensive to exercise rejection.
+
+        Args:
+            candidate: Mutable candidate graph.
+
+        Returns:
+            nx.DiGraph: The modified candidate graph.
+        """
         candidate.nodes[10]["lat"] += 0.001
         candidate.edges[0, 10]["weight"] += 1000
         return candidate
@@ -558,7 +660,13 @@ def test_local_optimization_plots_restored_graph_after_rejected_candidate(
 
 
 def test_local_optimization_with_edges(ga_tech_nodes_with_edges, default_costs, default_length_constraints):
-    """Test LocalOptimization using a fixture that includes both nodes and edges."""
+    """Verify local optimization on a layout with existing nodes and edges.
+
+    Args:
+        ga_tech_nodes_with_edges: Connected layout fixture.
+        default_costs: Standard pole and wire costs.
+        default_length_constraints: Standard span constraints.
+    """
 
     nodes, edges = ga_tech_nodes_with_edges
 

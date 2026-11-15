@@ -131,6 +131,7 @@ uv run pytest mini_grid_solver/tests/solvers/test_solvers.py
 | **`SimpleMSTSolver`** | Computes a standard Minimum Spanning Tree; used as a baseline. |
 | **`GreedyIterSteinerSolver`** | Iteratively adds candidate poles to reduce total cost. |
 | **`DiskBasedSteinerSolver`** | Uses a minimum disk cover approach to group terminals before Steiner optimization. |
+| **`TheoreticalBoundSteinerSolver`** | Grows clusters nearest-first from a selected terminal, stopping before the anchor radius or minimum star length exceeds its bound. The minimum star may be centered at any cluster terminal; the pole remains at the selected terminal. Connects poles and source with an MST, then splits long edges. |
 | **`LocalOptimization`** | Refines existing topologies using gradient-descent-like local moves. |
 
 ---
