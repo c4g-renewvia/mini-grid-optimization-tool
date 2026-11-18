@@ -8,13 +8,28 @@ from .base_mini_grid_solver import BaseMiniGridSolver
 
 
 class CandidateGeneration(BaseMiniGridSolver):
+    """Provide shared geometric candidate generators for Steiner solvers.
+
+    The helpers create candidate pole coordinates from edges, clusters,
+    proximities, and triangle geometry, then filter candidates against the
+    current network and configured constraints.
+    """
 
     @staticmethod
     def fermat_torricelli_point(pts: np.ndarray) -> np.ndarray:
-        """
-        Compute approximate Fermat-Torricelli point for a triangle (3 points).
-        If any angle ≥ 120°, returns the vertex with that angle.
-        Otherwise returns a rough approximation (centroid fallback for simplicity).
+        """Approximate the Fermat-Torricelli point for a triangle.
+
+        If an angle is at least 120 degrees, returns its vertex; otherwise returns
+        the centroid as a simple approximation.
+
+        Args:
+            pts: Array of exactly three point coordinates.
+
+        Returns:
+            The selected vertex or approximate Fermat-Torricelli point.
+
+        Raises:
+            ValueError: If ``pts`` does not contain exactly three points.
         """
         if len(pts) != 3:
             raise ValueError("Need exactly 3 points")
@@ -44,8 +59,13 @@ class CandidateGeneration(BaseMiniGridSolver):
         return np.mean(pts, axis=0)
 
     def _get_kdtree(self, coords: np.ndarray) -> KDTree:
-        """
-        Returns a cached KDTree, rebuilding only when coordinates actually changed.
+        """Return the cached KDTree, rebuilding it when coordinates change.
+
+        Args:
+            coords: Coordinates used to build or validate the cached tree.
+
+        Returns:
+            A KDTree containing the supplied coordinates.
         """
         if (self._kdtree_cache is None or
                 self._cached_kd_coords is None or
@@ -68,42 +88,35 @@ class CandidateGeneration(BaseMiniGridSolver):
             max_dist_to_line=40.0,
             min_dist_to_existing=5.0
     ):
-        """
-        Generate candidate projection points near graph edges for terminal points.
+        """Generate candidate projections of terminals onto graph edges.
 
-        This method calculates candidate projection points for a given set of terminal
-        points and edges in a graph. The projection points are computed based on their
-        distance from the terminal points to the edges, ensuring they comply with
-        maximum distance constraints. Additionally, candidates too close to existing
-        points are excluded.
+        Projections farther than the maximum edge distance or too close to an
+        existing point are discarded. Results are rounded and deduplicated.
 
-        Arguments:
-            coords_array (np.ndarray): Array of coordinates, where each row corresponds
-                to a point in the graph (e.g., nodes and terminal points). Each row is
-                represented as an [x, y] or [lat, lon] pair.
-            edge_list (list[tuple[int, int]]): List of edges where each edge is a tuple
-                of two integers representing the indices of points in `coords_array`
-                that form the edge.
-            terminal_indices (list[int]): List of indices in `coords_array` representing
-                the terminal points for which projections are to be generated.
-            max_dist_to_line (float): Maximum allowable distance in meters for terminal
-                points to project onto an edge. Defaults to 40.0.
-            min_dist_to_existing (float): Minimum allowable distance in meters from the
-                projected point to existing points to avoid duplication. Defaults to
-                5.0.
+        Args:
+            coords_array: Point coordinates indexed by edge and terminal indices.
+            edge_list: Edges represented by pairs of coordinate indices.
+            terminal_indices: Indices of terminals to project.
+            max_dist_to_line: Maximum terminal-to-edge distance in meters.
+            min_dist_to_existing: Minimum projection-to-existing-point distance
+                in meters.
 
         Returns:
-            np.ndarray: A 2D array where each row corresponds to a unique candidate
-                projection point. Rows are deduplicated and rounded up to 6 decimal
-                places. Returns an empty array if no viable candidates are found.
-
-        Raises:
-            None.
+            Unique candidate coordinates, or an empty array if none qualify.
         """
         candidates = []
 
         def point_to_segment_distance_and_projection(p, a, b):
-            """Return distance from point p to segment [a,b] and closest point on segment."""
+            """Find a point's distance and projection onto a line segment.
+
+            Args:
+                p: Point to project.
+                a: First endpoint of the segment.
+                b: Second endpoint of the segment.
+
+            Returns:
+                The distance in meters and the closest coordinate on the segment.
+            """
             # Vector math (all in lat/lng — approximate for small areas)
             ab = b - a
             ap = p - a
@@ -145,49 +158,19 @@ class CandidateGeneration(BaseMiniGridSolver):
             max_length: float = 30.0,
             num_per_edge: int = 3
     ) -> np.ndarray:
-        """
-        Generates collinear candidate points along existing edges in a graph.
+        """Generate intermediate coordinates along sufficiently long tree edges.
 
-        This method computes intermediate collinear points along the edges of
-        a given tree structure in a 2D coordinate space, based on specified
-        distance constraints and the desired number of intermediate points
-        per edge. These points may serve as candidate nodes for further graph
-        augmentation or analysis.
+        Points are interpolated along great-circle paths, rounded, and deduplicated.
 
-        Parameters:
-            coords (np.ndarray): A 2D array of shape (n, 2), where each row
-                contains the latitude and longitude of a node in the graph.
-            current_tree_edges (Iterable[Tuple[int, int]]): A collection of
-                tuples, where each tuple represents an edge in the tree,
-                using indices of the nodes in the `coords` array.
-            max_length (float): The maximum allowable length (in meters) of
-                edges to be considered for generating intermediate points.
-                Any edges shorter than this length will not have candidates
-                generated. Defaults to 30.0.
-            num_per_edge (int): The desired number of intermediate points to
-                generate per edge. This influences the number of segments
-                created along each edge. Defaults to 3.
+        Args:
+            coords: Latitude-longitude coordinates indexed by the edge endpoints.
+            current_tree_edges: Edges represented by pairs of coordinate indices.
+            max_length: Edges at or below this length in meters are skipped.
+            num_per_edge: Desired number of intermediate points per qualifying edge.
 
         Returns:
-            np.ndarray: A 2D array where each row represents an intermediate
-                candidate point, defined by its latitude and longitude. The
-                array is deduplicated and rounded to six decimal places. If no
-                suitable candidates are found, returns an empty array with
-                shape (0, 2).
-
-        Raises:
-            ValueError: If any input has mismatched shape or incompatible
-            data type.
-
-        Notes:
-            - The method employs the Haversine formula to calculate distances
-              on a spherical Earth model, ensuring accurate computations
-              for geographic coordinates.
-            - Intermediate points are computed using a great-circle
-              interpolation strategy, which accounts for the curvature of the
-              Earth.
-            - Near-duplicate points are automatically removed from the output
-              for improved robustness.
+            An ``(m, 2)`` array of candidate coordinates, or an empty ``(0, 2)``
+            array when no edges qualify.
         """
         candidates = []
 
@@ -226,27 +209,18 @@ class CandidateGeneration(BaseMiniGridSolver):
 
     @staticmethod
     def kmeans_generate_cluster_center_candidates(coords, n_init=10):
-        """
-        Generates candidate cluster centers using the K-means clustering algorithm.
+        """Generate unique cluster-center candidates with K-means.
 
-        This method processes the given coordinates and applies the K-means clustering
-        algorithm to generate possible cluster center points. It uses multiple values
-        for the number of clusters to improve the outcomes and to avoid scenarios where
-        a single configuration might not provide meaningful clusters. Duplicates among
-        generated candidates are filtered out.
+        K-means is run for several cluster counts, retaining centers whose clusters
+        contain at least two points.
 
-        Parameters:
-            coords (list of tuple or numpy.ndarray): A list or array of coordinates, where
-                each coordinate is represented as a tuple or array of floats (latitude and
-                longitude or longitude and latitude).
-            n_init (int): The number of times the K-means algorithm will be run with
-                different centroid seeds. The final result will be the best output of
-                n_init consecutive runs in terms of inertia. Default is 10.
+        Args:
+            coords: Input point coordinates.
+            n_init: Number of K-means initializations for each cluster count.
 
         Returns:
-            numpy.ndarray: A numpy array of unique candidate cluster centers. Each row
-                of the array represents a cluster center as a pair of coordinates. If no
-                meaningful cluster centers can be generated, an empty array is returned.
+            A deduplicated array of candidate centers, or an empty array if the
+            input is too small or no clusters are usable.
         """
         if len(coords) < 6:
             return np.array([])  # too few points → no meaningful clusters
@@ -280,25 +254,19 @@ class CandidateGeneration(BaseMiniGridSolver):
         return cluster_centers
 
     def dbscan_generate_cluster_center_candidates(self, coords, eps_meters=40.0, min_samples=2):
-        """
-        Generates cluster center candidates using the DBSCAN clustering algorithm based on geospatial
-        coordinate data. This function identifies clusters of points and computes their geometric centroids
-        as candidate cluster centers.
+        """Generate cluster-center candidates with distance-based DBSCAN.
 
-        Arguments:
-        coords (list[tuple[float, float]]): List of geospatial coordinates represented as tuples
-            of latitude and longitude.
-        eps_meters (float): Maximum distance in meters within which points are considered to
-            be neighbors in the clustering process. The default is 40.0 meters.
-        min_samples (int): Minimum number of data points required to form a cluster. The
-            default is 2.
+        Clusters are computed from haversine distances, and their coordinate
+        centroids are returned.
+
+        Args:
+            coords: Latitude-longitude coordinates to cluster.
+            eps_meters: Maximum neighbor distance in meters.
+            min_samples: Minimum number of points required for a cluster.
 
         Returns:
-        numpy.ndarray: A 2D array of cluster-center coordinates, where each row corresponds to a
-            cluster center. If no valid clusters are found, an empty array with shape (0, 2) is returned.
-
-        Raises:
-        None
+            An ``(m, 2)`` array of unique cluster centers, or an empty array if no
+            valid clusters are found.
         """
         coords_array = np.array(coords)
         n = len(coords_array)
@@ -359,33 +327,22 @@ class CandidateGeneration(BaseMiniGridSolver):
             max_per_pole: int = 10,  # ← New: hard limit per pole
             min_angle_deg: float = 60.0  # ← New: avoid very flat angles
     ) -> np.ndarray:
-        """
-        Generates adaptive Fermat point candidates based on current coordinates and input constraints.
+        """Generate Fermat candidates from nearby pole-terminal pairs.
 
-        This method computes potential locations for Fermat-Torricelli points, which minimize the
-        total distance to a set of given input points under various constraints such as maximum
-        distance, minimum angular separation, and other geometric considerations.
+        Candidate triples are constrained by distance and minimum angle, then
+        filtered for separation from existing coordinates.
 
-        Arguments:
-            current_coords (np.ndarray): Array of coordinates representing current points of
-              interest (e.g., poles or terminals). Shape is (n, 2), where n is the number of points.
-            terminal_indices (List[int]): List of indices identifying terminal points in
-              `current_coords` to be considered for Fermat point calculation.
-            pole_indices (List[int]): List of indices identifying pole points in `current_coords`
-              around which Fermat point candidates are generated.
-            max_distance (float): Maximum allowed distance (in meters) for a terminal point
-              to be considered near a given pole. Default is 60.0.
-            max_per_pole (int): Maximum number of Fermat point candidates generated per pole.
-              Default is 8.
-            min_angle_deg (float): Minimum allowed angular separation (in degrees) between
-              terminal connections to avoid very flat configurations. Default is 30.0.
+        Args:
+            current_coords: Coordinates of current poles and terminals.
+            terminal_indices: Indices of terminals in ``current_coords``.
+            pole_indices: Indices of poles around which to generate candidates.
+            max_distance: Maximum pole-to-terminal distance in meters.
+            max_per_pole: Maximum candidates generated around each pole.
+            min_angle_deg: Minimum terminal-pair angle in degrees.
 
         Returns:
-            np.ndarray: Array of generated Fermat point candidates. Shape is (m, 2), where `m`
-              is the total number of candidates. Returns an empty array if no candidates are found.
-
-        Raises:
-            None.
+            An ``(m, 2)`` array of candidate coordinates, or an empty array if
+            no candidates qualify.
         """
         if not pole_indices or len(terminal_indices) < 2:
             return np.empty((0, 2), dtype=float)
@@ -477,27 +434,19 @@ class CandidateGeneration(BaseMiniGridSolver):
             max_distance: float = 50.0,
             max_candidates: int = 30,
     ) -> np.ndarray:
-        """
-        Generates proximity Fermat candidates based on input coordinates and constraints.
+        """Generate Fermat candidates from nearby coordinate triplets.
 
-        This method identifies Fermat points (or generalized Steiner points) from a given
-        set of coordinates where three points have an associated spatial relationship. It uses
-        either a brute-force approach for small datasets or a cached KDTree implementation for
-        efficient processing in larger datasets. The candidates are filtered based on proximity
-        constraints relative to the input data to ensure valid and distinct results.
+        Small inputs use brute-force enumeration; larger inputs use a cached KDTree.
+        Candidates close to existing points are removed.
 
-        Parameters:
-            coords (np.ndarray): A 2D array of shape (n, 2) containing the coordinates of
-                the points in a format where each row represents a point (latitude, longitude).
-            max_distance (float): The maximum distance in meters within which points are
-                considered close for generating candidates (default: 50.0).
-            max_candidates (int): The maximum number of Fermat points to return after all
-                filtering and deduplication (default: 30).
+        Args:
+            coords: Latitude-longitude coordinates to search.
+            max_distance: Maximum distance in meters for nearby points.
+            max_candidates: Maximum number of candidates to return.
 
         Returns:
-            np.ndarray: A 2D array of shape (m, 2) containing the generated Fermat point
-                candidates, where each row represents a candidate coordinate (latitude, longitude).
-                Returns an empty array if no points can be generated.
+            An ``(m, 2)`` array of candidate coordinates, or an empty array if
+            no candidates qualify.
         """
         n = len(coords)
         if n < 3:
@@ -570,35 +519,19 @@ class CandidateGeneration(BaseMiniGridSolver):
             max_distance: float = 50.0,
             max_candidates: int = 100,
     ) -> np.ndarray:
-        """
-        Determine candidate Fermat-Torricelli points for triplets of coordinates within
-        a specified maximum distance using a brute-force approach.
+        """Generate Fermat candidates by checking every nearby point triplet.
 
-        The function computes potential Fermat-Torricelli points, which minimize the sum
-        of distances to three given points. It uses precomputed distance matrices for efficiency
-        and applies filtering and deduplication to refine the results.
+        The method reuses a distance matrix, then filters, deduplicates, and caps
+        the candidate set.
 
-        Attributes:
-            coords: np.ndarray
-                Array containing the coordinates of points (latitude and longitude)
-                as an (n, 2) dimensional array.
-            max_distance: float, default 50.0
-                Maximum allowable distance between any two points in a triplet to be
-                considered for candidate generation.
-            max_candidates: int, default 100
-                Maximum number of Fermat-Torricelli point candidates to return in the
-                result after filtering and deduplication.
+        Args:
+            coords: Latitude-longitude coordinates to search.
+            max_distance: Maximum pairwise distance in meters for a triplet.
+            max_candidates: Maximum number of candidates to return.
 
         Returns:
-            np.ndarray:
-                Array of unique Fermat-Torricelli point candidates for the input
-                coordinates, limited to the specified maximum count and filtered by
-                distance constraints. If no candidates are generated, returns an empty
-                array with shape (0, 2).
-
-        Raises:
-            None explicitly, but the function may raise errors related to the numpy
-            operations or the invocation of other instance methods.
+            An ``(m, 2)`` array of candidate coordinates, or an empty array if
+            no triplets qualify.
         """
         n = len(coords)
         candidates = []
@@ -653,26 +586,20 @@ class CandidateGeneration(BaseMiniGridSolver):
             pole_indices: List[int],
             terminal_indices: List[int]
     ) -> np.ndarray:
-        """
-        Filters a set of candidate coordinates based on various criteria, such as bounding box constraints,
-        minimum distance thresholds, and duplicate elimination. The function applies successive filters to
-        reduce the set of candidates while ensuring compliance with the specified constraints.
+        """Filter candidates by bounds, spacing, and duplication.
 
-        Parameters:
-        candidates (np.ndarray): A 2D numpy array of candidate coordinates, where each row represents a
-            latitude-longitude coordinate pair.
-        current_coords (np.ndarray): A 2D numpy array of current coordinates in the system, where each
-            row is a latitude-longitude coordinate pair.
-        added_candidates (np.ndarray): A 2D numpy array of already-added candidate coordinates to be excluded
-            from the results.
-        pole_indices (List[int]): A list of indices referencing existing pole coordinates within the
-            current_coords array.
-        terminal_indices (List[int]): A list of indices referencing terminal coordinates within the
-            current_coords array.
+        Candidates outside the terminal bounding box, too close to terminals or
+        existing poles, or already added are removed.
+
+        Args:
+            candidates: Candidate latitude-longitude coordinates.
+            current_coords: Coordinates of existing nodes.
+            added_candidates: Previously added candidate coordinates.
+            pole_indices: Indices of existing poles in ``current_coords``.
+            terminal_indices: Indices of terminals in ``current_coords``.
 
         Returns:
-        np.ndarray: A 2D numpy array of filtered candidate coordinates, where each row represents a
-            latitude-longitude coordinate pair.
+            The filtered and deduplicated candidate coordinates.
         """
         if len(candidates) == 0:
             return np.empty((0, 2), dtype=float)

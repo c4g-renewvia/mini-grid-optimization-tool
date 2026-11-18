@@ -18,16 +18,17 @@ class GeoMixin:
 
     @staticmethod
     def compute_bounding_box(coords):
-        """
-        Compute axis-aligned bounding box from array of [lat, lon] points.
+        """Compute the axis-aligned bounds of latitude/longitude coordinates.
 
         Args:
-            coords: np.ndarray of shape (n, 2) where each row is [latitude, longitude]
-                    or list of [lat, lon] pairs
+            coords: Array or list of latitude/longitude pairs.
 
         Returns:
-            dict: {'min_lat': float, 'max_lat': float, 'min_lon': float, 'max_lon': float}
-                  or None if input is empty/invalid
+            dict or None: Bounds with ``min_lat``, ``max_lat``, ``min_lng``, and
+                ``max_lng`` keys, or None when the input is empty.
+
+        Raises:
+            ValueError: If coordinates are not an ``(n, 2)`` array.
         """
         if len(coords) == 0:
             return None
@@ -52,23 +53,30 @@ class GeoMixin:
 
     @staticmethod
     def is_duplicate(c, existing):
+        """Check whether a coordinate matches any existing point within tolerance.
+
+        Args:
+            c: Coordinate to check.
+            existing: Coordinates against which to check.
+
+        Returns:
+            bool: Whether ``c`` is within the comparison tolerance of a point.
+        """
         return any(np.allclose(c, np.array(p), atol=1e-6) for p in existing)
 
     @staticmethod
     def haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-        """Calculate the great-circle distance between two points on Earth in meters.
-
-        Uses the Haversine formula to compute distance between two latitude/lnggitude pairs.
+        """Calculate great-circle distance between two points in meters.
 
         Args:
             lat1 (float): Latitude of the first point in degrees.
-            lng1 (float): longitude of the first point in degrees.
+            lng1 (float): Longitude of the first point in degrees.
             lat2 (float): Latitude of the second point in degrees.
-            lng2 (float): longitude of the second point in degrees.
+            lng2 (float): Longitude of the second point in degrees.
 
         Returns:
             float: Distance in meters.
-            """
+        """
         R = 6371000.0  # Earth mean radius in meters
         phi1 = math.radians(lat1)
         phi2 = math.radians(lat2)
@@ -81,11 +89,14 @@ class GeoMixin:
 
     @staticmethod
     def haversine_vec(A, B):
-        """
-        Computes the Haversine distance between two sets of points.
+        """Compute pairwise Haversine distances between two coordinate arrays.
+
         Args:
-            A: (n, 2) array of [lat, lon]
-            B: (n, 2) array of [lat, lon]
+            A: Array of latitude/longitude coordinates.
+            B: Array of latitude/longitude coordinates.
+
+        Returns:
+            np.ndarray: Matrix of pairwise distances in meters.
         """
         # A, B: (n, 2) arrays of [lat, lon]
         lat1, lon1 = np.radians(A[:, 0]), np.radians(A[:, 1])
@@ -97,22 +108,13 @@ class GeoMixin:
         return 6371000 * c  # shape (n_candidates, n_buildings)
 
     def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
-        """
-        Computes or retrieves a cached distance matrix for the given set of coordinates.
-
-        This method calculates the pairwise distances between a given set of coordinates
-        using a vectorized implementation for efficiency. If the coordinates have not
-        changed and the cache is valid, the cached distance matrix is returned.
+        """Return the cached pairwise distance matrix or calculate it.
 
         Args:
-            coords (np.ndarray): A 2D array of geographical coordinates where each row
-                represents a point (latitude, longitude).
+            coords (np.ndarray): Array of latitude/longitude coordinates.
 
         Returns:
-            np.ndarray: A 2D array representing the distance matrix, where the value
-                at position (i, j) corresponds to the distance between the i-th and
-                j-th points.
-
+            np.ndarray: Pairwise distances in meters.
         """
         if coords is None or len(coords) == 0:
             return np.zeros((0, 0))
@@ -133,16 +135,13 @@ class GeoMixin:
         return self._dist_matrix
 
     def _compute_coords_hash(self, coords: np.ndarray) -> str:
-        """
-        Computes a unique hash for a given set of coordinates. The coordinates
-        are rounded to six decimal places to ensure precision at the meter level,
-        and then serialized as bytes to generate a hash string.
+        """Create a string hash from coordinates rounded to six decimals.
 
         Args:
-            coords: A NumPy array representing the coordinates to hash.
+            coords (np.ndarray): Coordinates to hash.
 
         Returns:
-            str: A hash string generated from rounded coordinates.
+            str: String representation of the rounded coordinate bytes.
         """
         # Round to 6 decimals (meter-level precision) and hash
         rounded = np.round(coords, decimals=6)
@@ -154,23 +153,18 @@ class GeoMixin:
             lat2: float, lon2: float,
             max_length: float
     ) -> List[Tuple[float, float]]:
-        """
-        Calculates intermediate points on the great-circle path between two geographical coordinates.
-
-        This function computes a series of intermediate latitude and longitude points along the
-        great-circle path between two given geographical coordinates, ensuring that the
-        distance between consecutive points does not exceed a specified maximum length.
+        """Generate intermediate coordinates between two geographic endpoints.
 
         Args:
-            lat1: Latitude of the starting point in decimal degrees.
-            lon1: Longitude of the starting point in decimal degrees.
-            lat2: Latitude of the ending point in decimal degrees.
-            lon2: Longitude of the ending point in decimal degrees.
-            max_length: Maximum allowed distance between consecutive points in meters.
+            lat1 (float): Starting latitude in degrees.
+            lon1 (float): Starting longitude in degrees.
+            lat2 (float): Ending latitude in degrees.
+            lon2 (float): Ending longitude in degrees.
+            max_length (float): Maximum segment distance in meters.
 
         Returns:
-            List of tuples representing the latitude and longitude of each point along
-            the path, including the starting and ending points.
+            List[Tuple[float, float]]: Coordinates along the path, including
+                both endpoints.
         """
         d = self.haversine_meters(lat1, lon1, lat2, lon2)
         if d <= max_length:

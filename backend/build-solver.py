@@ -12,6 +12,14 @@ SPEC = HERE / "minigrid-solver.spec"
 
 
 def main() -> int:
+    """Clean previous build artifacts and bundle the solver with PyInstaller.
+
+    Returns:
+        int: The PyInstaller exit code on failure, or zero on success.
+
+    Raises:
+        OSError: If build artifacts cannot be removed or the process cannot start.
+    """
     if DIST.exists():
         shutil.rmtree(DIST)
     if BUILD.exists():

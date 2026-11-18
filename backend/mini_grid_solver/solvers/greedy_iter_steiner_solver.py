@@ -28,6 +28,11 @@ class GreedyIterSteinerSolver(CandidateGeneration):
     """
 
     def __init__(self, request: SolverRequest):
+        """Initialize the solver and its reusable geometry caches.
+
+        Args:
+            request: Input data and configuration for the solve operation.
+        """
         super().__init__(request)
         self._delaunay_cache = None  # scipy.spatial.Delaunay object
         self._cached_coords = None  # the coords used to build the cache
@@ -41,30 +46,31 @@ class GreedyIterSteinerSolver(CandidateGeneration):
                             terminal_cluster_centers,
                             added_candidates,
                             num_per_edge=2):
-        """
-        Generates a pool of candidate points for network optimization based on various methods.
+        """Combine and filter candidates generated for the current graph.
 
-        This method synthesizes several types of candidates, including Fermat points, adaptive Fermat
-        points, collinear points, and projection candidates. The method also filters candidates based
-        on constraints such as bounding boxes of terminal nodes and removes already added candidates.
-
-        Parameters:
-            coords (list): A list of [latitude, longitude] coordinates representing existing points.
-            cur_edges (list): A list of current edges represented by indices of the coordinates.
-            terminal_cluster_centers (numpy.ndarray): Array of cluster centers derived from terminal nodes.
-            added_candidates (list): A list of candidates already added, each as a [latitude, longitude] pair.
-            num_per_edge (int, optional): Number of candidates to generate per edge. Default is 2.
+        Args:
+            coords: Latitude-longitude coordinates of current graph nodes.
+            cur_edges: Current graph edges.
+            fermat_candidates: Fermat-point candidate coordinates.
+            terminal_cluster_centers: Cluster-center candidate coordinates.
+            added_candidates: Previously added candidate coordinates.
+            num_per_edge: Number of intermediate candidates requested per edge.
 
         Returns:
-            numpy.ndarray: A 2D array where each row represents a generated candidate point as
-                           [latitude, longitude].
-
-        Raises:
-            None
+            An array of filtered latitude-longitude candidate coordinates.
         """
 
         # remove candidates outside of terminal bounding box
         def mask_outside_terminal_bb(_coords, _cands):
+            """Keep candidates within the coordinate bounding box.
+
+            Args:
+                _coords: Coordinates used to calculate the bounding box.
+                _cands: Candidate coordinates to filter.
+
+            Returns:
+                Candidates that lie within the bounding box.
+            """
             if len(_cands) > 0:
                 coords_bb = self.compute_bounding_box(_coords)
                 lat_mask = (coords_bb['min_lat'] <= _cands[:, 0]) * (_cands[:, 0] <= coords_bb['max_lat'])
@@ -156,28 +162,16 @@ class GreedyIterSteinerSolver(CandidateGeneration):
         return candidates
 
     def _fast_scipy_rollout_eval(self, coords: np.ndarray) -> float:
-        """
-        Evaluates the cost of a network rollout using a fast implementation relying on
-        SciPy's minimum spanning tree (MST) computation.
+        """Estimate network cost using vectorized weights and SciPy's MST.
 
-        This method computes the total cost of the network rollout, including the
-        wire cost, pole cost, and penalties for exceeding length constraints. It uses
-        optimized, vectorized operations for calculating costs and constraints, and
-        employs the MST algorithm to minimize the overall cost. Pruning is then applied
-        to remove redundant dead-end poles.
+        Dead-end poles are pruned from the resulting tree before its cost is
+        calculated.
 
-        Parameters:
-        coords: numpy.ndarray
-            A 2D array representing geographic coordinates (latitude and longitude)
-            of network nodes.
+        Args:
+            coords: Latitude-longitude coordinates of network nodes.
 
         Returns:
-        float
-            The total cost of the network rollout, considering wire costs, pole costs,
-            and penalties.
-
-        Raises:
-        None
+            Total rollout cost including wire and active-pole costs.
         """
         n = len(coords)
         source_idx = self._source_idx
@@ -270,23 +264,15 @@ class GreedyIterSteinerSolver(CandidateGeneration):
         return total_wire_and_extra_pole_cost + (num_active_poles * pole_cost)
 
     def _evaluate_rollout(self, current_coords, candidate, depth=2):
-        """
-        Evaluates the rollout cost for a candidate location in relation to current coordinates.
+        """Evaluate a candidate and greedily extend its look-ahead rollout.
 
-        This method performs a multi-level look-ahead to determine the best cost achievable by
-        adding a candidate location to the current set of coordinates. The evaluation is completed
-        using a recursive approach, iterating up to the given depth. The process includes generating
-        and testing proximity candidates at each level to improve the overall cost. The method
-        returns the best cost achieved at the end of the evaluation.
-
-        Parameters:
-            current_coords (np.ndarray): A 2D array representing the current coordinates.
-            candidate (np.ndarray): A 1D array representing the candidate coordinate to evaluate.
-            depth (int, optional): The number of look-ahead levels to evaluate. Defaults to 2.
+        Args:
+            current_coords: Current latitude-longitude coordinates.
+            candidate: Candidate coordinate to evaluate.
+            depth: Maximum number of look-ahead additions.
 
         Returns:
-            float: The best achievable cost after evaluating the candidate and performing look-ahead
-            up to the specified depth.
+            The best rollout cost found.
         """
         # First level: add the primary candidate
         temp_coords = np.vstack([current_coords, candidate])
@@ -322,21 +308,14 @@ class GreedyIterSteinerSolver(CandidateGeneration):
         return best_future_cost
 
     def _distances_from_new_point(self, current_coords: np.ndarray, new_point: np.ndarray) -> np.ndarray:
-        """
-        Calculates the distances from a new point to a series of current coordinates using the Haversine formula.
-
-        This method computes the pairwise distances between a new point and a collection of current coordinates,
-        leveraging the vectorized implementation of the Haversine formula.
+        """Calculate haversine distances from a new point to existing coordinates.
 
         Args:
-            current_coords (np.ndarray): A 2D array of shape (n, 2) where each row represents the latitude and
-                longitude of a point in radians.
-            new_point (np.ndarray): A 1D array-like object of shape (2,) representing the latitude and longitude
-                of a single point in radians.
+            current_coords: Existing latitude-longitude coordinates.
+            new_point: New latitude-longitude coordinate.
 
         Returns:
-            np.ndarray: A flattened 1D array of shape (n,) containing the calculated distances from the new point
-            to each point in the `current_coords` array.
+            A flattened array of distances in meters.
         """
         new_point = np.array(new_point).reshape(1, 2)  # shape (1, 2)
         return self.haversine_vec(new_point, current_coords).flatten()
@@ -348,30 +327,16 @@ class GreedyIterSteinerSolver(CandidateGeneration):
             cand_dists: np.ndarray,
             new_point_idx: int
     ) -> nx.DiGraph:
-        """
-        Constructs a directed graph (DiGraph) with a new node added to represent a new point,
-        alongside existing nodes and their relationships as defined by distances and parameters.
+        """Build a directed graph with edges for a newly added candidate.
 
-        This function integrates the new point into the graph, updates edge weights and
-        attributes, and maintains relationships between different node types (source, poles,
-        and terminals). It calculates the appropriate weights for edges based on distance
-        and voltage levels.
-
-        Parameters:
-        nodes : list
-            A list of node objects where each node defines attributes such as index, name,
-            type, latitude, and longitude.
-        base_dist_matrix : np.ndarray
-            A 2D array representing the base distance matrix between existing nodes.
-        cand_dists : np.ndarray
-            A 1D array representing candidate distances from the new point to all nodes.
-        new_point_idx : int
-            The index of the newly added point in the nodes list.
+        Args:
+            nodes: Node objects with graph identifiers and geographic attributes.
+            base_dist_matrix: Distances between existing nodes.
+            cand_dists: Distances from the new point to existing nodes.
+            new_point_idx: Index of the new point in ``nodes``.
 
         Returns:
-        nx.DiGraph
-            A directed graph representing the updated relationships and attributes of nodes,
-            including the newly integrated point.
+            The graph with eligible source, pole, and terminal connections.
         """
         DG = nx.DiGraph()
 
@@ -439,9 +404,17 @@ class GreedyIterSteinerSolver(CandidateGeneration):
         return DG
 
     def _evaluate_candidate_fast(self, cand, current_coords, current_names, dist_matrix):
-        """
-        Fast path for evaluating one candidate.
-        Uses the optimized builder. Falls back only if something goes wrong.
+        """Evaluate a candidate with the optimized graph builder and a fallback.
+
+        Args:
+            cand: Candidate coordinate to evaluate.
+            current_coords: Current latitude-longitude coordinates.
+            current_names: Names corresponding to current coordinates.
+            dist_matrix: Distances between current coordinates.
+
+        Returns:
+            A dictionary containing the candidate cost, coordinate, graph, nodes,
+            and whether the fast path succeeded.
         """
         try:
             cand_dists = self._distances_from_new_point(current_coords, cand)
@@ -484,26 +457,10 @@ class GreedyIterSteinerSolver(CandidateGeneration):
             }
 
     def _solve(self) -> nx.DiGraph:
-        """
-        Solves the optimization problem of constructing the minimum spanning arborescence with additional candidate nodes
-        from an initial set of nodes and edges. The algorithm iteratively improves upon the solution by adding and pruning
-        nodes efficiently to minimize total weight.
-
-        Args:
-            input_tuple (Tuple): A tuple containing the following parameters:
-                - nodes (Iterable): Initial nodes of the graph.
-                - coords (np.ndarray): Coordinates of the nodes.
-                - source_idx (int): Index of the source node in the graph.
-                - terminal_indices (List[int]): Indices of the terminal nodes.
-                - names (List[str]): List of node names corresponding to `coords`.
-                - solver (np.ndarray): Cost matrix used for the spanning arborescence calculation.
+        """Add promising Steiner candidates and optimize the resulting arborescence.
 
         Returns:
-            Tuple[nx.DiGraph, List[Node], np.ndarray]: A tuple containing:
-                - Directed graph representing the optimized spanning arborescence.
-                - List of Node objects based on the optimized graph.
-                - Numpy array of the final coordinate set including additional nodes.
-
+            The optimized directed graph.
         """
 
         # Initial state tracking
@@ -557,7 +514,14 @@ class GreedyIterSteinerSolver(CandidateGeneration):
 
             # --- STEP 1: IMMEDIATE FILTERING (The "Beam" Selection) ---
             def eval_wrapper(cand):
-                # Instantly evaluate the candidate purely in NumPy/SciPy
+                """Return the fast rollout cost for one candidate.
+
+                Args:
+                    cand: Candidate coordinate to evaluate.
+
+                Returns:
+                    A dictionary containing its cost and coordinate.
+                """
                 temp_coords = np.vstack([current_coords, cand])
                 cost = self._fast_scipy_rollout_eval(temp_coords)
                 return {"cost": cost, "cand": cand}

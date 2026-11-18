@@ -22,24 +22,28 @@ class CostMixin:
     """
 
     def get_min_pole_to_term(self) -> float:
+        """Return the minimum allowed pole-to-terminal distance in meters."""
         if self.request.voltageLevel == 'low':
             return self.request.lengthConstraints.low.poleToTerminalMinLength
         else:
             return self.request.lengthConstraints.high.poleToTerminalMinLength
 
     def get_max_pole_to_pole(self) -> float:
+        """Return the maximum allowed pole-to-pole distance in meters."""
         if self.request.voltageLevel == 'low':
             return self.request.lengthConstraints.low.poleToPoleMaxLength
         else:
             return self.request.lengthConstraints.high.poleToPoleMaxLength
 
     def get_max_pole_to_term(self) -> float:
+        """Return the maximum allowed pole-to-terminal distance in meters."""
         if self.request.voltageLevel == 'low':
             return self.request.lengthConstraints.low.poleToTerminalMaxLength
         else:
             return self.request.lengthConstraints.high.poleToTerminalMaxLength
 
     def get_cost_per_meter(self) -> float:
+        """Return the wire cost per meter for the active voltage level."""
         if self.request.voltageLevel == "low":
             return self.request.costs.lowVoltageCostPerMeter
         else:
@@ -47,16 +51,14 @@ class CostMixin:
         """..."""
 
     def calc_edge_weight(self, length, to_terminal=False):
-        """
-        Calculates the weight (cost) of establishing an electrical connection over a specified length,
-        including the cost of wires and supplementary poles required for intermediate support.
+        """Calculate the cost of a connection, including intermediate support poles.
 
         Args:
-            length: The length of the connection to be established, in meters.
-            to_terminal: A boolean indicating whether the connection is reaching a terminal point.
+            length: Connection length in meters.
+            to_terminal: Whether the connection ends at a terminal.
 
         Returns:
-            float: The calculated weight (cost) of establishing the electrical connection.
+            float: Total wire and intermediate-pole cost.
         """
         voltage_cost = self.get_cost_per_meter()
 
@@ -81,22 +83,13 @@ class CostMixin:
         return weight
 
     def _compute_total_cost(self, graph):
-        """
-        Calculates the total cost associated with a given graph based on wire costs, pole costs,
-        and constraint violation penalties.
-
-        The method calculates the total cost by summing up the wire costs, the costs of the
-        intermediate support poles, and penalties associated with violation of distance constraints
-        (length and type-based constraints) between nodes in the graph.
+        """Calculate wire, pole, and distance-constraint costs for a graph.
 
         Args:
-            graph: A graph object where nodes and edges contain relevant attributes, such as 'type'
-                for nodes and 'weight', 'length', and 'voltage' for edges. The graph is expected to
-                use a data structure that complies with node and edge attribute lookups.
+            graph: Graph whose nodes and edges contain network attributes.
 
         Returns:
-            float: The total cost associated with the given graph, including wire costs, pole costs,
-            and any applicable violation penalties.
+            float: Total cost, including applicable constraint penalties.
         """
         # 1. Wire + intermediate support-pole costs
         wire_cost = sum(d['weight'] for u, v, d in graph.edges(data=True))
@@ -137,23 +130,13 @@ class CostMixin:
         return total + violation_penalty
 
     def _compute_total_cost_poles_only(self, graph):
-        """
-        Computes the total cost of constructing a network considering only wire
-        costs and the cost of intermediate support poles.
-
-        The calculation involves summing the weights of the edges in the given
-        graph as wire costs and adding the cost of intermediate poles based on
-        the specified type of nodes.
+        """Calculate wire and pole costs for a graph without constraint penalties.
 
         Args:
-            graph: A graph where edges contain a 'weight' attribute representing
-                the cost of wire between two nodes, and nodes may have a 'type'
-                attribute to indicate whether they are poles. The graph is
-                expected to represent network connections.
+            graph: Graph whose edges have weights and whose nodes have type attributes.
 
         Returns:
-            float: The total cost calculated as the sum of wire costs and pole
-                costs.
+            float: Sum of edge weights and pole costs.
         """
         # 1. Wire + intermediate support-pole costs
         wire_cost = sum(d['weight'] for u, v, d in graph.edges(data=True))
@@ -167,22 +150,14 @@ class CostMixin:
         return total
 
     def _fast_total_cost_for_coords(self, coords: np.ndarray) -> float:
-        """
-        Calculates the total cost for a given set of coordinates considering wire costs, pole
-        costs, trunk and terminal drops, and ensures compliance with maximum allowable distances.
-
-        The method determines the cost of setting up a network infrastructure given a set of
-        geographic coordinates. It handles different components of the cost, including trunk
-        and terminal wire costs, pole costs, penalties for exceeding maximum distances, and
-        pruning of unnecessary poles using a minimum spanning tree.
+        """Estimate network cost for coordinates using an MST and pole pruning.
 
         Args:
-            coords (np.ndarray): A 2D array of coordinates, where each row represents a point
-                in geographic space. The length of coords must be at least 2.
+            coords (np.ndarray): Geographic coordinates with one point per row.
 
         Returns:
-            float: The total calculated cost, including the wire cost and the cost of active
-            poles after pruning.
+            float: Estimated wire and active-pole cost, or a large sentinel when
+                fewer than two coordinates are provided.
         """
         if len(coords) < 2:
             return 1e9
@@ -263,4 +238,3 @@ class CostMixin:
         total_wire_and_extra = np.sum(undirected_mst) / 2.0
         num_active_poles = len(poles) - len(pruned_nodes)
         return total_wire_and_extra + (num_active_poles * pole_cost)
-

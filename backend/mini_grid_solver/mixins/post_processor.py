@@ -26,28 +26,15 @@ class PostProcessingMixin:
 
     @staticmethod
     def _get_num_poles_and_wire_length(graph: Union[nx.Graph, nx.DiGraph]):
-        """
-        Calculates the number of poles in the graph and the total wire length for
-        different voltage types.
-
-        This function iterates over the edges and nodes of the graph to compute
-        the total wire length categorized by voltage type ("low" and "high") and
-        count the total number of poles. It assumes that the edges in the graph
-        have an attribute `length` for wire length and `voltage` for the type of
-        voltage. Nodes in the graph are expected to have a `type` attribute to
-        identify poles.
+        """Count poles and sum wire lengths by voltage level.
 
         Args:
-            graph (Union[nx.Graph, nx.DiGraph]): A NetworkX graph representing the
-                network of wires and poles. The graph's edges should contain the
-                attributes `length` (float) and `voltage` (str), and its nodes
-                should have a `type` attribute.
+            graph (Union[nx.Graph, nx.DiGraph]): Network graph with node types
+                and edge lengths and voltage levels.
 
         Returns:
-            Tuple[int, float, float]: A tuple containing:
-                - The number of poles (int) in the graph.
-                - The total wire length (float) for "low" voltage.
-                - The total wire length (float) for "high" voltage.
+            Tuple[int, float, float]: Pole count, low-voltage wire length, and
+                high-voltage wire length.
         """
         low_m = high_m = 0.0
 
@@ -65,8 +52,15 @@ class PostProcessingMixin:
         return n_poles, low_m, high_m
 
     def _get_ordered_nodes_and_remap_edges(self, graph: Union[nx.DiGraph, nx.Graph]):
-        """Return nodes in canonical order: Source → Terminals → Poles (sorted by distance from source)
-        with dense contiguous indices 0,1,2,... and remap all edges accordingly."""
+        """Order nodes as source, terminals, then poles and remap edge indices.
+
+        Args:
+            graph (Union[nx.DiGraph, nx.Graph]): Graph whose nodes and edges
+                will be converted to ordered node and edge objects.
+
+        Returns:
+            tuple[list[Node], list[Edge]]: Reindexed nodes and remapped edges.
+        """
         source_nodes = []
         terminal_nodes = []
         pole_nodes = []
@@ -141,25 +135,14 @@ class PostProcessingMixin:
 
     def _get_pole_optimization_order(self, graph: Union[nx.DiGraph, nx.Graph],
                                      farthest_first: bool = True) -> List[int]:
-        """
-        Determines the optimization order of poles in the provided graph based on their
-        distance from a source node. By default, the poles are sorted in farthest-first
-        order.
-
-        This function computes the shortest-path distances between a source node and poles
-        and sorts the poles accordingly. If the 'length' attribute exists on the graph's
-        edges, it is used as the weight for distance computation. Otherwise, path lengths
-        are calculated without weights.
+        """Sort poles by shortest-path distance from the source.
 
         Args:
-            graph: Graph containing nodes and edges, represented as either a directed or
-                undirected graph (networkx.DiGraph or networkx.Graph).
-            farthest_first: Boolean flag to determine sorting order. If True, poles are
-                sorted in descending order by distance (farthest-first). If False, poles
-                are sorted in ascending order by distance (closest-first).
+            graph (Union[nx.DiGraph, nx.Graph]): Graph containing the poles.
+            farthest_first (bool): Whether to sort from farthest to closest.
 
         Returns:
-            List[int]: A list of node indices representing the optimization order of poles.
+            List[int]: Pole indices in optimization order.
         """
         source_idx = self._source_idx
         poles = [
@@ -192,20 +175,7 @@ class PostProcessingMixin:
         return sorted_poles
 
     def _normalize_node_order(self):
-        """
-        Rearranges the list of nodes in a specified order and regenerates metadata.
-
-        This method organizes nodes into groups based on their types ('source',
-        'terminal', 'pole') while preserving the original order within each group.
-        It then rebuilds the node list in the desired order and regenerates associated
-        metadata such as indices, coordinates, and names.
-
-        Args:
-            None
-
-        Raises:
-            None
-        """
+        """Reorder source, terminal, and pole nodes and rebuild derived metadata."""
         if not self._nodes:
             return
 
@@ -252,22 +222,14 @@ class PostProcessingMixin:
                   f"{len(terminal_nodes)} terminals + {len(pole_nodes)} poles")
 
     def rename_poles(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
-        """
-        Renames the nodes classified as 'poles' in a graph sequentially, based on the depth-first
-        search (DFS) discovery order starting from a specified source node. This function also marks
-        the renamed poles as used.
-
-        Nodes in the graph are renamed in the format "Pole 001", "Pole 002", etc., for easier identification
-        and reference. If the DFS traversal fails or the input graph is malformed, the function falls back
-        to handling nodes in their original graph order. The process ensures that only nodes marked as
-        'pole' in their attributes are affected.
+        """Rename pole nodes in depth-first discovery order from the source.
 
         Args:
-            graph (Union[nx.DiGraph, nx.Graph]): Input graph to be processed. It should support
-                NetworkX-compatible functionality such as `dfs_preorder_nodes`.
+            graph (Union[nx.DiGraph, nx.Graph]): Graph containing poles to rename.
 
         Returns:
-            Union[nx.DiGraph, nx.Graph]: A new graph with renamed pole nodes and updated attributes.
+            Union[nx.DiGraph, nx.Graph]: Copy of the graph with sequentially
+                named poles marked as used.
         """
         if self._source_idx is None or not graph:
             return graph
@@ -299,20 +261,13 @@ class PostProcessingMixin:
         return graph
 
     def prune_dead_end_pole_branches(self, graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
-        """
-        Removes all dead-end branches comprised of nodes labeled as 'pole' from a given
-        graph or directed graph. Dead-end branches are identified as those starting at
-        nodes with no outgoing edges. This process is performed iteratively until no
-        more such dead ends exist in the graph.
+        """Remove dead-end pole branches from a graph copy.
 
         Args:
-            graph (Union[nx.Graph, nx.DiGraph]): The input graph or directed graph
-                containing nodes and edges where some nodes are labeled with a
-                'type' attribute.
+            graph (Union[nx.Graph, nx.DiGraph]): Graph containing typed nodes.
 
         Returns:
-            Union[nx.Graph, nx.DiGraph]: A modified copy of the input graph with
-            dead-end 'pole' branches removed.
+            Union[nx.Graph, nx.DiGraph]: Copy with dangling pole branches removed.
         """
         graph = graph.copy()
         out_degrees = dict(graph.out_degree())
@@ -330,18 +285,11 @@ class PostProcessingMixin:
         return graph
 
     def _recompute_edges_for_node(self, graph: Union[nx.DiGraph, nx.Graph], node_idx: int):
-        """
-        Recomputes the edge attributes for all edges connected to a specific node in
-        the graph. The method updates the 'length' and 'weight' attributes of each
-        edge based on the Haversine distance between the nodes and the edge's
-        associated voltage level.
+        """Recompute lengths and weights for edges incident to a node.
 
         Args:
-            graph (Union[nx.DiGraph, nx.Graph]): The graph object representing the
-                network. It can be either a directed or undirected graph and must
-                contain 'lat' and 'lng' attributes for its nodes.
-            node_idx (int): The index of the node for which the edges need to be
-                recomputed.
+            graph (Union[nx.DiGraph, nx.Graph]): Graph containing the node.
+            node_idx (int): Index of the node whose incident edges are updated.
         """
         # Get ALL edges touching this node (incoming + outgoing)
         if isinstance(graph, nx.DiGraph):
@@ -364,20 +312,14 @@ class PostProcessingMixin:
             )
 
     def _all_edges_valid(self, graph, node_idx: int) -> bool:
-        """
-        Validates edges of a graph based on length constraints and node type requirements.
-
-        This method checks whether all the edges incident to a specific node in a graph meet the specified
-        criteria for length and other node-dependent conditions. It accommodates both directed and undirected
-        graphs and differentiates between terminal-to-pole and pole-to-pole node types to enforce appropriate
-        constraints.
+        """Check whether all edges incident to a node meet length constraints.
 
         Args:
-            graph (nx.Graph or nx.DiGraph): Input graph, which can either be a directed or undirected networkx graph.
-            node_idx (int): Index of the node to validate within the graph.
+            graph (nx.Graph or nx.DiGraph): Graph containing the node.
+            node_idx (int): Index whose incident edges are validated.
 
         Returns:
-            bool: True if all edges incident to the specified node satisfy the constraints, False otherwise.
+            bool: Whether every incident edge satisfies the applicable limits.
         """
         if isinstance(graph, nx.DiGraph):
             incident_edges = list(graph.in_edges(node_idx, data=True)) + \
@@ -405,28 +347,13 @@ class PostProcessingMixin:
         return True
 
     def _enforce_min_pole_terminal_distances(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
-        """
-        Enforces minimum distance constraints between poles and terminals in a graph.
+        """Move poles as needed to enforce minimum pole-to-terminal distances.
 
-        This method ensures that the physical constraints regarding the minimum distance
-        between poles and terminals are upheld within the provided graph. If any poles
-        and terminals are found to be closer than the prescribed minimum distance, the
-        positions of the poles are adjusted accordingly to meet the constraint. The
-        operation is performed on a modified copy of the graph, leaving the original
-        graph unaltered.
-
-        Parameters:
-            graph (Union[nx.DiGraph, nx.Graph]): The directed or undirected graph
-                containing nodes and edges representing poles, terminals, and their
-                connections.
+        Args:
+            graph (Union[nx.DiGraph, nx.Graph]): Graph containing pole-terminal edges.
 
         Returns:
-            Union[nx.DiGraph, nx.Graph]: A modified graph that satisfies the minimum
-            distance constraints between poles and terminals.
-
-        Raises:
-            ValueError: If distance calculations fail or graph node attributes are
-            missing necessary geographic properties (`lat` and `lng`).
+            Union[nx.DiGraph, nx.Graph]: Copy with violating pole positions adjusted.
         """
         graph = graph.copy()
         min_dist = self.get_min_pole_to_term()
@@ -470,12 +397,14 @@ class PostProcessingMixin:
         return graph
 
     def _drop_redundant_poles(self, pruned_graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
-        """
-        Drops redundant poles from the graph, iteratively testing whether their removal results in a
-        lower cost while maintaining necessary connectivity.
+        """Remove poles when bypassing them does not increase graph cost.
 
-        Optimized version: Mutates the graph in-place and reverts local changes if the cost
-        does not improve, avoiding expensive O(V+E) deep copy operations in tight loops.
+        Args:
+            pruned_graph (Union[nx.Graph, nx.DiGraph]): Graph to simplify.
+
+        Returns:
+            Union[nx.Graph, nx.DiGraph]: Graph after accepted pole removals, or the
+                original graph when no removal improves cost.
         """
         if self.request.debug >= 1:
             print("\n--- Starting _drop_redundant_poles (pred→succ + terminal→nearest-pole) ---")
@@ -653,24 +582,14 @@ class PostProcessingMixin:
         return current_graph
 
     def _pole_gradient_optimizer(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
-        """
-        Performs a gradient-based optimization on the positions of specified "pole" nodes within
-        a graph to minimize a cost function. The optimization adjusts the latitude and longitude
-        of the pole nodes within a defined movement constraint to achieve a reduction in the total cost.
-
-        The process involves multiple passes of sequential optimization for the poles, using a
-        BFGS optimization algorithm for fine-tuning the positions of nodes.
+        """Optimize pole coordinates with sequential BFGS passes.
 
         Args:
-            graph: A networkx graph (directed or undirected) containing nodes and edges. The graph
-                nodes must have the attributes 'lat', 'lng', and 'type', where 'type' indicates
-                the node type, and certain nodes with 'type' set to 'pole' will be optimized.
+            graph (Union[nx.DiGraph, nx.Graph]): Graph containing typed nodes with
+                geographic coordinates.
 
         Returns:
-            A modified version of the input graph with adjusted node positions for pole nodes if
-            optimizations resulted in cost reductions. If no optimizations were possible, the
-            input graph is returned without modifications.
-
+            Union[nx.DiGraph, nx.Graph]: Copy with any cost-improving pole positions.
         """
         pole_indices = [idx for idx, data in graph.nodes(data=True)
                         if data.get('type') == 'pole']
@@ -714,6 +633,14 @@ class PostProcessingMixin:
                 old_cost = self._compute_total_cost(graph)
 
                 def objective(x):
+                    """Return graph cost after temporarily moving the pole.
+
+                    Args:
+                        x: Candidate latitude and longitude.
+
+                    Returns:
+                        float: Total graph cost at the candidate coordinates.
+                    """
                     lat, lon = x
                     # Temporarily move pole
                     graph.nodes[node_idx]['lat'] = float(lat)
@@ -768,23 +695,13 @@ class PostProcessingMixin:
         return graph
 
     def _merge_collinear_pole_chains(self, graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
-        """
-        Merges collinear pole chains in a graph by identifying and collapsing straight sequences of nodes
-        between branching points or terminals into single long edges. This process improves the
-        graph's simplicity and efficiency by reducing intermediate nodes.
+        """Collapse straight pole chains into single edges.
 
         Args:
-            graph (Union[nx.Graph, nx.DiGraph]): The input graph, which may represent electrical or similar
-                networks. The graph nodes should have attributes `lat`, `lng`, and `type`. If the graph
-                is undirected, it will be transformed into a directed graph for processing.
+            graph (Union[nx.Graph, nx.DiGraph]): Graph with typed nodes and coordinates.
 
         Returns:
-            Union[nx.Graph, nx.DiGraph]: A graph with merged pole chains as long straight segments. The
-            returned graph will have fewer intermediate nodes, with edge lengths properly aggregated.
-
-        Raises:
-            ValueError: If required graph attributes are missing or invalid for processing.
-
+            Union[nx.Graph, nx.DiGraph]: Copy with collinear intermediate poles removed.
         """
         graph = graph.copy()
         merged_count = 0
@@ -905,37 +822,21 @@ class PostProcessingMixin:
             voltage: str,
             is_terminal_segment: bool = False,
     ) -> Tuple[int, int]:
-        """
-        Divides a long electrical segment into smaller segments based on the maximum spacing
-        limitations and places stretched poles at calculated positions in a graph.
-
-        This method ensures that a long segment is divided into equal or near-equal subsegments,
-        and that poles are added to the graph at appropriate locations. The final subsegments
-        are processed such that they are equally divided toward the start and end to avoid
-        unequal spacing.
+        """Split a segment and add intermediate poles to meet spacing limits.
 
         Args:
-            new_graph: The graph where poles and edges will be added. Can be a networkx Graph or
-                DiGraph.
-            start_idx: The index of the starting node for the segment.
-            end_idx: The index of the ending node for the segment.
-            segment_length: The total length of the segment in meters.
-            max_spacing: The maximum allowed spacing between nodes in meters.
-            node_data: A dictionary mapping node indices to their metadata, specifically their
-                geographic coordinates and type.
-            next_index: The next available index for adding new nodes in the graph.
-            voltage: The voltage level identifier for the edge being processed.
-            is_terminal_segment: Whether the segment is at the terminal end of the network. Default
-                is False.
+            new_graph (Union[nx.Graph, nx.DiGraph]): Graph receiving nodes and edges.
+            start_idx (int): Starting node index.
+            end_idx (int): Ending node index.
+            segment_length (float): Segment length in meters.
+            max_spacing (float): Maximum allowed spacing in meters.
+            node_data (dict): Node metadata, including geographic coordinates.
+            next_index (int): Index to assign to the next inserted pole.
+            voltage (str): Voltage level for the segment.
+            is_terminal_segment (bool): Whether the final edge ends at a terminal.
 
         Returns:
-            A tuple containing:
-                - The next available node index after processing.
-                - The previous node index added before the last segment.
-
-        Raises:
-            ValueError: If invalid arguments are provided, e.g., segment_length <= 0 or
-                max_spacing <= 0.
+            Tuple[int, int]: Next available index and the last inserted or start index.
         """
         if segment_length <= max_spacing + EDGE_LENGTH_TOLERANCE_METERS:
             # CRITICAL FIX: short segment → just add the direct edge back
@@ -1037,26 +938,15 @@ class PostProcessingMixin:
         return current_next, prev_idx
 
     def split_long_edges_w_poles(self, graph: Union[nx.Graph, nx.DiGraph]) -> Union[nx.Graph, nx.DiGraph]:
-        """
-        Splits long edges in a graph into smaller segments by introducing intermediate poles, ensuring that
-        maximum allowed spacing between poles or poles and terminals is not exceeded.
-
-        The method ensures that for terminal edges (edges connected to terminal nodes), serving poles are
-        placed correctly to facilitate precise connectivity. For non-terminal edges, poles are spaced
-        based on a predefined maximum distance between consecutive poles. The placement of poles is such that
-        the directionality (upstream to downstream) is maintained.
+        """Split overlong edges by inserting intermediate poles.
 
         Args:
-            graph (Union[nx.Graph, nx.DiGraph]): The input network graph where edges are potentially split into
-                smaller segments defined by intermediate poles.
+            graph (Union[nx.Graph, nx.DiGraph]): Network graph whose long edges
+                may need intermediate poles.
 
         Returns:
-            Union[nx.Graph, nx.DiGraph]: A modified version of the input graph with additional nodes (poles)
-                inserted and edges updated to reflect the splitting into smaller segments.
-
-        Raises:
-            NetworkXError: If the input graph is invalid or operations on the graph fail.
-            KeyError: If there are issues with missing node or edge attributes during processing.
+            Union[nx.Graph, nx.DiGraph]: Copy with overlong edges split while
+                maintaining upstream-to-downstream direction.
         """
         new_graph = graph.copy()
 
@@ -1164,22 +1054,13 @@ class PostProcessingMixin:
         return new_graph
 
     def _post_solver_opt(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
-        """
-        Performs a local optimization on the given graph to reduce the total cost by
-        iteratively applying optimization techniques. This process includes splitting
-        long edges, renaming poles, and optimizing pole positions. The function
-        terminates when no significant improvement is observed or when a predefined
-        maximum number of iterations is reached.
+        """Iteratively apply local graph optimizations to reduce total cost.
 
         Args:
-            graph (Union[nx.DiGraph, nx.Graph]): The input graph representing the
-                structure to be optimized. The graph may be directed or undirected
-                and should conform to the assumptions made by the optimization
-                algorithms.
+            graph (Union[nx.DiGraph, nx.Graph]): Graph to optimize.
 
         Returns:
-            Union[nx.DiGraph, nx.Graph]: The optimized graph after local adjustments
-            to minimize the total cost.
+            Union[nx.DiGraph, nx.Graph]: Graph after local optimization.
         """
         previous_cost = self._compute_total_cost(graph)
         best_cost = previous_cost
@@ -1252,9 +1133,13 @@ class PostProcessingMixin:
         return graph
 
     def _pole_block_coordinate_pass(self, graph: Union[nx.DiGraph, nx.Graph]) -> Union[nx.DiGraph, nx.Graph]:
-        """
-        Block-coordinate pole optimization: optimize small connected pole neighborhoods together.
-        This helps escape single-pole local minima left by sequential updates.
+        """Optimize small connected pole neighborhoods with shared translations.
+
+        Args:
+            graph (Union[nx.DiGraph, nx.Graph]): Graph containing poles to optimize.
+
+        Returns:
+            Union[nx.DiGraph, nx.Graph]: Graph with accepted block coordinate updates.
         """
         if graph.number_of_nodes() == 0:
             return graph

@@ -38,6 +38,11 @@ class BaseMiniGridSolver(
     """
 
     def __init__(self, request: SolverRequest):
+        """Initialize the solver with a request and empty working state.
+
+        Args:
+            request: Input data and configuration for the solve operation.
+        """
         self.request = request
         self._nodes: Optional[List[Node]] = None
         self._edges: Optional[List[Edge]] = None
@@ -55,34 +60,10 @@ class BaseMiniGridSolver(
     # ─── Static Helper methods ───────────────────────────────────────────────
     @staticmethod
     def get_input_params() -> List[SolverInputParams]:
-        """
-        Example:
-            [
-            SolverInputParams(
-                name="n_points",
-                type="int",
-                default=10,
-                min=2,
-                max=100,
-                description='Number of points'
-            ),
-            SolverInputParams(
-                name="steinerize",
-                type="bool",
-                default=False,
-                min=False,
-                max=True,
-                description='Steinerize the graph',
-            ),
-            SolverInputParams(
-                name="algorithm",
-                type="str",
-                default="",
-                options=['algo1', "algo2"],
-                description='Which algorith to use',
+        """Return the input parameters supported by this solver.
 
-            )
-        ]
+        Returns:
+            An empty list because this base solver exposes no additional parameters.
         """
         return []
 
@@ -90,31 +71,23 @@ class BaseMiniGridSolver(
 
     @abstractmethod
     def _solve(self) -> Union[nx.DiGraph, nx.Graph]:
-        """
-        Abstract method to solve a problem and return a graph representation of its solution.
+        """Solve the problem and return its graph representation.
 
-        The `_solve` method is intended to be implemented by subclasses with specific logic
-        to process data or configurations and produce a directed or undirected graph based
-        on the problem's requirements.
+        Subclasses implement this method with the algorithm-specific solution logic.
 
         Returns:
-            Union[nx.DiGraph, nx.Graph]: A graph representing the solution to the problem.
+            A directed or undirected graph representing the solution.
         """
         raise NotImplementedError("Subclasses must implement this method")
 
     # ─── Class methods ───────────────────────────────────────────────
 
     def parse_and_validate_input(self):
-        """
-        Parses and validates the input data required for the operation. Ensures that
-        the input nodes, costs, and related data meet the necessary requirements and
-        formats them for subsequent processing steps.
+        """Validate the request and initialize normalized solver state.
 
         Raises:
-            ValueError: If the number of nodes is less than 2.
-            ValueError: If more than one source node is found in the input.
-            ValueError: If no source node is found in the input.
-            ValueError: If there are fewer than two coordinates after normalization.
+            ValueError: If fewer than two nodes or coordinates are provided, or if
+                the request has zero or multiple source nodes.
         """
         nodes = self.request.nodes
         costs: Costs = self.request.costs.model_copy()
@@ -163,21 +136,16 @@ class BaseMiniGridSolver(
 
     def build_solver_result(self, graph: Union[nx.DiGraph, nx.Graph],
                             debug_info: Optional[Dict[str, Any]] = None) -> SolverResult:
-        """
-        Processes a graph to compute and build a result containing ordered nodes, remapped
-        edges, and cost estimations related to poles and wires. The solution enforces
-        a consistent node ordering and calculates cost summaries for reporting.
+        """Build a normalized solver result and calculate its cost estimates.
 
         Args:
-            graph: A graph structure provided as either a `nx.DiGraph` or `nx.Graph`
-                instance. The graph represents the infrastructure network to solve.
-            debug_info: An optional dictionary containing information intended for
-                debugging purposes. If provided, it is included in the solution result
-                when debugging mode is enabled.
+            graph: The graph representing the infrastructure solution.
+            debug_info: Optional debugging information to include when debug mode is
+                enabled.
 
         Returns:
-            SolverResult: An object containing the processed graph orderings, cost
-            estimates for poles and wires, and optionally the debugging information.
+            The normalized result, including graph data, cost estimates, and optional
+            debugging information.
         """
         # rename poles to have a name
         graph = self.rename_poles(graph)
@@ -214,25 +182,13 @@ class BaseMiniGridSolver(
 
 
     def solve(self) -> SolverResult:
-        """
-        Method called by the server to solve the given request.
-        Solves the given problem and return the result in a standardized format.
-
-        This method integrates the flow of problem-solving by parsing and
-        validating the input, solving the problem using the implemented solver,
-        and constructing a solver result based on the computed solution.
+        """Validate the request, run the solver, and build its result.
 
         Returns:
-            SolverResult: An object that encapsulates the result of the problem-solving
-                          process. This includes details such as the solved data
-                          representation.
+            The standardized result for the solved request.
 
         Raises:
-            ValidationError: If the input provided does not meet required criteria
-                             during the parsing and validation phase.
-
-            SolverException: If an error occurs during the solving process, such as
-                             an invalid state in the graph.
+            ValueError: If the request has invalid node or source data.
         """
 
         # Parse input and input into abstract solver method

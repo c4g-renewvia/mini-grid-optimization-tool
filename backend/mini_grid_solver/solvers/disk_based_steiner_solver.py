@@ -25,6 +25,11 @@ class DiskBasedSteinerSolver(CandidateGeneration):
     """
 
     def __init__(self, request: SolverRequest):
+        """Initialize the solver and its reusable geometry caches.
+
+        Args:
+            request: Input data and configuration for the solve operation.
+        """
         super().__init__(request)
         # Caches from GreedyIterSteinerSolver for KDTree / Delaunay reuse
         self._delaunay_cache = None
@@ -34,6 +39,11 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
     @staticmethod
     def get_input_params():
+        """Return the parameters supported by the solver.
+
+        Returns:
+            An empty list because this solver exposes no additional parameters.
+        """
         return []
 
     def _plot_disk_cover(self,
@@ -42,9 +52,14 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                          R: float,
                          candidates: Optional[np.ndarray] = None,
                          title: str = "Minimum Disk Cover"):
-        """
-        Plots a visual representation of the minimum disk cover for a given set of points on a 2D plane.
-        (Exactly as in original DiskBasedSteinerSolver – all plotting calls restored)
+        """Plot terminal coordinates, candidate centers, and selected coverage disks.
+
+        Args:
+            term_coords: Coordinates of the terminals.
+            disk_centers: Coordinates of the selected disk centers.
+            R: Disk radius in meters.
+            candidates: Optional coordinates of all candidate centers.
+            title: Plot title.
         """
         fig, ax = plt.subplots(figsize=(11, 9))
         ax.set_title(title)
@@ -106,18 +121,15 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             candidates: np.ndarray,
             terminal_coords: np.ndarray,
     ) -> np.ndarray:
-        """
-        Filters candidate coordinates based on bounding-box constraints, pole-to-terminal and pole-to-pole
-        minimum distance conditions, removal of already added candidates, and deduplication.
+        """Filter disk centers by terminal bounds, spacing, and duplication.
 
-        Parameters:
-            candidates (np.ndarray): A 2D array of candidate coordinates, where each entry represents a
-                coordinate pair (latitude, longitude).
-            terminal_coords (np.ndarray): A 2D array of already added candidate coordinates, which should
-                be excluded from the result.
+        Args:
+            candidates: Candidate latitude-longitude coordinates.
+            terminal_coords: Terminal latitude-longitude coordinates used for
+                bounds and distance checks.
 
         Returns:
-            np.ndarray: A filtered 2D array of candidate coordinates that satisfy all constraints.
+            Candidate coordinates that satisfy the filters.
         """
         if len(candidates) == 0:
             return np.empty((0, 2), dtype=float)
@@ -155,7 +167,16 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
     @staticmethod
     def _latlon_to_meters(points: np.ndarray, ref_lat: float, ref_lon: float) -> np.ndarray:
-        """Project lat/lon points to local East-North meters using the same scaling as the rest of the class."""
+        """Project latitude-longitude points into local east-north meters.
+
+        Args:
+            points: Latitude-longitude coordinates with shape ``(n, 2)``.
+            ref_lat: Reference latitude in degrees.
+            ref_lon: Reference longitude in degrees.
+
+        Returns:
+            Local east-north coordinates in meters.
+        """
         METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(ref_lat))
         # points shape: (n, 2) → [lat, lon]
         north_m = (points[:, 0] - ref_lat) * METERS_PER_DEG_LAT
@@ -164,7 +185,16 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
     @staticmethod
     def _meters_to_latlon(meter_points: np.ndarray, ref_lat: float, ref_lon: float) -> np.ndarray:
-        """Reverse projection."""
+        """Convert local east-north coordinates back to latitude-longitude.
+
+        Args:
+            meter_points: Local east-north coordinates in meters with shape ``(n, 2)``.
+            ref_lat: Reference latitude in degrees.
+            ref_lon: Reference longitude in degrees.
+
+        Returns:
+            Latitude-longitude coordinates with shape ``(n, 2)``.
+        """
         METERS_PER_DEG_LON = METERS_PER_DEG_LAT * np.cos(np.radians(ref_lat))
         dlat = meter_points[:, 1] / METERS_PER_DEG_LAT
         dlon = meter_points[:, 0] / METERS_PER_DEG_LON
@@ -172,7 +202,16 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
     @staticmethod
     def circumcenter(p1, p2, p3):
-        """Return circumcenter or None if points are collinear."""
+        """Compute the circumcenter of three planar points.
+
+        Args:
+            p1: First point coordinate.
+            p2: Second point coordinate.
+            p3: Third point coordinate.
+
+        Returns:
+            The circumcenter coordinate, or ``None`` if the points are collinear.
+        """
         d = 2 * (p1[0] * (p2[1] - p3[1]) +
                  p2[0] * (p3[1] - p1[1]) +
                  p3[0] * (p1[1] - p2[1]))
@@ -188,7 +227,16 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
     @staticmethod
     def circumradius(p1, p2, p3):
-        """Heron's formula version (robust)."""
+        """Compute a triangle's circumradius using Heron's formula.
+
+        Args:
+            p1: First point coordinate.
+            p2: Second point coordinate.
+            p3: Third point coordinate.
+
+        Returns:
+            The circumradius, or infinity for a degenerate triangle.
+        """
         a = np.linalg.norm(p2 - p1)
         b = np.linalg.norm(p3 - p2)
         c = np.linalg.norm(p1 - p3)
@@ -200,7 +248,15 @@ class DiskBasedSteinerSolver(CandidateGeneration):
 
     @staticmethod
     def _circumcenter_and_radius_meters(pts_m: np.ndarray) -> Tuple[Optional[np.ndarray], float]:
-        """Circumcenter + radius for 3 points already in meter coordinates (Euclidean)."""
+        """Compute the circumcenter and radius for three meter-space points.
+
+        Args:
+            pts_m: Three planar point coordinates in meters.
+
+        Returns:
+            The center and radius, or ``(None, infinity)`` if the points are
+            collinear.
+        """
         p1, p2, p3 = pts_m
         d = 2 * (p1[0]*(p2[1] - p3[1]) + p2[0]*(p3[1] - p1[1]) + p3[0]*(p1[1] - p2[1]))
         if abs(d) < 1e-9:
@@ -218,12 +274,14 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return center_m, r_m
 
     def generate_delaunay_circumcenter_candidates(self, term_coords: np.ndarray, R: float) -> List[np.ndarray]:
-        """
-        Generate high-quality disk-center candidates from Delaunay circumcenters
-        whose circumradius (computed in meters) is ≤ R.
+        """Generate Delaunay circumcenters whose meter-space radius is at most R.
 
-        This is geometrically optimal for triples of terminals and complements
-        your existing pairwise + source-biased candidates.
+        Args:
+            term_coords: Terminal latitude-longitude coordinates.
+            R: Maximum circumradius in meters.
+
+        Returns:
+            Circumcenter candidate coordinates in latitude-longitude.
         """
         if len(term_coords) < 3:
             return []
@@ -265,18 +323,22 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return cands_latlon
 
     def _minimum_disk_cover(self, term_coords: np.ndarray, R: float) -> Tuple[np.ndarray, list]:
-        """
-        Minimum Disk Cover with STRONG TREE-LIKE bias (outward growth from source).
+        """Select a greedy disk cover with ties biased toward the growing source tree.
 
-        1. Primary goal: minimize number of disks (classic greedy set-cover)
-        2. Tie-breaker: among candidates that cover the same max number of new terminals,
-           pick the one closest to the *current partial tree* (source + already selected disks).
-           This gives exactly the "source node outward + bias toward closest node" behavior you want.
+        The primary objective is to cover as many new terminals as possible per
+        disk; ties favor centers closest to the source and previously selected
+        centers. Debug mode can plot intermediate and final selections.
 
-        FULL DEBUG PLOTTING RESTORED:
-        - Plot after every selection/jiggle so you can watch the candidate selection happen step-by-step.
-        - All original debug plots (Before / Filtered / FINAL) are kept.
-        - Your improved _jiggle_disk_center (with revert-if-no-coverage-gain) is still used.
+        Args:
+            term_coords: Terminal coordinates to cover.
+            R: Coverage radius in meters.
+
+        Returns:
+            The selected center coordinates and their generated names.
+
+        Raises:
+            ValueError: If no candidate centers are generated or pass filtering,
+                or if no centers are selected.
         """
         if len(term_coords) == 0:
             return np.empty((0, 2), dtype=float)
@@ -436,23 +498,16 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return disk_center_pole_coords, disk_center_names
 
     def _two_circle_centers(self, p1: np.ndarray, p2: np.ndarray, R: float) -> List[np.ndarray]:
-        """
-        Computes the centers of two possible circles that have a given radius and pass
-        through two points on the Earth's surface. The calculation assumes a spherical
-        Earth and uses the Haversine formula to measure distances.
+        """Find radius-R circle centers passing through two geographic points.
 
         Args:
-            p1 (np.ndarray): A 2D point (latitude, longitude) on the Earth's surface.
-            p2 (np.ndarray): A 2D point (latitude, longitude) on the Earth's surface.
-            R (float): The radius of the circle in meters.
+            p1: First latitude-longitude coordinate.
+            p2: Second latitude-longitude coordinate.
+            R: Circle radius in meters.
 
         Returns:
-            List[np.ndarray]: A list of two 2D points (latitude, longitude) representing
-            the centers of the possible circles. If the two points cannot define two
-            intersection circles with the given radius, an empty list is returned.
-
-        Raises:
-            ValueError: If the input points are invalid.
+            The two possible center coordinates, or an empty list if no solution
+            exists.
         """
         p1 = np.asarray(p1, dtype=float)
         p2 = np.asarray(p2, dtype=float)
@@ -503,9 +558,17 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             num_points: int = 5,
             angle_spread_deg: float = 25.0
     ) -> List[np.ndarray]:
-        """
-        Generate multiple points on the circumference of radius R around a terminal,
-        biased toward the source with a small angular spread.
+        """Generate radius-R points around a terminal biased toward a reference point.
+
+        Args:
+            terminal: Terminal latitude-longitude coordinate.
+            bias_point: Coordinate toward which points are biased.
+            R: Circumference radius in meters.
+            num_points: Number of points to generate.
+            angle_spread_deg: Total angular spread in degrees.
+
+        Returns:
+            Generated latitude-longitude coordinates.
         """
         points = []
         vec = bias_point - terminal
@@ -539,7 +602,16 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return points
 
     def _compute_coverage_mask(self, center: np.ndarray, term_coords: np.ndarray, R: float) -> np.ndarray:
-        """Return boolean mask of terminals covered by this single center."""
+        """Return the mask of terminals covered by a disk center.
+
+        Args:
+            center: Disk-center latitude-longitude coordinate.
+            term_coords: Terminal coordinates.
+            R: Coverage radius in meters.
+
+        Returns:
+            A boolean array indicating which terminals are within the radius.
+        """
         if len(term_coords) == 0:
             return np.array([], dtype=bool)
         dists = self.haversine_vec(center.reshape(1, 2), term_coords)
@@ -554,15 +626,22 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             max_steps: int = 8,
             step_size_m: float = 25.0
     ) -> np.ndarray:
-        """
-        Jiggle the selected disk center (after greedy choice) to potentially cover MORE terminals,
-        while STRICTLY respecting the min_pole_to_term distance to ALL terminals.
+        """Adjust a selected center if doing so strictly improves its coverage.
 
-        NEW BEHAVIOR (as requested): If the final jiggled position does **not** strictly increase
-        the number of terminals covered (considering only the still-uncovered terminals via the mask),
-        revert back to the original initial_center_ll.
+        The adjustment respects the minimum pole-to-terminal spacing; otherwise,
+        the original center is retained.
 
-        This prevents any regression in coverage caused by jiggling.
+        Args:
+            initial_center_ll: Initial center in latitude-longitude coordinates.
+            term_coords: Terminal coordinates.
+            R: Coverage radius in meters.
+            uncovered_mask: Optional mask restricting coverage counts to uncovered
+                terminals.
+            max_steps: Maximum number of adjustment steps.
+            step_size_m: Maximum movement per step in meters.
+
+        Returns:
+            The adjusted center if its coverage improves, otherwise the original.
         """
         if len(term_coords) == 0:
             return initial_center_ll.copy()
@@ -652,34 +731,18 @@ class DiskBasedSteinerSolver(CandidateGeneration):
                             terminal_cluster_centers,
                             added_candidates,
                             num_per_edge=2):
-        """
-        Generates a pool of candidate points based on provided coordinates, current edges, and
-        several predefined candidate types.
-
-        This method aims to build a composite pool of potential candidates by combining different
-        sets of candidate points (e.g., Fermat points, adaptive Fermat points, cluster centers).
-        The combined pool is then filtered based on specific constraints to ensure only valid
-        candidate points are included. Optionally, a debug visualization of the generated
-        candidate points can be displayed when debug mode is enabled.
+        """Combine and filter candidate coordinates from supported generators.
 
         Args:
-            coords (list): A list of coordinates representing the current points in the graph.
-            cur_edges (object): The current set of edges in the graph.
-            fermat_candidates (ndarray): An array of Fermat points to consider as candidates.
-            terminal_cluster_centers (ndarray): An array of cluster centers to consider as candidates.
-            added_candidates (ndarray): An array of coordinates corresponding to the previously
-                added candidates.
-            num_per_edge (int, optional): The number of intermediate candidates to generate per
-                edge. Default is 2.
+            coords: Coordinates of current graph nodes.
+            cur_edges: Current graph edges.
+            fermat_candidates: Fermat-point candidates.
+            terminal_cluster_centers: Cluster-center candidates.
+            added_candidates: Previously added candidate coordinates.
+            num_per_edge: Number of intermediate candidates requested per edge.
 
         Returns:
-            ndarray: A filtered array of candidate coordinates, suitable for further processing
-            or selection.
-
-        Raises:
-            None explicitly raised but downstream exceptions may occur depending on the validity
-            of the input data.
-
+            The filtered candidate coordinates.
         """
 
         n_terminals = len(self._terminal_indices) + 1  # +1 for source
@@ -740,8 +803,14 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return candidates
 
     def _distances_from_new_point(self, current_coords: np.ndarray, new_point: np.ndarray) -> np.ndarray:
-        """
-        Haversine distances from a new point (kept for completeness).
+        """Calculate distances from a new coordinate to existing coordinates.
+
+        Args:
+            current_coords: Existing latitude-longitude coordinates.
+            new_point: New latitude-longitude coordinate.
+
+        Returns:
+            A flattened array of haversine distances in meters.
         """
         new_point = np.array(new_point).reshape(1, 2)
         return self.haversine_vec(new_point, current_coords).flatten()
@@ -753,27 +822,16 @@ class DiskBasedSteinerSolver(CandidateGeneration):
             cand_dists: np.ndarray,
             new_point_idx: int
     ) -> nx.DiGraph:
-        """
-        Builds a directed graph by incorporating a new point into the network and updating connections between source, poles,
-        and terminals based on distance matrices and certain conditions. The graph represents a network for utility or
-        infrastructure systems.
+        """Build the directed candidate graph with an additional point.
 
         Args:
-            nodes (list): A list of node objects, where each node object must have the attributes index, name, type, lat,
-                and lng. The type attribute determines whether a node is a "pole" or "terminal".
-            base_dist_matrix (np.ndarray): A 2D square numpy array representing the base distance matrix between all points
-                before considering the new point.
-            cand_dists (np.ndarray): A 1D numpy array containing the distances from the new point to existing points in the
-                network, including the source.
-            new_point_idx (int): The index representing the new point being added to the network.
+            nodes: Node objects with index, name, type, latitude, and longitude.
+            base_dist_matrix: Distances between existing nodes.
+            cand_dists: Distances from the new point to existing nodes.
+            new_point_idx: Index of the new point in ``nodes``.
 
         Returns:
-            nx.DiGraph: A directed graph where nodes and directed edges represent the network structure. Each edge has
-                attributes such as weight, length, and voltage level based on the distances and network conditions.
-
-        Raises:
-            AttributeError: If input nodes lack required attributes like index, name, type, lat, or lng.
-            ValueError: If the provided distance matrices or new point index have invalid dimensions or values.
+            The graph with eligible source, pole, and terminal connections.
         """
         DG = nx.DiGraph()
 
@@ -840,24 +898,14 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return DG
 
     def greedy_steiner_for_backbone(self, disk_center_pole_coords, disk_center_names):
-        """
-        Optimize disk-center pole placement using a greedy iterative approach.
-
-        This method performs iterative optimization to connect disk-center poles
-        to an existing source node while minimizing the total cost. It follows a
-        greedy strategy to find and incorporate new candidates that improve the
-        current cost. The optimization stops when no further improvements can be
-        made or when the maximum iteration limit is reached.
+        """Greedily improve the source-and-pole backbone with Steiner candidates.
 
         Args:
-            disk_center_pole_coords (list[tuple[float, float]]): Coordinates of the central poles within disks, specified as a list of (x, y) tuples.
-            disk_center_names (list[str]): Names corresponding to the disk-center poles.
+            disk_center_pole_coords: Coordinates of disk-center poles.
+            disk_center_names: Names corresponding to the disk-center poles.
 
         Returns:
-            tuple:
-                - current_mst (networkx.Graph): The resulting minimum spanning tree connecting the source and optimized poles.
-                - current_coords (numpy.ndarray): Coordinates of the source and resulting poles.
-                - current_names (list[str]): Names corresponding to the source and resulting poles.
+            A tuple of the backbone MST, its node coordinates, and their names.
         """
         if self.request.debug >= 1:
             print("Step 2: Greedy iterative optimization over disk centers "
@@ -983,21 +1031,15 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return current_mst, current_coords, current_names  # ← now returns coords + names too
 
     def attach_terminals(self, backbone_coords, backbone_names):
-        """
-        Attaches terminal nodes to the closest backbone nodes in a given graph. The process ensures that
-        the backbone structure is prepared and adjusted before terminals are connected. Various steps
-        such as splitting long backbone edges, computing distances, and pruning unnecessary branches
-        are also executed during this process. The final graph contains the adjusted backbone and the attached
-        terminals.
+        """Attach each terminal to its closest node on the prepared backbone.
 
         Args:
-            backbone_coords (np.ndarray): Coordinates of the backbone nodes, with each entry being a
-                tuple or array representing latitude and longitude.
-            backbone_names (List[str]): List of names corresponding to the backbone nodes.
+            backbone_coords: Latitude-longitude coordinates of backbone nodes.
+            backbone_names: Names corresponding to the backbone nodes.
 
         Returns:
-            networkx.DiGraph: The updated directed graph with terminals attached to the backbone,
-            including adjustments made to the structure such as added intermediate poles and pruned branches.
+            The directed graph with terminals attached, long edges split, and
+            unnecessary pole branches pruned.
         """
         if self.request.debug >= 1:
             print(f"\nAttaching {len(self._terminal_indices)} terminals to closest backbone poles...")
@@ -1096,23 +1138,14 @@ class DiskBasedSteinerSolver(CandidateGeneration):
         return best_graph
 
     def _solve(self) -> Union[nx.Graph, nx.DiGraph]:
-        """
-        Computes and returns the Steiner tree solution based on the given input data.
-
-        This method implements a three-step process to solve the Steiner tree problem:
-        1. Computes a minimum disk cover for a given set of terminal coordinates to
-           reduce the problem complexity.
-        2. Applies a greedy Steiner tree algorithm to construct an initial approximation
-           of the tree structure.
-        3. Performs post-solve gradient descent optimization to improve the resulting
-           tree's configuration.
+        """Build a disk-cover Steiner solution and optimize its directed tree.
 
         Raises:
-            ValueError: If no terminals were provided in the input coordinates.
+            ValueError: If the input contains no terminals, or if disk cover
+                generation cannot produce valid centers.
 
         Returns:
-            nx.DiGraph: A directed graph object representing the optimized Steiner tree
-            with information such as edge lengths and node types.
+            The optimized directed Steiner tree.
         """
         coords = self._coords
         term_indices = self._terminal_indices
