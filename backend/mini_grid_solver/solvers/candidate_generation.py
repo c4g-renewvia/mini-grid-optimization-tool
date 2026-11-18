@@ -8,6 +8,12 @@ from .base_mini_grid_solver import BaseMiniGridSolver
 
 
 class CandidateGeneration(BaseMiniGridSolver):
+    """Provide shared geometric candidate generators for Steiner solvers.
+
+    The helpers create candidate pole coordinates from edges, clusters,
+    proximities, and triangle geometry, then filter candidates against the
+    current network and configured constraints.
+    """
 
     @staticmethod
     def fermat_torricelli_point(pts: np.ndarray) -> np.ndarray:

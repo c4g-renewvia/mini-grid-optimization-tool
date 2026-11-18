@@ -7,23 +7,31 @@ poleToTerminalMaxLength: float
 
 
 class LengthConstraintsBase(BaseModel):
+    """Pole spacing limits, in meters, for one voltage level."""
+
     poleToPoleMaxLength: float = 30.0
     poleToTerminalMaxLength: float = 20.0
     poleToTerminalMinLength: float = 5.0
 
 
 class LengthConstraints(BaseModel):
+    """Separate pole spacing limits for low- and high-voltage connections."""
+
     low: LengthConstraintsBase
     high: LengthConstraintsBase
 
 
 class Costs(BaseModel):
+    """Unit costs used when estimating poles and low- and high-voltage wire."""
+
     poleCost: float = 1000.0
     lowVoltageCostPerMeter: float = 30.0
     highVoltageCostPerMeter: float = 50.0
 
 
 class SolverInputParams(BaseModel):
+    """Describe one configurable solver parameter for the frontend."""
+
     name: str
     type: Literal["int", "float", "bool", "str", "list"]
     default: Union[str, float]
@@ -34,6 +42,8 @@ class SolverInputParams(BaseModel):
 
 
 class Solver(BaseModel):
+    """Expose a registered solver and the parameters it accepts."""
+
     name: str
     params: List[SolverInputParams]
 
@@ -63,6 +73,8 @@ def get_node_coord_tuple(node: Node) -> Tuple[float, float]:
     return node.lat, node.lng
 
 class Edge(BaseModel):
+    """Represent a network connection and its measured length and voltage."""
+
     start: Node
     end: Node
     lengthMeters: float
@@ -70,13 +82,19 @@ class Edge(BaseModel):
 
 
 class SolverRequest(BaseModel):
-    """Pydantic model for incoming optimization request from frontend.
+    """Input payload describing a mini-grid layout and the solve configuration.
 
     Args:
-        points: List of dicts with 'lat', 'lng', and optional 'name'.
-        costs: Dict with poleCost, lowVoltageCostPerMeter, highVoltageCostPerMeter.
-        lengthConstraints: {'low':
-        debug: Optional flag to enable debug output.
+        solver: Registered solver class name to run.
+        params: Solver-specific options.
+        nodes: Source, terminal, and any existing pole or informational nodes.
+        edges: Existing connections to use when supported by the selected solver.
+        voltageLevel: Voltage level used for edge constraints and wire costs.
+        lengthConstraints: Per-voltage limits for pole-to-pole and
+            pole-to-terminal spans.
+        costs: Pole and voltage-specific wire costs.
+        usePoles: Whether the requested solution may use poles.
+        debug: Debug verbosity level; zero disables debug output.
     """
     solver: str = "SimpleMSTSolver"
     params: Dict[str, Any] = {}
@@ -90,6 +108,8 @@ class SolverRequest(BaseModel):
 
 
 class SolverResult(BaseModel):
+    """Return the solved network together with length and cost summaries."""
+
     edges: List[Edge]
     nodes: List[Node]
     totalLowVoltageMeters: float = 0.0

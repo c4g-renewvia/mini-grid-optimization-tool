@@ -15,8 +15,13 @@ METERS_PER_DEG_LAT = 111111.0
 @register_solver
 class TheoreticalBoundSteinerSolver(CandidateGeneration):
     """
-    Implements the strictly bounded O(1) approximation algorithm for the BLT-STP.
-    Modularized into distinct algorithmic phases mapping to the theoretical proof.
+    Construct a bounded-approximation network using terminal clusters and a backbone.
+
+    The algorithm first greedily groups terminals around anchor terminals, subject
+    to a maximum anchor radius and a bound on the cluster's minimum star cost.
+    It connects one pole per cluster to its terminals, joins those poles to the
+    source with a minimum spanning tree, then splits overlong edges to satisfy
+    the solver's length constraints.
     """
 
     def __init__(self, request: SolverRequest):
@@ -107,7 +112,13 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
 
     def _generate_greedy_clusters(self, coords: np.ndarray, term_indices: List[int], R: float) -> List[
         Tuple[np.ndarray, List[int]]]:
-        """Grow nearest-first terminal clusters subject to radius and star-cost bounds.
+        """Greedily form terminal clusters using radius and minimum-star bounds.
+
+        Each cluster starts at the lowest-index unassigned terminal. Remaining
+        terminals are considered nearest-first and admitted only while they are
+        within ``R`` of that anchor and the cluster's minimum possible star
+        length does not exceed ``_pole_cost_beta``. The first candidate that
+        violates either bound is left for a subsequent cluster.
 
         Args:
             coords: Coordinates indexed by the solver's node indices.
@@ -115,7 +126,7 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
             R: Maximum cluster radius in meters.
 
         Returns:
-            Clusters represented by each center coordinate and its terminal indices.
+            Clusters as ``(anchor coordinate, terminal indices)`` pairs.
         """
         remaining_term_indices = set(term_indices)
         disk_center_clusters = []
@@ -184,7 +195,11 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
                           coords: np.ndarray,
                           term_indices: List[int],
                           source_idx: int) -> Tuple[nx.DiGraph, List[int]]:
-        """Create disk-center poles and connect each to its clustered terminals.
+        """Create one pole per cluster and connect it outward to its terminals.
+
+        Each pole is placed at its cluster's anchor coordinate, so the anchor
+        terminal may have a zero-length edge. The source and all terminals are
+        also included as graph nodes; backbone edges are added separately.
 
         Args:
             disk_center_clusters: Center coordinates paired with their terminal indices.
@@ -237,7 +252,11 @@ class TheoreticalBoundSteinerSolver(CandidateGeneration):
 
     def _connect_backbone(self, best_graph: nx.DiGraph, disk_center_pole_node_ids: List[int], coords: np.ndarray,
                           source_idx: int) -> nx.DiGraph:
-        """Connect the source and disk-center poles with an outward-directed MST.
+        """Join the source and cluster poles with an outward-directed MST.
+
+        A complete weighted graph over the source and cluster poles is reduced
+        to a minimum spanning tree. Its edges are then oriented away from the
+        source, yielding a rooted backbone for the terminal stars.
 
         Args:
             best_graph: Graph containing the source and disk-center poles.
